@@ -2771,19 +2771,18 @@
               const firstBufferStart = audio.buffered.start(0);
               const firstBufferEnd = audio.buffered.end(0);
               // CRÍTICO: El buffer DEBE empezar desde 0 y cubrir TODO el audio (100%)
-              // Usar >= para tolerar pequeñas diferencias de precisión
-              hasCompleteBufferFromStart = firstBufferStart === 0 && 
+              hasCompleteBufferFromStart = firstBufferStart === 0 &&
                                           firstBufferEnd > 0 &&
-                                          firstBufferEnd >= (audio.duration * 0.99); // 99% mínimo (tolerancia)
+                                          firstBufferEnd >= audio.duration; // 100% completo - sin tolerancia
             }
             
             // Verificar también seekable (más confiable que buffered)
             if (audio.seekable.length > 0 && hasValidDuration) {
               const firstSeekableStart = audio.seekable.start(0);
               const firstSeekableEnd = audio.seekable.end(0);
-              hasSeekableRange = firstSeekableStart === 0 && 
+              hasSeekableRange = firstSeekableStart === 0 &&
                                 firstSeekableEnd > 0 &&
-                                firstSeekableEnd >= (audio.duration * 0.99);
+                                firstSeekableEnd >= audio.duration; // 100% completo
               
               console.log('🔍 [DEBUG] Seekable check:', {
                 start: firstSeekableStart,
@@ -2823,84 +2822,26 @@
                 const latency = Date.now() - this.activeCall.pickupTime;
                 console.log(`⏱️ [LATENCIA] Tiempo desde descuelgue hasta inicio del saludo: ${latency}ms`);
               }
-              
-              // CRÍTICO: Esperar un momento adicional para que el buffer se estabilice completamente
+
+              // SOLUCIÓN: Esperar 1 segundo completo para que el buffer se estabilice
               setTimeout(() => {
                 if (hasStartedPlaying) return;
-                
-                // Establecer currentTime = 0 MÚLTIPLES veces antes de reproducir
+                hasStartedPlaying = true;
+
+                // Una sola asignación de currentTime al inicio
                 audio.currentTime = 0;
-                
-                // Verificar que currentTime sea 0
-                if (audio.currentTime !== 0) {
-                  console.warn('⚠️ [CLIENTE] currentTime no es 0 después de establecer, forzando...');
-                  audio.currentTime = 0;
-                }
-                
-                // Esperar un frame más para asegurar que el navegador procesó el cambio
-                requestAnimationFrame(() => {
-                  if (hasStartedPlaying) return;
-                  
-                  // Verificar una vez más que currentTime sea 0
-                  if (audio.currentTime !== 0) {
-                    console.warn('⚠️ [CLIENTE] currentTime aún no es 0, forzando nuevamente...');
-                    audio.currentTime = 0;
-                  }
-                  
-                  // Un último frame para estar seguros
-                  requestAnimationFrame(() => {
-                    if (hasStartedPlaying) return;
-                    
-                    // Verificación final de currentTime
-                    if (audio.currentTime !== 0) {
-                      console.warn('⚠️ [CLIENTE] currentTime final no es 0, forzando...');
-                      audio.currentTime = 0;
-                    }
-                    
-                    if (!hasStartedPlaying) {
-                      console.log('✅ [CLIENTE] Saludo COMPLETAMENTE listo (buffer 100%), reproduciendo desde currentTime=0...');
-                      console.log('🔍 [DEBUG] currentTime antes de play():', audio.currentTime);
-                      hasStartedPlaying = true;
-                      
-                      // ESTRATEGIA ROBUSTA: Reproducir y verificar inmediatamente
-                      const startPlayback = () => {
-                        // Asegurar currentTime = 0 una vez más justo antes de reproducir
-                        audio.currentTime = 0;
-                        
-                        audio.play().then(() => {
-                          // Verificar currentTime inmediatamente después de play()
-                          // Usar setTimeout para dar tiempo al navegador de procesar
-                          setTimeout(() => {
-                            if (audio.currentTime > 0.1) { // Tolerancia de 100ms
-                              console.error('❌ [CLIENTE] ERROR: Audio comenzó en', audio.currentTime, 'segundos, reiniciando...');
-                              audio.pause();
-                              audio.currentTime = 0;
-                              
-                              // Esperar un momento y volver a intentar
-                              setTimeout(() => {
-                                audio.currentTime = 0;
-                                audio.play().then(() => {
-                                  setTimeout(() => {
-                                    if (audio.currentTime > 0.1) {
-                                      console.error('❌ [CLIENTE] ERROR PERSISTENTE: Audio aún no comienza desde 0');
-                                    } else {
-                                      console.log('✅ [CLIENTE] Audio corregido, comenzando desde 0');
-                                    }
-                                  }, 50);
-                                }).catch(e => console.error('❌ Error en segundo intento:', e));
-                              }, 100);
-                            } else {
-                              console.log('✅ [CLIENTE] Audio confirmado comenzando desde currentTime:', audio.currentTime);
-                            }
-                          }, 50); // Verificar después de 50ms
-                        }).catch(e => console.error('❌ Error reproduciendo saludo:', e));
-                      };
-                      
-                      startPlayback();
-                    }
-                  });
-                });
-              }, 200); // Delay adicional de 200ms después de verificar buffer completo
+
+                console.log('✅ [CLIENTE] Saludo COMPLETAMENTE listo (buffer 100%), reproduciendo...');
+                console.log('🔍 [DEBUG] currentTime antes de play():', audio.currentTime);
+
+                // Reproducir directamente sin verificaciones post-play
+                audio.play()
+                  .then(() => {
+                    console.log('✅ [CLIENTE] Audio iniciado correctamente desde el principio');
+                  })
+                  .catch(e => console.error('❌ Error reproduciendo saludo:', e));
+
+              }, 1000); // 1 segundo de delay para estabilizar buffer completamente
             }
           };
           
@@ -2998,31 +2939,12 @@
         
         audio.onplay = () => {
           console.log(`▶️ [CLIENTE] Audio iniciado, velocidad: ${audio.playbackRate}x`);
-          // Verificar velocidad calmada al iniciar reproducción
+          // Verificar velocidad calmada al iniciar reproducción (solo una vez, sin intervalos)
           if (audio.playbackRate !== 0.92) {
             console.warn('⚠️ [CLIENTE] Velocidad incorrecta al iniciar, corrigiendo a 0.92x...');
             audio.playbackRate = 0.92;
           }
-          
-          // CRÍTICO: Monitorear y forzar playbackRate calmado constantemente durante reproducción
-          const forcePlaybackRate = setInterval(() => {
-            if (audio && !audio.paused && audio.playbackRate !== 0.92) {
-              console.warn('⚠️ [CLIENTE] Velocidad cambiada durante reproducción, forzando 0.92x...');
-              try {
-                audio.playbackRate = 0.92;
-              } catch (e) {
-                console.error('❌ Error forzando playbackRate:', e);
-              }
-            }
-            // Limpiar intervalo cuando termine la reproducción
-            if (audio.ended || audio.paused) {
-              clearInterval(forcePlaybackRate);
-            }
-          }, 100); // Verificar cada 100ms
-          
-          // Limpiar intervalo cuando termine
-          audio.addEventListener('ended', () => clearInterval(forcePlaybackRate), { once: true });
-          audio.addEventListener('pause', () => clearInterval(forcePlaybackRate), { once: true });
+          // NO usar intervalos para forzar playbackRate - causa glitches de audio
         };
         
         audio.onended = () => {
@@ -3042,12 +2964,12 @@
           
           // Si es el saludo, iniciar grabación después de un delay
           if (audio._isWelcome) {
-            console.log('👋 [CLIENTE] Saludo terminado, iniciando grabación en 300ms...');
+            console.log('👋 [CLIENTE] Saludo terminado, iniciando grabación en 500ms...');
             setTimeout(() => {
               if (this.activeCall && this.activeCall.startNewRecording && !this.isSpeaking) {
                 this.activeCall.startNewRecording();
               }
-            }, 300); // Delay mínimo solo para el saludo
+            }, 500); // 500ms de margen después del saludo
           } else {
             // CRÍTICO: Esperar tiempo mínimo antes de reiniciar grabación para evitar eco
             // Reiniciar grabación SOLO después de que Sandra termine completamente de hablar
