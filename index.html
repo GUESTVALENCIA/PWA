@@ -2740,109 +2740,42 @@
         const byteArray = new Uint8Array(byteNumbers);
         const blob = new Blob([byteArray], { type: mimeType });
         const blobUrl = URL.createObjectURL(blob);
-        
+
         // Usar Blob URL en lugar de data URI
         const audio = new Audio(blobUrl);
-        
+
         // Guardar flag isWelcome y blobUrl en el elemento audio para acceso en callbacks
         audio._isWelcome = isWelcome;
-        audio._blobUrl = blobUrl; // Guardar para revocar después de la reproducción
-        
-        // FORZAR velocidad calmada (0.92x) para tono relajado pero natural
-        audio.playbackRate = 0.92;
-        audio.defaultPlaybackRate = 0.92;
-        
-        // Si es el saludo, esperar a que el audio esté COMPLETAMENTE cargado antes de reproducir
+        audio._blobUrl = blobUrl;
+
+        // Si es el saludo, reproducir de forma simple y directa
         if (isWelcome) {
           console.log('👋 [CLIENTE] Cargando saludo inicial...');
-          audio.preload = 'auto';
 
-          // Prevenir reproducción duplicada
-          let hasStartedPlaying = false;
-
-          // ESTRATEGIA SIMPLIFICADA: Esperar canplaythrough + delay fijo
-          const playWelcome = () => {
-            if (hasStartedPlaying) return;
-            hasStartedPlaying = true;
-
-            console.log('✅ [CLIENTE] Audio listo, esperando 1.5s para estabilizar buffer...');
-
-            // MEDIR LATENCIA
-            if (this.activeCall && this.activeCall.pickupTime) {
-              const latency = Date.now() - this.activeCall.pickupTime;
-              console.log(`⏱️ [LATENCIA] Tiempo hasta buffer listo: ${latency}ms`);
-            }
-
-            // Delay fijo de 1.5 segundos para asegurar buffer completo
-            setTimeout(() => {
-              // Forzar posición al inicio UNA SOLA VEZ, justo antes de play
-              audio.currentTime = 0;
-
-              // Pequeño delay adicional para que el seek se complete
-              setTimeout(() => {
-                console.log('▶️ [CLIENTE] Reproduciendo saludo desde currentTime:', audio.currentTime);
-                audio.play()
-                  .then(() => console.log('✅ [CLIENTE] Saludo iniciado'))
-                  .catch(e => console.error('❌ Error:', e));
-              }, 100);
-
-            }, 1500);
-          };
-
-          // Esperar a que el audio esté listo para reproducir sin interrupciones
-          audio.addEventListener('canplaythrough', playWelcome, { once: true });
-
-          // Timeout de seguridad (10 segundos)
-          setTimeout(() => {
-            if (!hasStartedPlaying) {
-              console.warn('⏰ [CLIENTE] Timeout de seguridad, forzando reproducción');
-              playWelcome();
-            }
-          }, 10000);
+          // Evento cuando el audio está listo
+          audio.addEventListener('canplaythrough', () => {
+            console.log('✅ [CLIENTE] Audio listo, reproduciendo...');
+            audio.play()
+              .then(() => console.log('✅ [CLIENTE] Saludo iniciado'))
+              .catch(e => console.error('❌ Error:', e));
+          }, { once: true });
 
           // Forzar carga
           audio.load();
         }
-        
-        audio.onloadedmetadata = () => {
-          console.log(`📊 [CLIENTE] Audio cargado: duración ${audio.duration.toFixed(2)}s, velocidad actual ${audio.playbackRate}x`);
-          // Verificar y forzar velocidad calmada después de cargar
-          if (audio.playbackRate !== 0.92) {
-            console.warn('⚠️ [CLIENTE] Velocidad incorrecta detectada, corrigiendo a 0.92x...');
-            audio.playbackRate = 0.92;
-          }
-        };
-        
-        // Interceptar cualquier cambio de velocidad
-        const originalSetPlaybackRate = Object.getOwnPropertyDescriptor(HTMLAudioElement.prototype, 'playbackRate')?.set;
-        if (originalSetPlaybackRate) {
-          Object.defineProperty(audio, 'playbackRate', {
-            get: () => 0.92,
-            set: (value) => {
-              console.warn('⚠️ Intento de cambiar playbackRate a', value, '- ignorado, forzando 0.92');
-            },
-            configurable: true
-          });
-        }
-        
-        this.currentAudio = audio; // Guardar referencia para poder detenerlo
-        
+
+        this.currentAudio = audio;
+
         // Si NO es el saludo, reproducir inmediatamente
         if (!isWelcome) {
-          console.log('▶️ [CLIENTE] Reproduciendo audio de Sandra (velocidad calmada: 0.92x, formato: MP3)...');
+          console.log('▶️ [CLIENTE] Reproduciendo audio de Sandra...');
           audio.play().catch(e => console.error('Error reproduciendo audio:', e));
         }
-        
+
         audio.onplay = () => {
-          console.log(`▶️ [CLIENTE] Audio iniciado, velocidad: ${audio.playbackRate}x`);
-          // Verificar velocidad calmada al iniciar reproducción (solo una vez, sin intervalos)
-          if (audio.playbackRate !== 0.92) {
-            console.warn('⚠️ [CLIENTE] Velocidad incorrecta al iniciar, corrigiendo a 0.92x...');
-            audio.playbackRate = 0.92;
-          }
-          // NO usar intervalos para forzar playbackRate - causa glitches de audio
+          console.log('▶️ [CLIENTE] Audio iniciado');
         };
-        
+
         audio.onended = () => {
           console.log('✅ [CLIENTE] Audio de Sandra finalizado completamente');
           this.isSpeaking = false;
