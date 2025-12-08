@@ -2687,11 +2687,12 @@
             if (!this.isSpeaking) {
               this.isSpeaking = true;
               console.log('▶️ [CLIENTE] Reproduciendo audio de Sandra...');
-              this.playAudioResponse(data.audio, data.isWelcome || false);
+              console.log('🔍 [DEBUG] Formato del audio:', data.format || 'mp3');
+              this.playAudioResponse(data.audio, data.isWelcome || false, data.format || 'mp3');
             } else {
-              // Si ya está hablando, encolar
+              // Si ya está hablando, encolar con formato
               console.log('📋 [CLIENTE] Audio encolado (Sandra ya está hablando)');
-              this.audioQueue.push(data.audio);
+              this.audioQueue.push({ audio: data.audio, format: data.format || 'mp3' });
             }
           } else if (data.type === 'noSpeech') {
             // No se entendió el audio - no es un error, solo informar al usuario
@@ -2714,7 +2715,7 @@
         console.log('✅ WebSocket configurado completamente');
       }
 
-      playAudioResponse(audioBase64, isWelcome = false) {
+      playAudioResponse(audioBase64, isWelcome = false, format = 'mp3') {
         // Si es el saludo inicial, NO detener audio anterior (no debería haber)
         if (!isWelcome && this.currentAudio) {
           this.currentAudio.pause();
@@ -2724,7 +2725,11 @@
           }
           this.currentAudio = null;
         }
-        
+
+        // Determinar el tipo MIME según el formato
+        const mimeType = format === 'wav' ? 'audio/wav' : 'audio/mp3';
+        console.log('🎵 [CLIENTE] Creando Blob con formato:', format, 'MIME:', mimeType);
+
         // SOLUCIÓN OFICIAL: Convertir base64 a Blob y usar Blob URL en lugar de data URI
         // Esto asegura que el navegador trate el audio como archivo completo y lo bufferice correctamente
         const byteCharacters = atob(audioBase64);
@@ -2733,7 +2738,7 @@
           byteNumbers[i] = byteCharacters.charCodeAt(i);
         }
         const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: 'audio/mp3' });
+        const blob = new Blob([byteArray], { type: mimeType });
         const blobUrl = URL.createObjectURL(blob);
         
         // Usar Blob URL en lugar de data URI
@@ -2883,9 +2888,14 @@
           
           // Reproducir siguiente audio en cola si existe
           if (this.audioQueue && this.audioQueue.length > 0) {
-            const nextAudio = this.audioQueue.shift();
+            const nextItem = this.audioQueue.shift();
             console.log('📋 [CLIENTE] Reproduciendo siguiente audio en cola');
-            this.playAudioResponse(nextAudio);
+            // Manejar tanto formato antiguo (string) como nuevo (objeto)
+            if (typeof nextItem === 'string') {
+              this.playAudioResponse(nextItem, false, 'mp3');
+            } else {
+              this.playAudioResponse(nextItem.audio, false, nextItem.format || 'mp3');
+            }
           }
         };
         

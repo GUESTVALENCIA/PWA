@@ -29,18 +29,27 @@ const wss = new WebSocket.Server({ port: 4041 });
 
 // PRE-GENERAR AUDIO DEL SALUDO (grabación) al iniciar el servidor
 let preGeneratedWelcomeAudio = null;
-// IMPORTANTE: Agregar "..." al inicio para compensar el encoder delay del MP3
-// Esto hace que Cartesia genere una pequeña pausa antes de "Hola"
-const WELCOME_MESSAGE = '... Hola, soy Sandra, bienvenido a GuestsValencia, ¿en qué puedo ayudarte hoy?';
+let welcomeAudioFormat = 'wav'; // Formato del audio pre-generado
+const WELCOME_MESSAGE = 'Hola, soy Sandra, bienvenido a GuestsValencia, ¿en qué puedo ayudarte hoy?';
 
 async function preGenerateWelcomeAudio() {
   try {
-    console.log('🎙️ [SERVIDOR] Pre-generando audio del saludo inicial (grabación)...');
-    preGeneratedWelcomeAudio = await generateTTS(WELCOME_MESSAGE);
-    console.log('✅ [SERVIDOR] Audio del saludo pre-generado y guardado en memoria');
+    console.log('🎙️ [SERVIDOR] Pre-generando audio del saludo en formato WAV (sin encoder delay)...');
+    preGeneratedWelcomeAudio = await generateTTSWav(WELCOME_MESSAGE);
+    welcomeAudioFormat = 'wav';
+    console.log('✅ [SERVIDOR] Audio WAV del saludo pre-generado y guardado en memoria');
   } catch (error) {
-    console.error('❌ [SERVIDOR] Error pre-generando saludo:', error);
-    console.log('⚠️ [SERVIDOR] El saludo se generará en tiempo real si es necesario');
+    console.error('❌ [SERVIDOR] Error pre-generando saludo WAV:', error);
+    // Fallback a MP3 si WAV falla
+    try {
+      console.log('⚠️ [SERVIDOR] Intentando con formato MP3 como fallback...');
+      preGeneratedWelcomeAudio = await generateTTS(WELCOME_MESSAGE);
+      welcomeAudioFormat = 'mp3';
+      console.log('✅ [SERVIDOR] Audio MP3 del saludo pre-generado (fallback)');
+    } catch (fallbackError) {
+      console.error('❌ [SERVIDOR] Error en fallback MP3:', fallbackError);
+      console.log('⚠️ [SERVIDOR] El saludo se generará en tiempo real si es necesario');
+    }
   }
 }
 
@@ -110,12 +119,14 @@ wss.on('connection', async (ws) => {
       
       console.log('🔍 [DEBUG] Tamaño del audio a enviar:', welcomeAudio ? welcomeAudio.length : 0, 'caracteres');
       
-      // Enviar saludo con flag isWelcome
+      // Enviar saludo con flag isWelcome y formato de audio
       const messageToSend = JSON.stringify({
         type: 'audio',
         audio: welcomeAudio,
-        isWelcome: true
+        isWelcome: true,
+        format: welcomeAudioFormat  // 'wav' o 'mp3'
       });
+      console.log('🔍 [DEBUG] Formato del audio:', welcomeAudioFormat);
       console.log('🔍 [DEBUG] Tamaño del mensaje JSON:', messageToSend.length, 'caracteres');
       
       ws.send(messageToSend);
@@ -770,6 +781,56 @@ function generateTTS(text) {
         }
         const audioBuffer = Buffer.concat(chunks);
         const audioBase64 = audioBuffer.toString('base64');
+        resolve(audioBase64);
+      });
+    });
+
+    req.on('error', reject);
+    req.write(postData);
+    req.end();
+  });
+}
+
+// Generar TTS en formato WAV (sin encoder delay) - Para el saludo inicial
+function generateTTSWav(text) {
+  return new Promise((resolve, reject) => {
+    const postData = JSON.stringify({
+      model_id: 'sonic-multilingual',
+      transcript: text,
+      voice: {
+        mode: 'id',
+        id: CARTESIA_VOICE_ID
+      },
+      output_format: {
+        container: 'wav',
+        sample_rate: 44100,
+        encoding: 'pcm_s16le'  // PCM 16-bit little-endian (estándar WAV)
+      }
+    });
+
+    const options = {
+      hostname: 'api.cartesia.ai',
+      path: '/tts/bytes',
+      method: 'POST',
+      headers: {
+        'Cartesia-Version': '2024-06-10',
+        'X-API-Key': CARTESIA_API_KEY,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData)
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      const chunks = [];
+      res.on('data', (chunk) => chunks.push(chunk));
+      res.on('end', () => {
+        if (res.statusCode !== 200) {
+          reject(new Error(`Cartesia WAV Error: ${res.statusCode}`));
+          return;
+        }
+        const audioBuffer = Buffer.concat(chunks);
+        const audioBase64 = audioBuffer.toString('base64');
+        console.log(`✅ [TTS] Audio WAV generado: ${audioBuffer.length} bytes`);
         resolve(audioBase64);
       });
     });
