@@ -2749,163 +2749,54 @@
         
         // Si es el saludo, esperar a que el audio esté COMPLETAMENTE cargado antes de reproducir
         if (isWelcome) {
-          console.log('👋 [CLIENTE] Cargando saludo inicial, esperando a que esté COMPLETAMENTE listo...');
+          console.log('👋 [CLIENTE] Cargando saludo inicial...');
           audio.preload = 'auto';
-          
+
           // Prevenir reproducción duplicada
           let hasStartedPlaying = false;
-          let playCheckInterval = null;
-          
-          const playWhenFullyReady = () => {
+
+          // ESTRATEGIA SIMPLIFICADA: Esperar canplaythrough + delay fijo
+          const playWelcome = () => {
             if (hasStartedPlaying) return;
-            
-            // CRÍTICO: Verificar que el buffer esté COMPLETO desde el inicio hasta el final
-            const hasEnoughData = audio.readyState === 4; // HAVE_ENOUGH_DATA
-            const hasValidDuration = audio.duration && audio.duration > 0 && isFinite(audio.duration);
-            
-            // Verificar que el buffer cubra TODO el audio desde 0 hasta el final
-            let hasCompleteBufferFromStart = false;
-            let hasSeekableRange = false;
-            
-            if (audio.buffered.length > 0 && hasValidDuration) {
-              const firstBufferStart = audio.buffered.start(0);
-              const firstBufferEnd = audio.buffered.end(0);
-              // CRÍTICO: El buffer DEBE empezar desde 0 y cubrir TODO el audio (100%)
-              hasCompleteBufferFromStart = firstBufferStart === 0 &&
-                                          firstBufferEnd > 0 &&
-                                          firstBufferEnd >= audio.duration; // 100% completo - sin tolerancia
-            }
-            
-            // Verificar también seekable (más confiable que buffered)
-            if (audio.seekable.length > 0 && hasValidDuration) {
-              const firstSeekableStart = audio.seekable.start(0);
-              const firstSeekableEnd = audio.seekable.end(0);
-              hasSeekableRange = firstSeekableStart === 0 &&
-                                firstSeekableEnd > 0 &&
-                                firstSeekableEnd >= audio.duration; // 100% completo
-              
-              console.log('🔍 [DEBUG] Seekable check:', {
-                start: firstSeekableStart,
-                end: firstSeekableEnd,
-                duration: audio.duration,
-                coverage: ((firstSeekableEnd / audio.duration) * 100).toFixed(1) + '%',
-                isComplete: hasSeekableRange
-              });
-            }
-            
-            if (audio.buffered.length > 0 && hasValidDuration) {
-              const firstBufferStart = audio.buffered.start(0);
-              const firstBufferEnd = audio.buffered.end(0);
-              console.log('🔍 [DEBUG] Buffer check:', {
-                start: firstBufferStart,
-                end: firstBufferEnd,
-                duration: audio.duration,
-                coverage: ((firstBufferEnd / audio.duration) * 100).toFixed(1) + '%',
-                readyState: audio.readyState,
-                isComplete: hasCompleteBufferFromStart,
-                seekableComplete: hasSeekableRange
-              });
-            }
-            
-            // Requerir que TANTO buffered COMO seekable estén completos
-            const isFullyReady = hasCompleteBufferFromStart && hasSeekableRange;
-            
-            if (hasEnoughData && hasValidDuration && isFullyReady) {
-              // Limpiar intervalo de verificación
-              if (playCheckInterval) {
-                clearInterval(playCheckInterval);
-                playCheckInterval = null;
-              }
-              
-              // MEDIR LATENCIA: Calcular tiempo desde descuelgue hasta inicio del saludo
-              if (this.activeCall && this.activeCall.pickupTime) {
-                const latency = Date.now() - this.activeCall.pickupTime;
-                console.log(`⏱️ [LATENCIA] Tiempo desde descuelgue hasta inicio del saludo: ${latency}ms`);
-              }
+            hasStartedPlaying = true;
 
-              // SOLUCIÓN: Esperar 1 segundo completo para que el buffer se estabilice
-              setTimeout(() => {
-                if (hasStartedPlaying) return;
-                hasStartedPlaying = true;
+            console.log('✅ [CLIENTE] Audio listo, esperando 1.5s para estabilizar buffer...');
 
-                // Una sola asignación de currentTime al inicio
-                audio.currentTime = 0;
+            // MEDIR LATENCIA
+            if (this.activeCall && this.activeCall.pickupTime) {
+              const latency = Date.now() - this.activeCall.pickupTime;
+              console.log(`⏱️ [LATENCIA] Tiempo hasta buffer listo: ${latency}ms`);
+            }
 
-                console.log('✅ [CLIENTE] Saludo COMPLETAMENTE listo (buffer 100%), reproduciendo...');
-                console.log('🔍 [DEBUG] currentTime antes de play():', audio.currentTime);
-
-                // Reproducir directamente sin verificaciones post-play
-                audio.play()
-                  .then(() => {
-                    console.log('✅ [CLIENTE] Audio iniciado correctamente desde el principio');
-                  })
-                  .catch(e => console.error('❌ Error reproduciendo saludo:', e));
-
-              }, 1000); // 1 segundo de delay para estabilizar buffer completamente
-            }
-          };
-          
-          // Escuchar loadeddata (primeros datos cargados)
-          audio.addEventListener('loadeddata', () => {
-            console.log('📥 [CLIENTE] Saludo loadeddata recibido, duración:', audio.duration);
-            audio.currentTime = 0;
-            // Verificar si ya está listo
-            playWhenFullyReady();
-          }, { once: true });
-          
-          // Escuchar canplaythrough (audio listo para reproducir sin cortes)
-          audio.addEventListener('canplaythrough', () => {
-            console.log('✅ [CLIENTE] Saludo canplaythrough recibido, verificando buffer completo...');
-            // Verificar buffer completo
-            playWhenFullyReady();
-          }, { once: true });
-          
-          // Escuchar loadedmetadata para obtener duración y asegurar currentTime=0
-          audio.addEventListener('loadedmetadata', () => {
-            console.log('📊 [CLIENTE] Saludo metadata cargada, duración:', audio.duration);
-            audio.currentTime = 0;
-          }, { once: true });
-          
-          // Escuchar progress para verificar que el buffer se está cargando
-          audio.addEventListener('progress', () => {
-            if (audio.buffered.length > 0 && audio.duration) {
-              const bufferedEnd = audio.buffered.end(0);
-              const bufferedPercent = (bufferedEnd / audio.duration * 100).toFixed(1);
-              console.log(`📥 [CLIENTE] Buffer cargando: ${bufferedPercent}%`);
-              
-              // Si el buffer está completo (99%+), verificar si está listo para reproducir
-              if (bufferedPercent >= 99) {
-                playWhenFullyReady();
-              }
-            }
-          });
-          
-          // Verificación periódica como respaldo (cada 200ms, menos agresivo)
-          playCheckInterval = setInterval(() => {
-            if (!hasStartedPlaying) {
-              playWhenFullyReady();
-            } else {
-              clearInterval(playCheckInterval);
-              playCheckInterval = null;
-            }
-          }, 200);
-          
-          // Forzar carga del audio
-          audio.load();
-          
-          // Timeout de seguridad (8 segundos máximo)
-          setTimeout(() => {
-            if (playCheckInterval) {
-              clearInterval(playCheckInterval);
-              playCheckInterval = null;
-            }
-            if (!hasStartedPlaying && audio.readyState >= 2) {
-              console.log('⏰ [CLIENTE] Timeout de seguridad: forzando reproducción');
+            // Delay fijo de 1.5 segundos para asegurar buffer completo
+            setTimeout(() => {
+              // Forzar posición al inicio UNA SOLA VEZ, justo antes de play
               audio.currentTime = 0;
-              hasStartedPlaying = true;
-              audio.play().catch(e => console.error('❌ Error reproduciendo saludo:', e));
+
+              // Pequeño delay adicional para que el seek se complete
+              setTimeout(() => {
+                console.log('▶️ [CLIENTE] Reproduciendo saludo desde currentTime:', audio.currentTime);
+                audio.play()
+                  .then(() => console.log('✅ [CLIENTE] Saludo iniciado'))
+                  .catch(e => console.error('❌ Error:', e));
+              }, 100);
+
+            }, 1500);
+          };
+
+          // Esperar a que el audio esté listo para reproducir sin interrupciones
+          audio.addEventListener('canplaythrough', playWelcome, { once: true });
+
+          // Timeout de seguridad (10 segundos)
+          setTimeout(() => {
+            if (!hasStartedPlaying) {
+              console.warn('⏰ [CLIENTE] Timeout de seguridad, forzando reproducción');
+              playWelcome();
             }
-          }, 8000);
+          }, 10000);
+
+          // Forzar carga
+          audio.load();
         }
         
         audio.onloadedmetadata = () => {
