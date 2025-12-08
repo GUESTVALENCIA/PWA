@@ -1,0 +1,105 @@
+{
+  "subagents": {
+    "github-repository": {
+      "id": "github-repository-agent",
+      "name": "GitHub Repository Agent",
+      "specialization": "Repositorios de GitHub",
+      "status": "ready",
+      "capabilities": [
+        "Análisis de estructura de repositorios",
+        "Gestión de branches y commits",
+        "Revisión de historial de Git",
+        "Análisis de archivos y estructura de proyecto",
+        "Gestión de issues y pull requests",
+        "Configuración de GitHub Actions",
+        "Gestión de secrets y variables de entorno en GitHub",
+        "Análisis de dependencias y package.json"
+      ],
+      "tools": [
+        "git",
+        "github-api",
+        "codebase-search",
+        "file-analysis"
+      ],
+      "activation_command": "activate github-repository"
+    },
+    "github-deploy": {
+      "id": "github-deploy-agent",
+      "name": "GitHub Deploy Agent",
+      "specialization": "Deploy desde GitHub",
+      "status": "ready",
+      "capabilities": [
+        "Configuración de GitHub Actions para CI/CD",
+        "Deploy automático desde branches",
+        "Gestión de workflows de deploy",
+        "Configuración de webhooks",
+        "Monitoreo de deployments",
+        "Rollback de deployments",
+        "Gestión de environments en GitHub",
+        "Integración con servicios de hosting"
+      ],
+      "tools": [
+        "github-actions",
+        "github-api",
+        "deployment-monitoring",
+        "workflow-management"
+      ],
+      "activation_command": "activate github-deploy"
+    },
+    "vercel-deploy": {
+      "id": "vercel-deploy-agent",
+      "name": "Vercel Deploy Agent",
+      "specialization": "Deploy de GitHub a Vercel y Vercel",
+      "status": "ready",
+      "capabilities": [
+        "Configuración de proyectos en Vercel",
+        "Deploy desde GitHub a Vercel",
+        "Gestión de variables de entorno en Vercel",
+        "Configuración de dominios y DNS",
+        "Monitoreo de deployments en Vercel",
+        "Gestión de serverless functions",
+        "Optimización de builds en Vercel",
+        "Configuración de preview deployments",
+        "Análisis de logs y errores de Vercel"
+      ],
+      "tools": [
+        "vercel-cli",
+        "vercel-api",
+        "github-integration",
+        "deployment-analysis"
+      ],
+      "activation_command": "activate vercel-deploy"
+    },
+    "repository-cleanup": {
+      "id": "repository-cleanup-agent",
+      "name": "Repository Cleanup Agent",
+      "specialization": "Limpieza y Organización de Repositorios",
+      "status": "ready",
+      "capabilities": [
+        "Identificación de archivos duplicados",
+        "Limpieza de archivos temporales y backups",
+        "Organización de estructura de carpetas",
+        "Eliminación de código muerto",
+        "Optimización de .gitignore",
+        "Limpieza de dependencias no utilizadas",
+        "Organización de documentación",
+        "Eliminación de archivos de configuración obsoletos",
+        "Optimización de tamaño del repositorio"
+      ],
+      "tools": [
+        "file-analysis",
+        "dependency-analysis",
+        "git-cleanup",
+        "structure-optimization"
+      ],
+      "activation_command": "activate repository-cleanup"
+    }
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "created": "2024-12-19",
+    "project": "guestsvalencia-site",
+    "main_agent": "Haiku"
+  }
+}
+
