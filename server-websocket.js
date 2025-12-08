@@ -29,7 +29,9 @@ const wss = new WebSocket.Server({ port: 4041 });
 
 // PRE-GENERAR AUDIO DEL SALUDO (grabación) al iniciar el servidor
 let preGeneratedWelcomeAudio = null;
-const WELCOME_MESSAGE = 'Hola, soy Sandra, bienvenido a GuestsValencia, ¿en qué puedo ayudarte hoy?';
+// IMPORTANTE: Agregar "..." al inicio para compensar el encoder delay del MP3
+// Esto hace que Cartesia genere una pequeña pausa antes de "Hola"
+const WELCOME_MESSAGE = '... Hola, soy Sandra, bienvenido a GuestsValencia, ¿en qué puedo ayudarte hoy?';
 
 async function preGenerateWelcomeAudio() {
   try {
