@@ -132,18 +132,16 @@ wss.on('connection', async (ws) => {
     try {
       const data = JSON.parse(message);
       
-      // Si el cliente notifica que está listo, enviar el saludo con delay de 1 segundo
+      // Si el cliente notifica que está listo, enviar el saludo INMEDIATAMENTE
+      // (el audio está pre-generado, no hay latencia de API)
       if (data.type === 'ready') {
         console.log('✅ [SERVIDOR] Cliente notificó que está completamente listo');
         clientReady = true;
-        
-        // CRÍTICO: Delay de 1 segundo antes de enviar saludo (para que no parezca falso)
-        console.log('⏱️ [SERVIDOR] Esperando 1 segundo antes de enviar saludo...');
-        welcomeTimeout = setTimeout(async () => {
-          welcomeTimeout = null; // Limpiar timeout antes de enviar
-          await sendWelcomeMessage();
-        }, 1000); // 1 segundo de delay
-        
+
+        // Enviar saludo inmediatamente (el delay de buffering está en el cliente)
+        console.log('📤 [SERVIDOR] Enviando saludo inmediatamente (audio pre-generado)...');
+        await sendWelcomeMessage();
+
         return;
       }
       
