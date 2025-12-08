@@ -12,16 +12,16 @@ const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY || ''; // Para STT
 const CARTESIA_API_KEY = process.env.CARTESIA_API_KEY;
 const CARTESIA_VOICE_ID = process.env.CARTESIA_VOICE_ID;
 
-// Reglas conversacionales
+// Reglas conversacionales para LLAMADA DE VOZ EN TIEMPO REAL
 const GLOBAL_CONVERSATION_RULES = `
-REGLAS CONVERSACIONALES GLOBALES (Sandra IA 8.0 Pro):
-- Responde SIEMPRE en español neutro, con buena ortografía y gramática.
-- Usa párrafos cortos y bien separados.
-- Actúa como una experta en Hospitalidad y Turismo para Guests Valencia.
-- Si te preguntan por disponibilidad, ofrece revisar datos en tiempo real.
-- Brevedad estricta: máximo 4 frases salvo que se pida detalle.
-- Role: luxury (Concierge)
-- IMPORTANTE: Sandra SÍ puede realizar llamadas de voz conversacionales en tiempo real. Cuando un usuario solicite "llamada de voz", "llamada conversacional" o "hablar contigo", debes ofrecerle amablemente esta opción. NO es una videollamada, es una llamada de voz en tiempo real con audio bidireccional. NUNCA digas que no puedes hacer llamadas de voz.
+REGLAS PARA LLAMADA DE VOZ EN TIEMPO REAL (Sandra IA):
+- ESTÁS EN UNA LLAMADA DE VOZ EN TIEMPO REAL. El usuario ya está hablando contigo por voz.
+- NO ofrezcas iniciar llamadas - YA ESTÁS EN UNA LLAMADA.
+- Responde de forma natural y conversacional, como si hablaras por teléfono.
+- Respuestas CORTAS: máximo 2-3 frases. Es una conversación hablada, no escrita.
+- Español neutro, tono profesional pero cálido.
+- Eres Sandra, concierge de lujo para Guests Valencia.
+- Si preguntan por disponibilidad, ofrece revisar datos.
 `;
 
 // Crear servidor WebSocket
@@ -29,27 +29,18 @@ const wss = new WebSocket.Server({ port: 4041 });
 
 // PRE-GENERAR AUDIO DEL SALUDO (grabación) al iniciar el servidor
 let preGeneratedWelcomeAudio = null;
-let welcomeAudioFormat = 'wav'; // Formato del audio pre-generado
-const WELCOME_MESSAGE = 'Hola, soy Sandra, bienvenido a GuestsValencia, ¿en qué puedo ayudarte hoy?';
+let welcomeAudioFormat = 'mp3';
+// SOLUCIÓN: Agregar pausa larga al inicio para compensar cualquier corte
+const WELCOME_MESSAGE = '... ... ... Hola, soy Sandra, bienvenido a GuestsValencia, ¿en qué puedo ayudarte hoy?';
 
 async function preGenerateWelcomeAudio() {
   try {
-    console.log('🎙️ [SERVIDOR] Pre-generando audio del saludo en formato WAV (sin encoder delay)...');
-    preGeneratedWelcomeAudio = await generateTTSWav(WELCOME_MESSAGE);
-    welcomeAudioFormat = 'wav';
-    console.log('✅ [SERVIDOR] Audio WAV del saludo pre-generado y guardado en memoria');
+    console.log('🎙️ [SERVIDOR] Pre-generando audio del saludo con pausa inicial...');
+    preGeneratedWelcomeAudio = await generateTTS(WELCOME_MESSAGE);
+    welcomeAudioFormat = 'mp3';
+    console.log('✅ [SERVIDOR] Audio del saludo pre-generado');
   } catch (error) {
-    console.error('❌ [SERVIDOR] Error pre-generando saludo WAV:', error);
-    // Fallback a MP3 si WAV falla
-    try {
-      console.log('⚠️ [SERVIDOR] Intentando con formato MP3 como fallback...');
-      preGeneratedWelcomeAudio = await generateTTS(WELCOME_MESSAGE);
-      welcomeAudioFormat = 'mp3';
-      console.log('✅ [SERVIDOR] Audio MP3 del saludo pre-generado (fallback)');
-    } catch (fallbackError) {
-      console.error('❌ [SERVIDOR] Error en fallback MP3:', fallbackError);
-      console.log('⚠️ [SERVIDOR] El saludo se generará en tiempo real si es necesario');
-    }
+    console.error('❌ [SERVIDOR] Error pre-generando saludo:', error);
   }
 }
 
