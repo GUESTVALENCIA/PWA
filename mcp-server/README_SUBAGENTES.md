@@ -5,6 +5,7 @@
 Sistema de activación automática de subagentes especializados que escucha en tiempo real eventos de texto y audio, detecta triggers específicos y activa automáticamente los subagentes correspondientes.
 
 **Este sistema está activado y en escucha pasiva en todos los repositorios MCP**, incluyendo:
+
 - `GuestsValencia-Site`
 - `GuestsValencia-PWA`
 - `MCP-SANDRA`
@@ -16,7 +17,9 @@ Sistema de activación automática de subagentes especializados que escucha en t
 Los subagentes pueden activarse de dos formas:
 
 #### 1. Por comandos de texto
+
 Se activa al detectar expresiones como:
+
 - "hay problemas con el index"
 - "problemas de deploy"
 - "cuello de botella en Vercel"
@@ -25,6 +28,7 @@ Se activa al detectar expresiones como:
 - "errores constantes en el widget"
 
 #### 2. Por comandos de voz
+
 Gracias a la multimodalidad de Sandra, se analiza la transcripción de voz mediante STT (Speech-To-Text) integrada con Deepgram, y se detectan las mismas frases de activación.
 
 ### Acciones Automáticas
@@ -42,7 +46,7 @@ Al detectarse una frase clave:
 
 ## 📁 Estructura de Archivos
 
-```
+```text
 mcp-server/
 ├── agents/
 │   └── subagentes_mcp_setup.js    # Sistema principal de subagentes
@@ -165,4 +169,4 @@ Cuando se activan los subagentes, se emiten estos eventos:
 
 ---
 
-**Fin del documento**
+## Fin del documento
