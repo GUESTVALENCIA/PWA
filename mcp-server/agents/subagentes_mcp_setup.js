@@ -5,58 +5,76 @@
  */
 
 const eventBus = require('../utils/event_bus');
-const TranscriberService = require('../services/transcriber');
+const fs = require('fs');
+const path = require('path');
 
-// Triggers por texto o voz que activan automáticamente los subagentes
-const TRIGGERS_ACTIVACION = [
-  "hay problemas de deploy",
-  "problemas con el index",
-  "problemas de cuello de botella",
-  "código muerto detectado",
-  "código basura",
-  "bloqueo de vercel",
-  "sandra detecta lentitud",
-  "errores constantes en el widget",
-  "widget roto",
-  "código duplicado",
-  "archivos duplicados"
-];
+// Cargar configuración de triggers desde JSON
+let triggersConfig = null;
+try {
+  const configPath = path.join(__dirname, '../subagents/config/triggers.json');
+  const configData = fs.readFileSync(configPath, 'utf8');
+  triggersConfig = JSON.parse(configData);
+} catch (error) {
+  console.warn('[⚠️ SUBAGENTES] No se pudo cargar triggers.json, usando configuración por defecto');
+  triggersConfig = {
+    triggers: {
+      deploy: ["hay problemas de deploy", "problemas de deploy", "bloqueo de vercel"],
+      code: ["código muerto", "código duplicado", "problemas con el index"],
+      bottleneck: ["cuello de botella", "lentitud"],
+      widget: ["widget roto", "errores constantes en el widget"]
+    },
+    agents: {}
+  };
+}
 
-// Subagentes disponibles
-const SUBAGENTES = {
-  "AgenteGitHub": {
-    name: "AgenteGitHub",
-    description: "Limpia código y elimina basura en repositorios",
-    action: "github.scan_and_fix"
-  },
-  "AgenteVercel": {
-    name: "AgenteVercel",
-    description: "Reinicia deploys y monitoriza errores",
-    action: "vercel.redeploy_and_clean"
-  },
-  "AgenteRefactor": {
-    name: "AgenteRefactor",
-    description: "Corrige líneas muertas o código obsoleto",
-    action: "code.refactor"
-  },
-  "AgenteObservador": {
-    name: "AgenteObservador",
-    description: "Envía reportes o activa alertas",
-    action: "monitor.report"
-  }
+// Importar handlers de agentes
+const AgentDeployFixer = require('../subagents/handlers/AgentDeployFixer');
+const AgentCodeCleaner = require('../subagents/handlers/AgentCodeCleaner');
+const AgentWatcher = require('../subagents/handlers/AgentWatcher');
+
+// Instanciar agentes
+const agentes = {
+  AgentDeployFixer: new AgentDeployFixer(),
+  AgentCodeCleaner: new AgentCodeCleaner(),
+  AgentWatcher: new AgentWatcher()
 };
 
+// Obtener todos los triggers de la configuración
+function obtenerTodosLosTriggers() {
+  const todos = [];
+  if (triggersConfig && triggersConfig.triggers) {
+    Object.values(triggersConfig.triggers).forEach(categoria => {
+      todos.push(...categoria);
+    });
+  }
+  return todos;
+}
+
+const TRIGGERS_ACTIVACION = obtenerTodosLosTriggers();
+
 /**
- * Detecta si un texto contiene algún trigger
+ * Detecta si un texto contiene algún trigger y retorna la categoría
  */
 function detectarTrigger(texto) {
   if (!texto || typeof texto !== 'string') return null;
   
   const textoLower = texto.toLowerCase();
   
+  // Buscar en cada categoría de triggers
+  if (triggersConfig && triggersConfig.triggers) {
+    for (const [categoria, triggers] of Object.entries(triggersConfig.triggers)) {
+      for (const trigger of triggers) {
+        if (textoLower.includes(trigger.toLowerCase())) {
+          return { trigger, categoria };
+        }
+      }
+    }
+  }
+  
+  // Fallback: buscar en lista plana
   for (const trigger of TRIGGERS_ACTIVACION) {
-    if (textoLower.includes(trigger)) {
-      return trigger;
+    if (textoLower.includes(trigger.toLowerCase())) {
+      return { trigger, categoria: 'general' };
     }
   }
   
@@ -64,32 +82,56 @@ function detectarTrigger(texto) {
 }
 
 /**
- * Activa todos los subagentes
+ * Activa los subagentes según el trigger detectado
  */
-function activarSubagentes(triggerDetectado) {
-  console.log(`\n[🔁 SUBAGENTES] Activando subagentes por trigger: '${triggerDetectado}'`);
+async function activarSubagentes(triggerInfo, context = {}) {
+  const trigger = triggerInfo.trigger || triggerInfo;
+  const categoria = triggerInfo.categoria || 'general';
+  
+  console.log(`\n[🔁 SUBAGENTES] Activando subagentes por trigger: '${trigger}'`);
+  console.log(`[🔁 SUBAGENTES] Categoría: ${categoria}`);
   console.log(`[🔁 SUBAGENTES] Timestamp: ${new Date().toISOString()}\n`);
   
-  for (const [nombre, agente] of Object.entries(SUBAGENTES)) {
-    console.log(`  → Activando ${nombre}...`);
-    console.log(`    Descripción: ${agente.description}`);
-    
-    // Emitir evento de acción
-    eventBus.emit('subagent.activate', {
-      agent: nombre,
-      action: agente.action,
-      trigger: triggerDetectado,
-      timestamp: new Date().toISOString()
-    });
-    
-    // Emitir acción específica
-    eventBus.emit(agente.action, {
-      agent: nombre,
-      trigger: triggerDetectado
-    });
+  // Determinar qué agentes activar según la categoría
+  const agentesAActivar = [];
+  
+  if (triggersConfig && triggersConfig.agents) {
+    for (const [nombreAgente, configAgente] of Object.entries(triggersConfig.agents)) {
+      if (configAgente.triggers && configAgente.triggers.includes(categoria)) {
+        agentesAActivar.push(nombreAgente);
+      }
+    }
   }
   
-  console.log(`\n[✅ SUBAGENTES] Todos los subagentes activados\n`);
+  // Si no hay configuración específica, activar todos
+  if (agentesAActivar.length === 0) {
+    agentesAActivar.push('AgentDeployFixer', 'AgentCodeCleaner', 'AgentWatcher');
+  }
+  
+  // Activar cada agente
+  for (const nombreAgente of agentesAActivar) {
+    const agente = agentes[nombreAgente];
+    if (agente) {
+      console.log(`  → Activando ${nombreAgente}...`);
+      try {
+        await agente.activate(trigger, { categoria, ...context });
+      } catch (error) {
+        console.error(`  ❌ Error activando ${nombreAgente}:`, error);
+      }
+    } else {
+      console.warn(`  ⚠️ Agente ${nombreAgente} no encontrado`);
+    }
+  }
+  
+  // Emitir evento general
+  eventBus.emit('subagent.activate', {
+    trigger,
+    categoria,
+    agentes: agentesAActivar,
+    timestamp: new Date().toISOString()
+  });
+  
+  console.log(`\n[✅ SUBAGENTES] Activación completada\n`);
 }
 
 /**
@@ -98,24 +140,24 @@ function activarSubagentes(triggerDetectado) {
 function escucharTexto() {
   console.log('[👂 SUBAGENTES] Escuchando eventos de texto...');
   
-  eventBus.on('text.message', (event) => {
+  eventBus.on('text.message', async (event) => {
     const contenido = event.data?.message || event.data?.text || '';
-    const trigger = detectarTrigger(contenido);
+    const triggerInfo = detectarTrigger(contenido);
     
-    if (trigger) {
-      console.log(`[📝 ACTIVADOR TEXTO] Trigger detectado: '${trigger}'`);
-      activarSubagentes(trigger);
+    if (triggerInfo) {
+      console.log(`[📝 ACTIVADOR TEXTO] Trigger detectado: '${triggerInfo.trigger}' (${triggerInfo.categoria})`);
+      await activarSubagentes(triggerInfo, { source: 'text', event });
     }
   });
   
   // También escuchar mensajes de chat/conserje
-  eventBus.on('conserje.message', (event) => {
+  eventBus.on('conserje.message', async (event) => {
     const contenido = event.data?.message || event.data?.transcript || '';
-    const trigger = detectarTrigger(contenido);
+    const triggerInfo = detectarTrigger(contenido);
     
-    if (trigger) {
-      console.log(`[💬 ACTIVADOR CONVERSA] Trigger detectado: '${trigger}'`);
-      activarSubagentes(trigger);
+    if (triggerInfo) {
+      console.log(`[💬 ACTIVADOR CONVERSA] Trigger detectado: '${triggerInfo.trigger}' (${triggerInfo.categoria})`);
+      await activarSubagentes(triggerInfo, { source: 'conserje', event });
     }
   });
 }
@@ -126,24 +168,24 @@ function escucharTexto() {
 function escucharAudio() {
   console.log('[🎤 SUBAGENTES] Escuchando transcripciones de audio...');
   
-  eventBus.on('audio.transcribed', (event) => {
+  eventBus.on('audio.transcribed', async (event) => {
     const transcript = event.data?.transcript || event.data?.text || '';
-    const trigger = detectarTrigger(transcript);
+    const triggerInfo = detectarTrigger(transcript);
     
-    if (trigger) {
-      console.log(`[🎙️ ACTIVADOR VOZ] Trigger detectado: '${trigger}'`);
-      activarSubagentes(trigger);
+    if (triggerInfo) {
+      console.log(`[🎙️ ACTIVADOR VOZ] Trigger detectado: '${triggerInfo.trigger}' (${triggerInfo.categoria})`);
+      await activarSubagentes(triggerInfo, { source: 'audio', event });
     }
   });
   
   // Escuchar flujo de voz conversacional
-  eventBus.on('voice.flow', (event) => {
+  eventBus.on('voice.flow', async (event) => {
     const transcript = event.data?.transcript || '';
-    const trigger = detectarTrigger(transcript);
+    const triggerInfo = detectarTrigger(transcript);
     
-    if (trigger) {
-      console.log(`[📞 ACTIVADOR LLAMADA] Trigger detectado: '${trigger}'`);
-      activarSubagentes(trigger);
+    if (triggerInfo) {
+      console.log(`[📞 ACTIVADOR LLAMADA] Trigger detectado: '${triggerInfo.trigger}' (${triggerInfo.categoria})`);
+      await activarSubagentes(triggerInfo, { source: 'voice_flow', event });
     }
   });
 }
@@ -159,13 +201,13 @@ function inicializar() {
   escucharAudio();
   
   // Escuchar eventos de sistema (errores, warnings, etc.)
-  eventBus.on('system.error', (event) => {
+  eventBus.on('system.error', async (event) => {
     const errorMsg = event.data?.message || event.data?.error || '';
-    const trigger = detectarTrigger(errorMsg);
+    const triggerInfo = detectarTrigger(errorMsg);
     
-    if (trigger) {
-      console.log(`[⚠️ ACTIVADOR ERROR] Trigger detectado: '${trigger}'`);
-      activarSubagentes(trigger);
+    if (triggerInfo) {
+      console.log(`[⚠️ ACTIVADOR ERROR] Trigger detectado: '${triggerInfo.trigger}' (${triggerInfo.categoria})`);
+      await activarSubagentes(triggerInfo, { source: 'system_error', event });
     }
   });
   
@@ -177,32 +219,74 @@ function inicializar() {
  * Obtener estado del sistema de subagentes
  */
 function obtenerEstado() {
+  const estadoAgentes = {};
+  for (const [nombre, agente] of Object.entries(agentes)) {
+    estadoAgentes[nombre] = agente.getStatus();
+  }
+  
   return {
     activo: true,
     triggers: TRIGGERS_ACTIVACION,
-    subagentes: Object.keys(SUBAGENTES),
+    triggersConfig: triggersConfig ? Object.keys(triggersConfig.triggers || {}) : [],
+    agentes: estadoAgentes,
     timestamp: new Date().toISOString()
   };
 }
 
 /**
- * Agregar trigger personalizado
+ * Agregar trigger personalizado a una categoría
  */
-function agregarTrigger(trigger) {
-  if (!TRIGGERS_ACTIVACION.includes(trigger)) {
+function agregarTrigger(trigger, categoria = 'general') {
+  if (!triggersConfig) {
+    triggersConfig = { triggers: {}, agents: {} };
+  }
+  
+  if (!triggersConfig.triggers[categoria]) {
+    triggersConfig.triggers[categoria] = [];
+  }
+  
+  if (!triggersConfig.triggers[categoria].includes(trigger)) {
+    triggersConfig.triggers[categoria].push(trigger);
     TRIGGERS_ACTIVACION.push(trigger);
-    console.log(`[➕ TRIGGER] Agregado: '${trigger}'`);
+    
+    // Guardar en archivo
+    try {
+      const configPath = path.join(__dirname, '../subagents/config/triggers.json');
+      fs.writeFileSync(configPath, JSON.stringify(triggersConfig, null, 2), 'utf8');
+      console.log(`[➕ TRIGGER] Agregado: '${trigger}' a categoría '${categoria}'`);
+    } catch (error) {
+      console.warn(`[⚠️ TRIGGER] No se pudo guardar en archivo:`, error);
+    }
   }
 }
 
 /**
  * Remover trigger
  */
-function removerTrigger(trigger) {
+function removerTrigger(trigger, categoria = null) {
+  if (categoria && triggersConfig && triggersConfig.triggers[categoria]) {
+    const index = triggersConfig.triggers[categoria].indexOf(trigger);
+    if (index > -1) {
+      triggersConfig.triggers[categoria].splice(index, 1);
+      console.log(`[➖ TRIGGER] Removido: '${trigger}' de categoría '${categoria}'`);
+    }
+  } else {
+    // Buscar en todas las categorías
+    if (triggersConfig && triggersConfig.triggers) {
+      for (const [cat, triggers] of Object.entries(triggersConfig.triggers)) {
+        const index = triggers.indexOf(trigger);
+        if (index > -1) {
+          triggers.splice(index, 1);
+          console.log(`[➖ TRIGGER] Removido: '${trigger}' de categoría '${cat}'`);
+          break;
+        }
+      }
+    }
+  }
+  
   const index = TRIGGERS_ACTIVACION.indexOf(trigger);
   if (index > -1) {
     TRIGGERS_ACTIVACION.splice(index, 1);
-    console.log(`[➖ TRIGGER] Removido: '${trigger}'`);
   }
 }
 
@@ -213,7 +297,7 @@ module.exports = {
   obtenerEstado,
   agregarTrigger,
   removerTrigger,
-  SUBAGENTES,
+  agentes,
   TRIGGERS_ACTIVACION
 };
 

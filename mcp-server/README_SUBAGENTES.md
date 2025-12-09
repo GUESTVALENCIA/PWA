@@ -4,21 +4,41 @@
 
 Sistema de activación automática de subagentes especializados que escucha en tiempo real eventos de texto y audio, detecta triggers específicos y activa automáticamente los subagentes correspondientes.
 
+**Este sistema está activado y en escucha pasiva en todos los repositorios MCP**, incluyendo:
+- `GuestsValencia-Site`
+- `GuestsValencia-PWA`
+- `MCP-SANDRA`
+
 ## 🎯 Funcionalidad
 
-El sistema detecta automáticamente frases clave como:
-- "hay problemas de deploy"
-- "problemas con el index"
-- "código muerto detectado"
-- "bloqueo de vercel"
-- "errores constantes en el widget"
-- Y más...
+### Activación por Comandos
 
-Cuando detecta un trigger, activa automáticamente:
-- **AgenteGitHub**: Limpia código y elimina basura en repositorios
-- **AgenteVercel**: Reinicia deploys y monitoriza errores
-- **AgenteRefactor**: Corrige líneas muertas o código obsoleto
-- **AgenteObservador**: Envía reportes o activa alertas
+Los subagentes pueden activarse de dos formas:
+
+#### 1. Por comandos de texto
+Se activa al detectar expresiones como:
+- "hay problemas con el index"
+- "problemas de deploy"
+- "cuello de botella en Vercel"
+- "código muerto en el repo"
+- "widget roto"
+- "errores constantes en el widget"
+
+#### 2. Por comandos de voz
+Gracias a la multimodalidad de Sandra, se analiza la transcripción de voz mediante STT (Speech-To-Text) integrada con Deepgram, y se detectan las mismas frases de activación.
+
+### Acciones Automáticas
+
+Al detectarse una frase clave:
+
+1. **Se identifican los agentes asignados según el tipo de error**:
+   - `AgentDeployFixer`: para errores en Vercel o Railway
+   - `AgentCodeCleaner`: para limpiar código muerto, corregir líneas
+   - `AgentWatcher`: para detectar futuros errores en logs
+
+2. **Se ejecuta la acción correspondiente automáticamente** sin necesidad de validación manual.
+
+3. **Se notifica a Sandra** y queda registro en los logs.
 
 ## 📁 Estructura de Archivos
 
@@ -26,6 +46,13 @@ Cuando detecta un trigger, activa automáticamente:
 mcp-server/
 ├── agents/
 │   └── subagentes_mcp_setup.js    # Sistema principal de subagentes
+├── subagents/
+│   ├── config/
+│   │   └── triggers.json          # Configuración de triggers por categoría
+│   └── handlers/
+│       ├── AgentDeployFixer.js     # Handler para problemas de deploy
+│       ├── AgentCodeCleaner.js     # Handler para limpieza de código
+│       └── AgentWatcher.js         # Handler para monitoreo y alertas
 ├── utils/
 │   └── event_bus.js                # Sistema de eventos (Event Bus)
 └── routes/
@@ -57,6 +84,29 @@ El sistema escucha los siguientes eventos del Event Bus:
 4. **`voice.flow`** - Flujo de voz conversacional
 5. **`system.error`** - Errores del sistema
 
+## 🎛️ Configuración de Triggers
+
+Los triggers se configuran en `subagents/config/triggers.json`:
+
+```json
+{
+  "triggers": {
+    "deploy": ["hay problemas de deploy", "bloqueo de vercel"],
+    "code": ["código muerto", "código duplicado"],
+    "bottleneck": ["cuello de botella", "lentitud"],
+    "widget": ["widget roto", "errores constantes en el widget"]
+  },
+  "agents": {
+    "AgentDeployFixer": {
+      "triggers": ["deploy", "bottleneck"],
+      "actions": ["vercel.redeploy_and_clean"]
+    }
+  }
+}
+```
+
+**Es posible agregar nuevas frases en `subagents/config/triggers.json`** sin modificar código.
+
 ## 🔧 Uso Manual
 
 También puedes activar los subagentes manualmente:
@@ -65,25 +115,13 @@ También puedes activar los subagentes manualmente:
 const subagentesSystem = require('./agents/subagentes_mcp_setup');
 
 // Activar todos los subagentes
-subagentesSystem.activarSubagentes('trigger personalizado');
+await subagentesSystem.activarSubagentes({ trigger: 'problemas de deploy', categoria: 'deploy' });
 
 // Agregar trigger personalizado
-subagentesSystem.agregarTrigger('mi trigger personalizado');
+subagentesSystem.agregarTrigger('mi trigger personalizado', 'general');
 
 // Obtener estado
 const estado = subagentesSystem.obtenerEstado();
-```
-
-## 🎛️ Configuración
-
-Los triggers se pueden modificar en `subagentes_mcp_setup.js`:
-
-```javascript
-const TRIGGERS_ACTIVACION = [
-  "hay problemas de deploy",
-  "código muerto detectado",
-  // ... agregar más triggers
-];
 ```
 
 ## 📊 Eventos Emitidos
@@ -91,12 +129,40 @@ const TRIGGERS_ACTIVACION = [
 Cuando se activan los subagentes, se emiten estos eventos:
 
 - `subagent.activate` - Evento general de activación
-- `github.scan_and_fix` - Acción de AgenteGitHub
-- `vercel.redeploy_and_clean` - Acción de AgenteVercel
-- `code.refactor` - Acción de AgenteRefactor
-- `monitor.report` - Acción de AgenteObservador
+- `agent.action` - Acciones realizadas por cada agente
+- `agent.error` - Errores en la ejecución de agentes
+- `vercel.redeploy_and_clean` - Acción de AgentDeployFixer
+- `code.refactor` - Acción de AgentCodeCleaner
+- `monitor.report` - Acción de AgentWatcher
 
-## ✅ Estado
+## ✅ Ejemplo de Uso
 
-El sistema está completamente integrado y funcionando. Se activa automáticamente al iniciar el servidor MCP.
+**Texto:**
+> "Sandra, hay problemas de deploy en Vercel."
 
+**Voz:**
+> Usuario dicta por micrófono del chat: "Sandra, hay problemas con el índice de código."
+
+**Resultado:** Se activa el subagente correspondiente, limpia el deploy o corrige el archivo afectado, se reporta acción a Sandra y queda registrado en logs.
+
+## ⚠️ Notas Importantes
+
+- ✅ **No se requiere reactivación manual** de los subagentes
+- ✅ **Los subagentes están siempre en escucha pasiva**
+- ✅ **Solo ejecutan tareas si detectan las frases exactas** por voz o texto
+- ✅ **Es posible agregar nuevas frases** en `subagents/config/triggers.json`
+- 🚫 **No modificar la carpeta `subagents` ni el archivo de lógica sin autorización** del equipo técnico o de Sandra IA
+
+## 📆 Próximas Mejoras (Backlog)
+
+- Soporte para comandos multilingües
+- Integración con agentes en GitHub Actions directamente
+- Feedback visual en la PWA al activarse un agente
+
+## ✨ Estado Actual
+
+**Activado y en escucha pasiva en todos los MCP.** Puede integrarse en entornos como Cursor y otros IDEs siempre que se ejecute con Sandra activa.
+
+---
+
+**Fin del documento**

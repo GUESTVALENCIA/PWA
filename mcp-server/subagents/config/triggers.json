@@ -1,0 +1,62 @@
+{
+  "triggers": {
+    "deploy": [
+      "hay problemas de deploy",
+      "problemas de deploy",
+      "deploy roto",
+      "bloqueo de vercel",
+      "error en vercel",
+      "problemas con vercel",
+      "deploy fallido",
+      "build error"
+    ],
+    "code": [
+      "problemas con el index",
+      "código muerto",
+      "código basura",
+      "código duplicado",
+      "archivos duplicados",
+      "líneas muertas",
+      "código obsoleto"
+    ],
+    "bottleneck": [
+      "cuello de botella",
+      "problemas de cuello de botella",
+      "lentitud",
+      "sandra detecta lentitud",
+      "sistema lento",
+      "performance issues"
+    ],
+    "widget": [
+      "errores constantes en el widget",
+      "widget roto",
+      "widget no funciona",
+      "problemas con el widget",
+      "error en el widget"
+    ],
+    "general": [
+      "hay problemas",
+      "error detectado",
+      "problema crítico",
+      "sistema roto"
+    ]
+  },
+  "agents": {
+    "AgentDeployFixer": {
+      "triggers": ["deploy", "bottleneck"],
+      "description": "Corrige errores en Vercel, Railway o deploys",
+      "actions": ["vercel.redeploy_and_clean", "github.scan_and_fix"]
+    },
+    "AgentCodeCleaner": {
+      "triggers": ["code", "widget"],
+      "description": "Limpia código muerto, duplicado o obsoleto",
+      "actions": ["code.refactor", "code.cleanup"]
+    },
+    "AgentWatcher": {
+      "triggers": ["general", "bottleneck", "widget"],
+      "description": "Detecta y reporta futuros errores en logs",
+      "actions": ["monitor.report", "monitor.alert"]
+    }
+  }
+}
+
