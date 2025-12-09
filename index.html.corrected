@@ -99,7 +99,7 @@
     <!-- HOME -->
     <section id="home-page" class="page active">
       <header class="hero-section">
-        <video id="hero-video" class="hero-video video-hidden" autoplay muted loop playsinline>
+        <video id="hero-video" class="hero-video video-hidden" autoplay muted loop webkit-playsinline playsinline>
           <source src="" type="video/mp4">
         </video>
         <div id="hero-background-image" class="hero-background-image" style="background-image: url('https://images.unsplash.com/photo-1600607687644-c7171b42498b?auto=format&fit=crop&w=1920&q=95'); filter: brightness(1.05) contrast(1.1); background-size: cover; background-position: center 35%;"></div>
