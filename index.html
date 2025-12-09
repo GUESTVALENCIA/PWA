@@ -3541,6 +3541,26 @@
     document.addEventListener('DOMContentLoaded', () => {
       new SandraWidget();
     });
+
+    // === UIG SANDRA - User Interaction Gateway ===
+    // Configuración del widget conversacional
+    window.WIDGET_ENABLED = true;
+    window.MCP_SERVER_URL = (() => {
+      const hostname = window.location.hostname;
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        return 'http://localhost:4042';
+      }
+      // Producción: usar variable de entorno o URL por defecto
+      return window.location.origin.includes('vercel.app') 
+        ? 'https://mcp.sandra-ia.com' 
+        : 'https://mcp.sandra-ia.com';
+    })();
+    
+    // Cargar UIGSandra
+    const uigScript = document.createElement('script');
+    uigScript.src = '/assets/js/uig-sandra.js';
+    uigScript.async = true;
+    document.head.appendChild(uigScript);
   </script>
 </body>
 </html>

@@ -1,0 +1,34 @@
+{
+  "name": "sandra-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP Server - Model Context Protocol para Sandra IA",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "docker:build": "docker build -t sandra-mcp-server .",
+    "docker:run": "docker run -p 4042:4042 --env-file .env sandra-mcp-server",
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.22.1",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "sandra-ia",
+    "ai",
+    "orchestration"
+  ],
+  "author": "GuestsValencia",
+  "license": "MIT"
+}
