@@ -1227,26 +1227,43 @@
       }
 
       // === SANDRA VIDEO CALL CONTROLS ===
-      let isMuted = false;
+      // Botón mute inline (en la interfaz de videollamada embebida)
       const btnMuteToggle = document.getElementById('btn-mute-toggle');
       const micIcon = document.getElementById('mic-icon');
       const micMutedIcon = document.getElementById('mic-muted-icon');
       
-      if (btnMuteToggle) {
-        btnMuteToggle.addEventListener('click', function() {
-          isMuted = !isMuted;
-          if (isMuted) {
-            micIcon.classList.add('hidden');
-            micMutedIcon.classList.remove('hidden');
-            btnMuteToggle.classList.add('bg-red-500/50');
-            // Aquí se implementaría la lógica para silenciar el micrófono
-            console.log('Micrófono silenciado');
+      if (btnMuteToggle && micIcon && micMutedIcon) {
+        btnMuteToggle.addEventListener('click', () => {
+          // Buscar la instancia del widget SandraWidget
+          const widgetInstance = window.sandraWidgetInstance;
+          
+          if (widgetInstance && widgetInstance.activeCall && widgetInstance.activeCall.stream) {
+            // Usar el método del widget para toggle del micrófono
+            widgetInstance.toggleMicrophoneMute();
+            
+            // Sincronizar UI del botón inline con el estado real del widget
+            const isMuted = widgetInstance.isMicrophoneMuted;
+            if (isMuted) {
+              micIcon.classList.add('hidden');
+              micMutedIcon.classList.remove('hidden');
+              btnMuteToggle.classList.add('bg-red-500/50');
+            } else {
+              micIcon.classList.remove('hidden');
+              micMutedIcon.classList.add('hidden');
+              btnMuteToggle.classList.remove('bg-red-500/50');
+            }
           } else {
-            micIcon.classList.remove('hidden');
-            micMutedIcon.classList.add('hidden');
-            btnMuteToggle.classList.remove('bg-red-500/50');
-            // Aquí se implementaría la lógica para activar el micrófono
-            console.log('Micrófono activado');
+            // Fallback: si no hay widget o llamada activa, solo actualizar UI local
+            const isCurrentlyMuted = micMutedIcon.classList.contains('hidden');
+            if (isCurrentlyMuted) {
+              micIcon.classList.add('hidden');
+              micMutedIcon.classList.remove('hidden');
+              btnMuteToggle.classList.add('bg-red-500/50');
+            } else {
+              micIcon.classList.remove('hidden');
+              micMutedIcon.classList.add('hidden');
+              btnMuteToggle.classList.remove('bg-red-500/50');
+            }
           }
         });
       }
@@ -2747,6 +2764,8 @@
         audio.playbackRate = 0.92;
         audio.defaultPlaybackRate = 0.92;
         
+        this.currentAudio = audio; // Guardar referencia para poder detenerlo
+        
         // Si es el saludo, esperar a que el audio esté COMPLETAMENTE cargado antes de reproducir
         if (isWelcome) {
           console.log('👋 [CLIENTE] Cargando saludo inicial, esperando a que esté COMPLETAMENTE listo...');
@@ -2770,10 +2789,10 @@
             if (audio.buffered.length > 0 && hasValidDuration) {
               const firstBufferStart = audio.buffered.start(0);
               const firstBufferEnd = audio.buffered.end(0);
-              // CRÍTICO: El buffer DEBE empezar desde 0 y cubrir TODO el audio (100%)
+              // CRÍTICO: El buffer DEBE empezar desde 0 y cubrir TODO el audio (99% mínimo - tolerancia para navegadores)
               hasCompleteBufferFromStart = firstBufferStart === 0 &&
                                           firstBufferEnd > 0 &&
-                                          firstBufferEnd >= audio.duration; // 100% completo - sin tolerancia
+                                          firstBufferEnd >= (audio.duration * 0.99); // 99% mínimo (tolerancia)
             }
             
             // Verificar también seekable (más confiable que buffered)
@@ -2782,7 +2801,7 @@
               const firstSeekableEnd = audio.seekable.end(0);
               hasSeekableRange = firstSeekableStart === 0 &&
                                 firstSeekableEnd > 0 &&
-                                firstSeekableEnd >= audio.duration; // 100% completo
+                                firstSeekableEnd >= (audio.duration * 0.99); // 99% mínimo (tolerancia)
               
               console.log('🔍 [DEBUG] Seekable check:', {
                 start: firstSeekableStart,
@@ -2823,25 +2842,38 @@
                 console.log(`⏱️ [LATENCIA] Tiempo desde descuelgue hasta inicio del saludo: ${latency}ms`);
               }
 
-              // SOLUCIÓN: Esperar 1 segundo completo para que el buffer se estabilice
+              // CRÍTICO: Establecer currentTime = 0 ANTES de reproducir para evitar corte al inicio
+              audio.currentTime = 0;
+              
+              // Pequeño delay para asegurar que el navegador procese currentTime = 0
               setTimeout(() => {
                 if (hasStartedPlaying) return;
                 hasStartedPlaying = true;
 
-                // Una sola asignación de currentTime al inicio
+                // Forzar currentTime = 0 JUSTO ANTES de play() para evitar corte al inicio
                 audio.currentTime = 0;
 
-                console.log('✅ [CLIENTE] Saludo COMPLETAMENTE listo (buffer 100%), reproduciendo...');
+                console.log('✅ [CLIENTE] Saludo COMPLETAMENTE listo, reproduciendo desde el principio...');
                 console.log('🔍 [DEBUG] currentTime antes de play():', audio.currentTime);
 
-                // Reproducir directamente sin verificaciones post-play
+                // Reproducir y verificar que empieza desde 0
                 audio.play()
                   .then(() => {
-                    console.log('✅ [CLIENTE] Audio iniciado correctamente desde el principio');
+                    // Verificar inmediatamente que currentTime es 0 (o muy cercano)
+                    setTimeout(() => {
+                      if (audio.currentTime > 0.05) {
+                        console.warn('⚠️ [CLIENTE] Audio no empezó desde 0, reiniciando...');
+                        audio.pause();
+                        audio.currentTime = 0;
+                        audio.play().catch(e => console.error('❌ Error en segundo intento:', e));
+                      } else {
+                        console.log('✅ [CLIENTE] Audio iniciado correctamente desde el principio (currentTime:', audio.currentTime, ')');
+                      }
+                    }, 50);
                   })
                   .catch(e => console.error('❌ Error reproduciendo saludo:', e));
 
-              }, 1000); // 1 segundo de delay para estabilizar buffer completamente
+              }, 300); // Delay reducido a 300ms - suficiente para estabilizar
             }
           };
           
@@ -2863,7 +2895,13 @@
           // Escuchar loadedmetadata para obtener duración y asegurar currentTime=0
           audio.addEventListener('loadedmetadata', () => {
             console.log('📊 [CLIENTE] Saludo metadata cargada, duración:', audio.duration);
+            // Forzar currentTime = 0 múltiples veces para asegurar que se aplique
             audio.currentTime = 0;
+            setTimeout(() => {
+              if (audio.currentTime !== 0) {
+                audio.currentTime = 0;
+              }
+            }, 10);
           }, { once: true });
           
           // Escuchar progress para verificar que el buffer se está cargando
@@ -2929,8 +2967,6 @@
           });
         }
         
-        this.currentAudio = audio; // Guardar referencia para poder detenerlo
-        
         // Si NO es el saludo, reproducir inmediatamente
         if (!isWelcome) {
           console.log('▶️ [CLIENTE] Reproduciendo audio de Sandra (velocidad calmada: 0.92x, formato: MP3)...');
@@ -2951,8 +2987,8 @@
           console.log('✅ [CLIENTE] Audio de Sandra finalizado completamente');
           this.isSpeaking = false;
           
-          // CRÍTICO: NO limpiar currentAudio inmediatamente (evitar cortes al final)
-          // Aumentar delay para asegurar que el audio termine completamente
+          // CRÍTICO: Esperar más tiempo antes de limpiar para evitar cortes al final
+          // El evento 'ended' se dispara cuando el audio llega al final, pero puede haber un pequeño delay
           setTimeout(() => {
             // Revocar Blob URL para liberar memoria
             if (audio._blobUrl) {
@@ -2960,16 +2996,16 @@
               audio._blobUrl = null;
             }
             this.currentAudio = null;
-          }, 800); // Aumentado a 800ms para evitar cortes al final
+          }, 1000); // Aumentado a 1 segundo para asegurar que el audio termine completamente
           
-          // Si es el saludo, iniciar grabación después de un delay
+          // Si es el saludo, iniciar grabación después de un delay más largo
           if (audio._isWelcome) {
-            console.log('👋 [CLIENTE] Saludo terminado, iniciando grabación en 500ms...');
+            console.log('👋 [CLIENTE] Saludo terminado, iniciando grabación en 800ms...');
             setTimeout(() => {
               if (this.activeCall && this.activeCall.startNewRecording && !this.isSpeaking) {
                 this.activeCall.startNewRecording();
               }
-            }, 500); // 500ms de margen después del saludo
+            }, 800); // 800ms de margen para asegurar que el saludo termine completamente
           } else {
             // CRÍTICO: Esperar tiempo mínimo antes de reiniciar grabación para evitar eco
             // Reiniciar grabación SOLO después de que Sandra termine completamente de hablar
@@ -3049,8 +3085,33 @@
 
     // Initialize widget
     document.addEventListener('DOMContentLoaded', () => {
-      new SandraWidget();
+      window.sandraWidgetInstance = new SandraWidget();
     });
+  </script>
+
+  <!-- Cargar SandraWidget conversacional desde archivo externo -->
+  <script>
+    // === SANDRA WIDGET - Widget Conversacional ===
+    window.WIDGET_ENABLED = true;
+    window.MCP_SERVER_URL = (() => {
+      const hostname = window.location.hostname;
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        return 'http://localhost:4042';
+      }
+      return 'https://mcp.sandra-ia.com';
+    })();
+    
+    // Cargar SandraWidget conversacional
+    const sandraScript = document.createElement('script');
+    sandraScript.src = '/assets/js/sandra-widget.js';
+    sandraScript.async = true;
+    sandraScript.onerror = function() {
+      console.error('❌ Error cargando sandra-widget.js');
+    };
+    sandraScript.onload = function() {
+      console.log('✅ SandraWidget conversacional cargado correctamente');
+    };
+    document.head.appendChild(sandraScript);
   </script>
 </body>
 </html>
