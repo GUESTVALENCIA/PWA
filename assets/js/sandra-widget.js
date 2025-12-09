@@ -84,10 +84,24 @@ class SandraWidget {
   }
 
   mountWidget() {
+    // PRIMERO: Eliminar cualquier contenedor duplicado
+    const existingIds = ['sandra-widget-root', 'sandra-widget-container', 'sandra-widget-button-container'];
+    const existingContainers = existingIds
+      .map(id => document.getElementById(id))
+      .filter(el => el !== null);
+    
+    // Si hay múltiples contenedores, eliminar todos excepto el primero
+    if (existingContainers.length > 1) {
+      console.warn('⚠️ Detectados múltiples contenedores del widget. Eliminando duplicados...');
+      for (let i = 1; i < existingContainers.length; i++) {
+        existingContainers[i].remove();
+      }
+    }
+    
     // Intentar usar contenedor existente primero
-    let container = document.getElementById('sandra-widget-root') || 
-                    document.getElementById('sandra-widget-container') ||
-                    document.getElementById('sandra-widget-button-container');
+    let container = document.getElementById('sandra-widget-button-container') ||
+                    document.getElementById('sandra-widget-root') || 
+                    document.getElementById('sandra-widget-container');
     
     if (!container) {
       // Crear nuevo contenedor si no existe
@@ -113,6 +127,12 @@ class SandraWidget {
   }
 
   createWidgetUI(container) {
+    // Verificar si el botón ya existe para evitar duplicados
+    if (container.querySelector('#sandra-widget-button')) {
+      console.warn('⚠️ El botón del widget ya existe. No se creará duplicado.');
+      return;
+    }
+    
     container.innerHTML = `
       <div id="sandra-widget-button" class="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 shadow-lg cursor-pointer hover:shadow-xl transition-all flex items-center justify-center group" style="display: block !important; visibility: visible !important; opacity: 1 !important;">
         <svg class="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -703,16 +723,36 @@ class SandraWidget {
   }
 }
 
-// Auto-inicializar cuando el DOM esté listo
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    if (!window.sandraWidgetInstance) {
-      window.sandraWidgetInstance = new SandraWidget();
-    }
-  });
+// Auto-inicializar cuando el DOM esté listo - SOLO UNA VEZ
+if (window.sandraWidgetInstance) {
+  console.warn('⚠️ SandraWidget ya está inicializado. Ignorando inicialización duplicada.');
 } else {
-  if (!window.sandraWidgetInstance) {
+  const initWidget = () => {
+    // Limpiar cualquier elemento duplicado antes de inicializar
+    const oldContainers = [
+      'sandra-widget-root',
+      'sandra-widget-container', 
+      'sandra-widget-button-container'
+    ];
+    
+    oldContainers.forEach(id => {
+      const oldEl = document.getElementById(id);
+      if (oldEl && oldEl.querySelectorAll('#sandra-widget-button').length > 1) {
+        // Si hay múltiples botones, eliminar duplicados
+        const buttons = oldEl.querySelectorAll('#sandra-widget-button');
+        for (let i = 1; i < buttons.length; i++) {
+          buttons[i].remove();
+        }
+      }
+    });
+    
     window.sandraWidgetInstance = new SandraWidget();
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initWidget);
+  } else {
+    initWidget();
   }
 }
 
