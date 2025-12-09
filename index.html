@@ -3198,11 +3198,12 @@
             if (!this.isSpeaking) {
               this.isSpeaking = true;
               console.log('▶️ [CLIENTE] Reproduciendo audio de Sandra...');
-              this.playAudioResponse(data.audio, data.isWelcome || false);
+              console.log('🔍 [DEBUG] Formato del audio:', data.format || 'mp3');
+              this.playAudioResponse(data.audio, data.isWelcome || false, data.format || 'mp3');
             } else {
-              // Si ya está hablando, encolar
+              // Si ya está hablando, encolar con formato
               console.log('📋 [CLIENTE] Audio encolado (Sandra ya está hablando)');
-              this.audioQueue.push(data.audio);
+              this.audioQueue.push({ audio: data.audio, format: data.format || 'mp3' });
             }
           } else if (data.type === 'noSpeech') {
             // No se entendió el audio - no es un error, solo informar al usuario
@@ -3401,16 +3402,6 @@
             URL.revokeObjectURL(this.currentAudio._blobUrl);
           }
           this.currentAudio = null;
-        }
-        
-        // SOLUCIÓN OFICIAL: Convertir base64 a Blob y usar Blob URL en lugar de data URI
-        // Esto asegura que el navegador trate el audio como archivo completo y lo bufferice correctamente
-        const byteCharacters = atob(audioBase64);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
         const blob = new Blob([byteArray], { type: 'audio/mp3' });
         const blobUrl = URL.createObjectURL(blob);
         
@@ -3505,29 +3496,9 @@
                     isSpeaking: this.isSpeaking
                   });
                 }
-              }, 300); // Delay optimizado para menor latencia
-            }
-          }
-          
-          // Reproducir siguiente audio en cola si existe
-          if (this.audioQueue && this.audioQueue.length > 0) {
-            const nextAudio = this.audioQueue.shift();
-            console.log('📋 [CLIENTE] Reproduciendo siguiente audio en cola');
-            this.playAudioResponse(nextAudio);
-          }
-        };
-        
-        audio.onerror = (e) => {
-          console.error('❌ Error reproduciendo audio:', e, audio.error);
-          this.isSpeaking = false;
-          // Revocar Blob URL en caso de error
-          if (audio._blobUrl) {
-            URL.revokeObjectURL(audio._blobUrl);
-            audio._blobUrl = null;
-          }
-          this.currentAudio = null;
-        };
-      }
+              }
+            }, 500); // 500ms de margen después del saludo
+          } else {
 
       addMessage(text, type) {
         // BLOQUEAR TODOS LOS MENSAJES DE TEXTO DURANTE LLAMADA CONVERSACIONAL
