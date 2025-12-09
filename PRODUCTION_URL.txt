@@ -1,0 +1,15 @@
+https://pwa-2caws3ssh-guests-valencias-projects.vercel.app
+2025-01-15T12:00:00.000Z
+
+URL de Producción del Proyecto PWA - GuestsValencia
+
+Variables de entorno configuradas:
+- GEMINI_API_KEY ✅
+- OPENAI_API_KEY ✅
+- GROQ_API_KEY ✅
+- CARTESIA_API_KEY ✅
+- CARTESIA_VOICE_ID ✅
+- DEEPGRAM_API_KEY ✅
+- NEON_DB_URL ✅
+- ANTHROPIC_API_KEY ✅
+- BRIDGEDATA_API_KEY ⚠️ (Verificar si es necesaria)

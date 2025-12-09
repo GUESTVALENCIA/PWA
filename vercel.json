@@ -7,6 +7,22 @@
   "trailingSlash": false,
   "rewrites": [
     {
+      "source": "/api/sandra/chat",
+      "destination": "/api/sandra/chat.js"
+    },
+    {
+      "source": "/api/sandra/voice",
+      "destination": "/api/sandra/voice.js"
+    },
+    {
+      "source": "/api/sandra/transcribe",
+      "destination": "/api/sandra/transcribe.js"
+    },
+    {
+      "source": "/api/sandra/mcp",
+      "destination": "/api/sandra/mcp-proxy.js"
+    },
+    {
       "source": "/api/:path*",
       "destination": "/api/api-gateway.js"
     },
