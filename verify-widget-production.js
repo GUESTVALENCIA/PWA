@@ -5,7 +5,7 @@
 
 const https = require('https');
 
-const PRODUCTION_URL = 'https://pwa-2caws3ssh-guests-valencias-projects.vercel.app';
+const PRODUCTION_URL = 'https://guestsvalencia.es';
 const WIDGET_PATH = '/assets/js/sandra-widget.js';
 
 function checkFile(url, path) {
@@ -40,14 +40,27 @@ function checkHTML(url) {
       res.on('end', () => {
         const hasWidgetScript = html.includes('sandra-widget.js');
         const hasSandraWidget = html.includes('SandraWidget') || html.includes('sandra-widget-button');
+        const hasWIDGET_ENABLED = html.includes('WIDGET_ENABLED');
+        
+        // Buscar referencias exactas
+        const scriptPattern = /sandra-widget\.js/g;
+        const scriptMatches = html.match(scriptPattern);
+        const scriptCount = scriptMatches ? scriptMatches.length : 0;
+        
+        // Buscar la línea exacta donde se carga el script
+        const scriptLineMatch = html.match(/sandraScript\.src\s*=\s*['"]\/assets\/js\/sandra-widget\.js['"]/);
         
         resolve({
           statusCode: res.statusCode,
           hasWidgetScript,
           hasSandraWidget,
+          hasWIDGET_ENABLED,
+          scriptCount,
+          hasExactScriptLoad: !!scriptLineMatch,
           htmlSnippet: html.includes('sandra-widget.js') ? 
-            html.substring(html.indexOf('sandra-widget.js') - 50, html.indexOf('sandra-widget.js') + 100) : 
-            'No encontrado'
+            html.substring(html.indexOf('sandra-widget.js') - 100, html.indexOf('sandra-widget.js') + 150) : 
+            'No encontrado',
+          htmlSize: html.length
         });
       });
     }).on('error', reject);
@@ -81,11 +94,24 @@ async function verify() {
     const htmlCheck = await checkHTML(PRODUCTION_URL);
     
     console.log(`   ✅ Status HTML: ${htmlCheck.statusCode}`);
+    console.log(`   📊 Tamaño del HTML: ${(htmlCheck.htmlSize / 1024).toFixed(2)} KB`);
     console.log(`   ${htmlCheck.hasWidgetScript ? '✅' : '❌'} Script sandra-widget.js referenciado: ${htmlCheck.hasWidgetScript}`);
+    console.log(`   ${htmlCheck.hasExactScriptLoad ? '✅' : '❌'} Carga exacta del script (sandraScript.src): ${htmlCheck.hasExactScriptLoad}`);
     console.log(`   ${htmlCheck.hasSandraWidget ? '✅' : '❌'} Clase SandraWidget presente: ${htmlCheck.hasSandraWidget}`);
+    console.log(`   ${htmlCheck.hasWIDGET_ENABLED ? '✅' : '❌'} Configuración WIDGET_ENABLED: ${htmlCheck.hasWIDGET_ENABLED}`);
+    if (htmlCheck.scriptCount > 0) {
+      console.log(`   📈 Referencias encontradas: ${htmlCheck.scriptCount}`);
+    }
     
     if (htmlCheck.hasWidgetScript) {
-      console.log(`   📄 Snippet: ...${htmlCheck.htmlSnippet}...`);
+      console.log(`   📄 Snippet del código de carga:`);
+      console.log(`   ${htmlCheck.htmlSnippet.replace(/\n/g, '\n   ')}`);
+    } else {
+      console.log(`   ⚠️  Buscando cualquier referencia a 'sandra' en el HTML...`);
+      const sandraMatches = htmlCheck.htmlSnippet.match(/sandra/gi);
+      if (sandraMatches) {
+        console.log(`   💡 Se encontraron ${sandraMatches.length} referencias a 'sandra' (puede ser contenido, no código)`);
+      }
     }
 
     // Resumen
