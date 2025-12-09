@@ -1449,515 +1449,18 @@
 
   <!-- Sistema Galaxy - Widget Flotante -->
   <script>
-    // ============================================
-    // Utilidades de Entorno (env.js adaptado para proyecto estático)
-    // ============================================
-    const EnvUtils = {
-      /**
-       * Detecta el entorno actual basado en hostname y configuración
-       * @returns {string} 'development' | 'staging' | 'production'
-       */
-      getEnv() {
-        const url = window.location.hostname;
-        const port = window.location.port;
-        
-        // 🔍 Detectar por nombre de host
-        if (url.includes('localhost') || url.includes('127.0.0.1') || port === '4040') {
-          return 'development';
-        }
-        if (url.includes('staging') || url.includes('preview')) {
-          return 'staging';
-        }
-        if (url.includes('guestsvalencia.com')) {
-          return 'production';
-        }
-        // Vercel preview deployments
-        if (url.includes('.vercel.app') && !url.includes('guestsvalencia')) {
-          return 'staging';
-        }
-        
-        return 'development';
-      },
-      
-      /**
-       * Obtiene la URL base de la API según el entorno
-       * @returns {string} URL base de la API
-       */
-      getBaseUrl() {
-        const env = this.getEnv();
-        const url = window.location.hostname;
-        const port = window.location.port;
-        
-        // Desarrollo: usar ruta relativa o localhost según protocolo
-        if (env === 'development') {
-          if (window.location.protocol === 'file:') {
-            return 'http://localhost:4040/api';
-          }
-          return '/api';
-        }
-        
-        // Staging/Production: usar ruta relativa (mismo dominio)
-        return '/api';
-      },
-      
-      /**
-       * Obtiene la URL del WebSocket según el entorno
-       * @returns {string|null} URL del WebSocket o null si no está disponible
-       */
-      getWebSocketUrl() {
-        const env = this.getEnv();
-        
-        // Solo disponible en desarrollo local (Vercel no soporta WebSocket nativo)
-        if (env === 'development') {
-          return 'ws://localhost:4041';
-        }
-        
-        // En producción/staging, WebSocket necesita solución externa
-        return null;
-      },
-      
-      /**
-       * Verifica si estamos en producción
-       */
-      isProduction() {
-        return this.getEnv() === 'production';
-      },
-      
-      /**
-       * Verifica si estamos en desarrollo
-       */
-      isDevelopment() {
-        return this.getEnv() === 'development';
-      },
-      
-      /**
-       * Verifica si estamos en staging
-       */
-      isStaging() {
-        return this.getEnv() === 'staging';
-      },
-      
-      /**
-       * AutoSelector de IA por entorno para Sandra
-       * Selecciona el modelo de IA por defecto según el entorno
-       * @returns {string} Nombre del modelo ('gpt-4o' | 'gemini-pro' | 'mixtral-8x7b')
-       */
-      getDefaultModel() {
-        const env = this.getEnv();
-        
-        // Producción: GPT-4o (OpenAI) - mejor calidad, más costoso
-        if (env === 'production') return 'gpt-4o';
-        
-        // Staging: Gemini Pro - buen balance calidad/precio
-        if (env === 'staging') return 'gemini-pro';
-        
-        // Desarrollo: Mixtral 8x7b (Groq) - rápido y gratuito para testing
-        return 'mixtral-8x7b';
-      },
-      
-      /**
-       * Obtiene información completa del modelo seleccionado
-       * @returns {object} { name: string, provider: string, cost: string, description: string }
-       */
-      getModelInfo() {
-        const model = this.getDefaultModel();
-        
-        const models = {
-          'gpt-4o': {
-            name: 'gpt-4o',
-            provider: 'openai',
-            cost: 'high',
-            description: 'OpenAI GPT-4o - Máxima calidad para producción'
-          },
-          'gemini-pro': {
-            name: 'gemini-pro',
-            provider: 'gemini',
-            cost: 'medium',
-            description: 'Google Gemini Pro - Buen balance calidad/precio'
-          },
-          'mixtral-8x7b': {
-            name: 'mixtral-8x7b',
-            provider: 'groq',
-            cost: 'low',
-            description: 'Groq Mixtral 8x7b - Rápido y gratuito para desarrollo'
-          }
-        };
-        
-        return models[model] || models['mixtral-8x7b'];
-      },
-      
-      /**
-       * 🧠 Función para obtener respuesta de Sandra automáticamente
-       * Helper que simplifica las llamadas a la API de Sandra
-       * @param {string} userMessage - Mensaje del usuario
-       * @returns {Promise<string>} Respuesta de Sandra
-       */
-      async getSandraResponse(userMessage) {
-        const baseUrl = this.getBaseUrl();
-        const env = this.getEnv();
-        
-        // Construir URL de la API
-        let apiUrl;
-        if (baseUrl.endsWith('/api')) {
-          apiUrl = `${baseUrl}/sandra/chat`;
-        } else {
-          apiUrl = `${baseUrl}/api/sandra/chat`;
-        }
-
-        try {
-          const response = await fetch(apiUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              message: userMessage,
-              model: this.getDefaultModel() // Enviar modelo para referencia
-            })
-          });
-
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || `Error HTTP: ${response.status}`);
-          }
-
-          const data = await response.json();
-          
-          // La respuesta puede venir como 'reply' o 'response'
-          return data?.reply || data?.response || '';
-        } catch (err) {
-          console.error('❌ Error al obtener respuesta de Sandra:', err);
-          
-          // Mensaje de error amigable según el entorno
-          if (env === 'development') {
-            return `Error: ${err.message}. Verifica que el servidor esté corriendo en ${baseUrl}`;
-          }
-          
-          return 'Lo siento, ha habido un problema al procesar tu mensaje. Por favor, intenta de nuevo.';
-        }
-      },
-      
-      /**
-       * 📦 Integración directa con el widget Galaxy
-       * Conecta automáticamente el widget Galaxy con Sandra IA
-       * @param {object} widget - Instancia del widget Galaxy
-       * @param {object} options - Opciones de configuración { onUserMessage, autoLock, showTyping }
-       */
-      connectGalaxyToSandra(widget, options = {}) {
-        if (!widget) {
-          console.warn('⚠️ connectGalaxyToSandra: Widget no proporcionado');
-          return;
-        }
-
-        const {
-          onUserMessage = null,  // Función callback personalizada
-          autoLock = true,       // Bloquear widget durante procesamiento
-          showTyping = true,     // Mostrar indicador de typing
-          autoSpeak = true       // Reproducir voz automáticamente
-        } = options;
-
-        const self = this;
-
-        // Función wrapper para manejar mensajes del usuario
-        const handleUserMessage = async (userMessage) => {
-          try {
-            // Bloquear widget si está habilitado
-            if (autoLock && typeof widget.lock === 'function') {
-              widget.lock();
-            }
-
-            // Agregar mensaje del usuario
-            if (typeof widget.addMessage === 'function') {
-              widget.addMessage({ from: 'user', text: userMessage });
-            }
-
-            // Mostrar indicador de typing si está habilitado
-            if (showTyping && typeof widget.showTyping === 'function') {
-              widget.showTyping(true);
-            }
-
-            // Obtener respuesta de Sandra
-            const response = await self.getSandraResponse(userMessage);
-
-            // Ocultar indicador de typing
-            if (showTyping && typeof widget.showTyping === 'function') {
-              widget.showTyping(false);
-            }
-
-            // Agregar respuesta de Sandra
-            if (typeof widget.addMessage === 'function') {
-              widget.addMessage({ from: 'sandra', text: response });
-            }
-
-            // Reproducir voz automáticamente si está habilitado
-            if (autoSpeak) {
-              self.speakSandraVoice(response);
-            }
-
-            // Desbloquear widget
-            if (autoLock && typeof widget.unlock === 'function') {
-              widget.unlock();
-            }
-
-            // Ejecutar callback personalizado si existe
-            if (onUserMessage && typeof onUserMessage === 'function') {
-              onUserMessage(userMessage, response);
-            }
-          } catch (error) {
-            console.error('❌ Error en connectGalaxyToSandra:', error);
-            
-            // Ocultar indicador de typing en caso de error
-            if (showTyping && typeof widget.showTyping === 'function') {
-              widget.showTyping(false);
-            }
-
-            // Mostrar mensaje de error
-            if (typeof widget.addMessage === 'function') {
-              widget.addMessage({ 
-                from: 'sandra', 
-                text: 'Lo siento, ha habido un problema al procesar tu mensaje.' 
-              });
-            }
-
-            // Desbloquear widget en caso de error
-            if (autoLock && typeof widget.unlock === 'function') {
-              widget.unlock();
-            }
-          }
-        };
-
-        // Conectar eventos según la estructura del widget
-        if (typeof widget.onUserMessage === 'function') {
-          // Si el widget tiene método onUserMessage
-          widget.onUserMessage(handleUserMessage);
-        } else if (typeof widget.addEventListener === 'function') {
-          // Si el widget usa eventos estándar
-          widget.addEventListener('userMessage', (event) => {
-            handleUserMessage(event.detail?.message || event.message);
-          });
-        } else if (typeof widget.on === 'function') {
-          // Si el widget usa patrón de eventos tipo jQuery
-          widget.on('userMessage', (userMessage) => {
-            handleUserMessage(userMessage);
-          });
-        } else {
-          // Asignar directamente al widget como propiedad
-          widget.handleUserMessage = handleUserMessage;
-          console.log('ℹ️ connectGalaxyToSandra: Función asignada como widget.handleUserMessage');
-        }
-
-        console.log('🔗 Galaxy widget conectado con Sandra IA');
-        
-        return widget;
-      },
-      
-      /**
-       * 📞 Integración con llamadas por voz a Sandra
-       * Específicamente diseñada para recibir texto transcrito (STT) y devolver respuesta para TTS
-       * @param {string} transcribedText - Texto transcrito del audio del usuario
-       * @returns {Promise<string>} Respuesta de Sandra lista para convertir a voz
-       */
-      async sendVoiceToSandra(transcribedText) {
-        const model = this.getDefaultModel();
-        const baseUrl = this.getBaseUrl();
-        
-        // Construir URL de la API
-        let apiUrl;
-        if (baseUrl.endsWith('/api')) {
-          apiUrl = `${baseUrl}/sandra/chat`;
-        } else {
-          apiUrl = `${baseUrl}/api/sandra/chat`;
-        }
-
-        try {
-          const response = await fetch(apiUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              message: transcribedText,
-              model: model
-            })
-          });
-
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || `Error HTTP: ${response.status}`);
-          }
-
-          const data = await response.json();
-          
-          // La respuesta puede venir como 'reply' o 'response'
-          return data?.reply || data?.response || '';
-        } catch (err) {
-          console.error('❌ Error en llamada de voz con Sandra:', err);
-          return 'No he podido responder ahora. ¿Puedes repetirlo?';
-        }
-      },
-      
-      /**
-       * 🗣 Convertir texto a voz con TTS dinámico según entorno
-       * Usa speechSynthesis del navegador como fallback con voz calmada y clara de Sandra
-       * @param {string} text - Texto a convertir a voz
-       * @param {object} options - Opciones de configuración { rate, pitch, volume, lang, onStart, onEnd, onError }
-       * @returns {SpeechSynthesisUtterance|null} Utterance para control externo o null
-       */
-      speakSandraVoice(text, options = {}) {
-        // Verificar que estamos en navegador
-        if (!window || !window.speechSynthesis) {
-          console.warn('❌ speechSynthesis no disponible en este entorno');
-          return null;
-        }
-
-        if (!text || typeof text !== 'string' || text.trim() === '') {
-          console.warn('⚠️ speakSandraVoice: Texto vacío o inválido');
-          return null;
-        }
-
-        const {
-          rate = 0.92,      // Ritmo calmado (0.1 - 10, default 1)
-          pitch = 1,        // Tono natural (0 - 2, default 1)
-          volume = 1,       // Volumen completo (0 - 1, default 1)
-          lang = 'es-ES',   // Idioma español
-          onStart = null,   // Callback cuando empieza a hablar
-          onEnd = null,     // Callback cuando termina de hablar
-          onError = null    // Callback en caso de error
-        } = options;
-
-        // Cancelar cualquier audio anterior
-        window.speechSynthesis.cancel();
-
-        // Crear utterance con configuración de Sandra
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = lang;
-        utterance.rate = rate;
-        utterance.pitch = pitch;
-        utterance.volume = volume;
-
-        // Callbacks
-        utterance.onstart = () => {
-          console.log('🔊 Sandra está hablando...');
-          if (onStart && typeof onStart === 'function') {
-            onStart();
-          }
-        };
-
-        utterance.onend = () => {
-          console.log('✅ Sandra ha terminado de hablar');
-          if (onEnd && typeof onEnd === 'function') {
-            onEnd();
-          }
-        };
-
-        utterance.onerror = (e) => {
-          console.error('❌ Error durante TTS:', e);
-          if (onError && typeof onError === 'function') {
-            onError(e);
-          }
-        };
-
-        // Reproducir
-        try {
-          window.speechSynthesis.speak(utterance);
-          return utterance;
-        } catch (error) {
-          console.error('❌ Error al iniciar speechSynthesis:', error);
-          return null;
-        }
-      },
-      
-      /**
-       * 🛑 Detener voz de Sandra
-       * Cancela cualquier audio de speechSynthesis en reproducción
-       */
-      stopSandraVoice() {
-        if (!window || !window.speechSynthesis) {
-          return;
-        }
-        window.speechSynthesis.cancel();
-        console.log('🛑 Voz de Sandra detenida');
-      },
-      
-      /**
-       * ⏸️ Pausar voz de Sandra
-       */
-      pauseSandraVoice() {
-        if (!window || !window.speechSynthesis) {
-          return;
-        }
-        window.speechSynthesis.pause();
-        console.log('⏸️ Voz de Sandra pausada');
-      },
-      
-      /**
-       * ▶️ Reanudar voz de Sandra
-       */
-      resumeSandraVoice() {
-        if (!window || !window.speechSynthesis) {
-          return;
-        }
-        window.speechSynthesis.resume();
-        console.log('▶️ Voz de Sandra reanudada');
-      },
-      
-      /**
-       * 🌟 Función total: flujo completo de voz con transcripción, respuesta y voz
-       * Realiza todo el flujo: texto transcrito → respuesta de Sandra → voz
-       * @param {string} transcribedText - Texto transcrito del audio del usuario (STT)
-       * @returns {Promise<string>} Respuesta de Sandra
-       */
-      async flujoCompletoSandraVoz(transcribedText) {
-        try {
-          // 1. Obtener respuesta de Sandra
-          const response = await this.sendVoiceToSandra(transcribedText);
-          
-          // 2. Reproducir respuesta con voz de Sandra
-          this.speakSandraVoice(response);
-          
-          return response;
-        } catch (err) {
-          console.error('❌ Error en flujo completo de voz:', err);
-          
-          // Mensaje de error con voz
-          this.speakSandraVoice('Ha habido un problema al procesar tu voz.');
-          
-          return '';
-        }
-      }
-    };
-    
-    // ============================================
-    // 📖 EJEMPLO DE USO: getSandraResponse()
-    // ============================================
-    // 
-    // Puedes usar EnvUtils.getSandraResponse() desde cualquier parte del código:
-    // 
-    // async function ejemploUso() {
-    //   const reply = await EnvUtils.getSandraResponse("Hola Sandra, ¿me puedes ayudar?");
-    //   console.log('🤖 Respuesta:', reply);
-    // }
-    // 
-    // El sistema automáticamente:
-    // - Detecta el entorno (dev/staging/prod)
-    // - Selecciona el modelo correcto (gpt-4o/gemini-pro/mixtral-8x7b)
-    // - Usa la URL correcta
-    // - Maneja errores automáticamente
-    //
-    // Ver USAGE_EXAMPLES.md para más ejemplos detallados.
-    //
-
     // Sandra Gateway Client
     class SandraGateway {
       constructor() {
-        // Usar utilidades de entorno para detectar URL base
-        this.baseUrl = EnvUtils.getBaseUrl();
-        this.env = EnvUtils.getEnv();
-        console.log(`🔍 [SandraGateway] Entorno detectado: ${this.env}, Base URL: ${this.baseUrl}`);
-        
-        // Mostrar información del modelo seleccionado
-        const modelInfo = EnvUtils.getModelInfo();
-        console.log(`🤖 [SandraGateway] Modelo: ${EnvUtils.getDefaultModel()} (${modelInfo.provider}) - ${modelInfo.description}`);
+        // Dynamic base URL detection (local vs production)
+        if (window.location.hostname === 'localhost' || window.location.port === '4040') {
+          this.baseUrl = '/api';
+        } else if (window.location.protocol === 'file:') {
+          // Si se abre desde file://, usar localhost
+          this.baseUrl = 'http://localhost:4040/api';
+        } else {
+          this.baseUrl = '/api';
+        }
       }
 
       async sendMessage(message, role = 'hospitality') {
@@ -1989,8 +1492,6 @@
         this.isSpeaking = false;
         this.audioQueue = [];
         this.currentAudio = null;
-        this.currentAudioBuffer = null; // Para AudioBuffer del saludo
-        this.currentAudioContext = null; // AudioContext para saludo
       this.activeCall = null;
       this.chatLocked = false; // bloquea chat durante llamada de voz
       this.ringtoneInterval = null;
@@ -2233,9 +1734,7 @@
                       
                       try {
                         // Llamar a la API para transcribir con Deepgram
-                        // Usar utilidades de entorno para detectar URL base
-                        const transcribeBaseUrl = EnvUtils.getBaseUrl();
-                        const response = await fetch(`${transcribeBaseUrl}/sandra/transcribe`, {
+                        const response = await fetch('http://localhost:4040/api/sandra/transcribe', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ audio: base64Audio })
@@ -2778,17 +2277,7 @@
       }
 
       startRealTimeCall() {
-        // Usar utilidades de entorno para detectar URL de WebSocket
-        const wsUrl = EnvUtils.getWebSocketUrl();
-        
-        if (!wsUrl) {
-          const env = EnvUtils.getEnv();
-          console.error(`❌ WebSocket no disponible en entorno: ${env}. Ver VERCEL_DEPLOY.md para configuración.`);
-          this.addMessage('Las llamadas conversacionales requieren configuración de WebSocket en producción. Por favor, usa el chat de texto.', 'bot');
-          return;
-        }
-        
-        console.log(`🔌 Iniciando conexión WebSocket a ${wsUrl} (entorno: ${EnvUtils.getEnv()})...`);
+        console.log('🔌 Iniciando conexión WebSocket a ws://localhost:4041...');
         console.log('📋 Estado actual del widget:', {
           isOpen: this.isOpen,
           activeCall: this.activeCall ? 'existe' : 'null'
@@ -2815,7 +2304,7 @@
         }
         
         // Conectar WebSocket
-        const ws = new WebSocket(wsUrl);
+        const ws = new WebSocket('ws://localhost:4041');
         console.log('🔌 WebSocket creado, estado inicial:', ws.readyState); // 0 = CONNECTING
         let mediaRecorder = null;
         let audioChunks = [];
@@ -3225,174 +2714,7 @@
         console.log('✅ WebSocket configurado completamente');
       }
 
-      // WORKFLOW 1: Cargar saludo usando AudioContext y AudioBuffer (sin cortes)
-      async loadSaludoBuffer(audioBase64) {
-        try {
-          // Inicializar AudioContext si no existe
-          if (!this.currentAudioContext) {
-            this.currentAudioContext = new (window.AudioContext || window.webkitAudioContext)();
-          }
-          
-          // Convertir base64 a ArrayBuffer
-        const byteCharacters = atob(audioBase64);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-          const arrayBuffer = byteArray.buffer;
-          
-          // Decodificar audio a AudioBuffer
-          const audioBuffer = await this.currentAudioContext.decodeAudioData(arrayBuffer);
-          console.log('✅ [CLIENTE] Saludo decodificado con AudioBuffer:', audioBuffer.duration.toFixed(2) + 's');
-          return audioBuffer;
-        } catch (error) {
-          console.error('❌ Error cargando saludo con AudioBuffer:', error);
-          throw error;
-        }
-      }
-
-      // WORKFLOW 1: Reproducir saludo usando AudioBuffer (sin cortes)
-      async reproducirSaludoConAudioBuffer(audioBuffer) {
-        try {
-          // Crear source node desde AudioBuffer
-          const sourceNode = this.currentAudioContext.createBufferSource();
-          sourceNode.buffer = audioBuffer;
-          
-          // Aplicar velocidad calmada (0.92x)
-          sourceNode.playbackRate.value = 0.92;
-          
-          // Conectar al destino (altavoces)
-          sourceNode.connect(this.currentAudioContext.destination);
-          
-          // Guardar referencia para poder detenerlo
-          this.currentAudioBuffer = sourceNode;
-          
-          // Promesa para manejar la finalización
-          const playPromise = new Promise((resolve) => {
-            // Eventos de finalización
-            sourceNode.onended = () => {
-              console.log('✅ [CLIENTE] Saludo con AudioBuffer finalizado completamente');
-              this.isSpeaking = false;
-              this.currentAudioBuffer = null;
-              
-              // Iniciar grabación después del saludo
-              setTimeout(() => {
-                if (this.activeCall && this.activeCall.startNewRecording && !this.isSpeaking) {
-                  this.activeCall.startNewRecording();
-                }
-              }, 500);
-              
-              resolve();
-            };
-          });
-          
-          // Reproducir inmediatamente (el buffer ya está completo)
-          console.log('▶️ [CLIENTE] Reproduciendo saludo con AudioBuffer (sin cortes)...');
-          console.log('🔍 [DEBUG] Estado AudioContext antes:', this.currentAudioContext.state);
-          
-          // 🔥 Activar el contexto si está suspendido
-          if (this.currentAudioContext.state !== 'running') {
-            console.log('⏸️ [CLIENTE] AudioContext suspendido, resumiendo...');
-            await this.currentAudioContext.resume();
-            console.log('✅ [CLIENTE] AudioContext resumido, estado:', this.currentAudioContext.state);
-          }
-          
-          sourceNode.start(0);
-          this.isSpeaking = true;
-          
-          // Esperar a que termine la reproducción
-          await playPromise;
-          
-        } catch (error) {
-          console.error('❌ Error reproduciendo saludo con AudioBuffer:', error);
-          this.isSpeaking = false;
-          throw error;
-        }
-      }
-
-      // WORKFLOW 2: Fallback TTS del navegador
-      reproducirSaludoTTS(texto = "Hola, soy Sandra, bienvenido a GuestsValencia, ¿en qué puedo ayudarte hoy?") {
-        const synth = window.speechSynthesis;
-        if (!synth) {
-          console.error('❌ SpeechSynthesis no disponible');
-          return;
-        }
-        
-        // Cancelar cualquier síntesis anterior
-        synth.cancel();
-        
-        const utterance = new SpeechSynthesisUtterance(texto);
-        utterance.lang = 'es-ES';
-        utterance.rate = 0.92; // Velocidad calmada
-        utterance.pitch = 1;
-        utterance.volume = 1;
-        
-        utterance.onend = () => {
-          console.log('✅ [CLIENTE] Saludo TTS finalizado');
-          this.isSpeaking = false;
-          setTimeout(() => {
-            if (this.activeCall && this.activeCall.startNewRecording && !this.isSpeaking) {
-              this.activeCall.startNewRecording();
-            }
-          }, 500);
-        };
-        
-        utterance.onerror = (e) => {
-          console.error('❌ Error en TTS:', e);
-          this.isSpeaking = false;
-        };
-        
-        console.log('🔊 [CLIENTE] Reproduciendo saludo con TTS fallback...');
-        this.isSpeaking = true;
-        synth.speak(utterance);
-      }
-
       playAudioResponse(audioBase64, isWelcome = false) {
-        // WORKFLOW 1: Si es el saludo, usar AudioBuffer (sin cortes)
-        if (isWelcome) {
-          console.log('👋 [CLIENTE] Cargando saludo con AudioBuffer (WORKFLOW 1)...');
-          
-          // Limpiar audio anterior si existe
-          if (this.currentAudio) {
-            this.currentAudio.pause();
-            if (this.currentAudio._blobUrl) {
-              URL.revokeObjectURL(this.currentAudio._blobUrl);
-            }
-            this.currentAudio = null;
-          }
-          
-          if (this.currentAudioBuffer) {
-            try {
-              this.currentAudioBuffer.stop();
-            } catch (e) {}
-            this.currentAudioBuffer = null;
-          }
-          
-          // Cargar y reproducir con AudioBuffer
-          this.loadSaludoBuffer(audioBase64)
-            .then(audioBuffer => {
-              // MEDIR LATENCIA
-              if (this.activeCall && this.activeCall.pickupTime) {
-                const latency = Date.now() - this.activeCall.pickupTime;
-                console.log(`⏱️ [LATENCIA] Tiempo desde descuelgue hasta inicio del saludo: ${latency}ms`);
-              }
-              
-              // Delay de 500ms antes de reproducir (ajustado para mejor resultado)
-              setTimeout(async () => {
-                await this.reproducirSaludoConAudioBuffer(audioBuffer);
-              }, 500);
-            })
-            .catch(error => {
-              console.warn('⚠️ Error con AudioBuffer, usando fallback TTS...', error);
-              // WORKFLOW 2: Fallback a TTS
-              this.reproducirSaludoTTS();
-            });
-          
-          return; // Salir, el saludo se maneja con AudioBuffer
-        }
-        
-        // Para audios NO saludo, usar el método tradicional (Audio HTML)
         // Si es el saludo inicial, NO detener audio anterior (no debería haber)
         if (!isWelcome && this.currentAudio) {
           this.currentAudio.pause();
@@ -3425,7 +2747,166 @@
         audio.playbackRate = 0.92;
         audio.defaultPlaybackRate = 0.92;
         
-        // NOTA: El saludo (isWelcome) ya se maneja con AudioBuffer arriba, este bloque es solo para audios NO saludo
+        // Si es el saludo, esperar a que el audio esté COMPLETAMENTE cargado antes de reproducir
+        if (isWelcome) {
+          console.log('👋 [CLIENTE] Cargando saludo inicial, esperando a que esté COMPLETAMENTE listo...');
+          audio.preload = 'auto';
+          
+          // Prevenir reproducción duplicada
+          let hasStartedPlaying = false;
+          let playCheckInterval = null;
+          
+          const playWhenFullyReady = () => {
+            if (hasStartedPlaying) return;
+            
+            // CRÍTICO: Verificar que el buffer esté COMPLETO desde el inicio hasta el final
+            const hasEnoughData = audio.readyState === 4; // HAVE_ENOUGH_DATA
+            const hasValidDuration = audio.duration && audio.duration > 0 && isFinite(audio.duration);
+            
+            // Verificar que el buffer cubra TODO el audio desde 0 hasta el final
+            let hasCompleteBufferFromStart = false;
+            let hasSeekableRange = false;
+            
+            if (audio.buffered.length > 0 && hasValidDuration) {
+              const firstBufferStart = audio.buffered.start(0);
+              const firstBufferEnd = audio.buffered.end(0);
+              // CRÍTICO: El buffer DEBE empezar desde 0 y cubrir TODO el audio (100%)
+              hasCompleteBufferFromStart = firstBufferStart === 0 &&
+                                          firstBufferEnd > 0 &&
+                                          firstBufferEnd >= audio.duration; // 100% completo - sin tolerancia
+            }
+            
+            // Verificar también seekable (más confiable que buffered)
+            if (audio.seekable.length > 0 && hasValidDuration) {
+              const firstSeekableStart = audio.seekable.start(0);
+              const firstSeekableEnd = audio.seekable.end(0);
+              hasSeekableRange = firstSeekableStart === 0 &&
+                                firstSeekableEnd > 0 &&
+                                firstSeekableEnd >= audio.duration; // 100% completo
+              
+              console.log('🔍 [DEBUG] Seekable check:', {
+                start: firstSeekableStart,
+                end: firstSeekableEnd,
+                duration: audio.duration,
+                coverage: ((firstSeekableEnd / audio.duration) * 100).toFixed(1) + '%',
+                isComplete: hasSeekableRange
+              });
+            }
+            
+            if (audio.buffered.length > 0 && hasValidDuration) {
+              const firstBufferStart = audio.buffered.start(0);
+              const firstBufferEnd = audio.buffered.end(0);
+              console.log('🔍 [DEBUG] Buffer check:', {
+                start: firstBufferStart,
+                end: firstBufferEnd,
+                duration: audio.duration,
+                coverage: ((firstBufferEnd / audio.duration) * 100).toFixed(1) + '%',
+                readyState: audio.readyState,
+                isComplete: hasCompleteBufferFromStart,
+                seekableComplete: hasSeekableRange
+              });
+            }
+            
+            // Requerir que TANTO buffered COMO seekable estén completos
+            const isFullyReady = hasCompleteBufferFromStart && hasSeekableRange;
+            
+            if (hasEnoughData && hasValidDuration && isFullyReady) {
+              // Limpiar intervalo de verificación
+              if (playCheckInterval) {
+                clearInterval(playCheckInterval);
+                playCheckInterval = null;
+              }
+              
+              // MEDIR LATENCIA: Calcular tiempo desde descuelgue hasta inicio del saludo
+              if (this.activeCall && this.activeCall.pickupTime) {
+                const latency = Date.now() - this.activeCall.pickupTime;
+                console.log(`⏱️ [LATENCIA] Tiempo desde descuelgue hasta inicio del saludo: ${latency}ms`);
+              }
+
+              // SOLUCIÓN: Esperar 1 segundo completo para que el buffer se estabilice
+              setTimeout(() => {
+                if (hasStartedPlaying) return;
+                hasStartedPlaying = true;
+
+                // Una sola asignación de currentTime al inicio
+                audio.currentTime = 0;
+
+                console.log('✅ [CLIENTE] Saludo COMPLETAMENTE listo (buffer 100%), reproduciendo...');
+                console.log('🔍 [DEBUG] currentTime antes de play():', audio.currentTime);
+
+                // Reproducir directamente sin verificaciones post-play
+                audio.play()
+                  .then(() => {
+                    console.log('✅ [CLIENTE] Audio iniciado correctamente desde el principio');
+                  })
+                  .catch(e => console.error('❌ Error reproduciendo saludo:', e));
+
+              }, 1000); // 1 segundo de delay para estabilizar buffer completamente
+            }
+          };
+          
+          // Escuchar loadeddata (primeros datos cargados)
+          audio.addEventListener('loadeddata', () => {
+            console.log('📥 [CLIENTE] Saludo loadeddata recibido, duración:', audio.duration);
+            audio.currentTime = 0;
+            // Verificar si ya está listo
+            playWhenFullyReady();
+          }, { once: true });
+          
+          // Escuchar canplaythrough (audio listo para reproducir sin cortes)
+          audio.addEventListener('canplaythrough', () => {
+            console.log('✅ [CLIENTE] Saludo canplaythrough recibido, verificando buffer completo...');
+            // Verificar buffer completo
+            playWhenFullyReady();
+          }, { once: true });
+          
+          // Escuchar loadedmetadata para obtener duración y asegurar currentTime=0
+          audio.addEventListener('loadedmetadata', () => {
+            console.log('📊 [CLIENTE] Saludo metadata cargada, duración:', audio.duration);
+            audio.currentTime = 0;
+          }, { once: true });
+          
+          // Escuchar progress para verificar que el buffer se está cargando
+          audio.addEventListener('progress', () => {
+            if (audio.buffered.length > 0 && audio.duration) {
+              const bufferedEnd = audio.buffered.end(0);
+              const bufferedPercent = (bufferedEnd / audio.duration * 100).toFixed(1);
+              console.log(`📥 [CLIENTE] Buffer cargando: ${bufferedPercent}%`);
+              
+              // Si el buffer está completo (99%+), verificar si está listo para reproducir
+              if (bufferedPercent >= 99) {
+                playWhenFullyReady();
+              }
+            }
+          });
+          
+          // Verificación periódica como respaldo (cada 200ms, menos agresivo)
+          playCheckInterval = setInterval(() => {
+            if (!hasStartedPlaying) {
+              playWhenFullyReady();
+            } else {
+              clearInterval(playCheckInterval);
+              playCheckInterval = null;
+            }
+          }, 200);
+          
+          // Forzar carga del audio
+          audio.load();
+          
+          // Timeout de seguridad (8 segundos máximo)
+          setTimeout(() => {
+            if (playCheckInterval) {
+              clearInterval(playCheckInterval);
+              playCheckInterval = null;
+            }
+            if (!hasStartedPlaying && audio.readyState >= 2) {
+              console.log('⏰ [CLIENTE] Timeout de seguridad: forzando reproducción');
+              audio.currentTime = 0;
+              hasStartedPlaying = true;
+              audio.play().catch(e => console.error('❌ Error reproduciendo saludo:', e));
+            }
+          }, 8000);
+        }
         
         audio.onloadedmetadata = () => {
           console.log(`📊 [CLIENTE] Audio cargado: duración ${audio.duration.toFixed(2)}s, velocidad actual ${audio.playbackRate}x`);
@@ -3471,7 +2952,7 @@
           this.isSpeaking = false;
           
           // CRÍTICO: NO limpiar currentAudio inmediatamente (evitar cortes al final)
-          // Esperar 3 segundos COMPLETOS para asegurar que el audio termine sin cortes
+          // Aumentar delay para asegurar que el audio termine completamente
           setTimeout(() => {
             // Revocar Blob URL para liberar memoria
             if (audio._blobUrl) {
@@ -3479,7 +2960,7 @@
               audio._blobUrl = null;
             }
             this.currentAudio = null;
-          }, 3000); // CRÍTICO: 3 segundos para evitar cortes al final
+          }, 800); // Aumentado a 800ms para evitar cortes al final
           
           // Si es el saludo, iniciar grabación después de un delay
           if (audio._isWelcome) {
