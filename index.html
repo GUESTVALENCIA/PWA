@@ -2716,132 +2716,86 @@
       }
 
       playAudioResponse(audioBase64, isWelcome = false, format = 'mp3') {
-        // Si es el saludo inicial, NO detener audio anterior (no debería haber)
-        if (!isWelcome && this.currentAudio) {
-          this.currentAudio.pause();
-          // Revocar Blob URL del audio anterior si existe
-          if (this.currentAudio._blobUrl) {
-            URL.revokeObjectURL(this.currentAudio._blobUrl);
-          }
-          this.currentAudio = null;
+        // Detener audio anterior si existe
+        if (this.currentAudioSource) {
+          try { this.currentAudioSource.stop(); } catch(e) {}
+          this.currentAudioSource = null;
         }
 
-        // Determinar el tipo MIME según el formato
-        const mimeType = format === 'wav' ? 'audio/wav' : 'audio/mp3';
-        console.log('🎵 [CLIENTE] Creando Blob con formato:', format, 'MIME:', mimeType);
+        // Crear AudioContext si no existe
+        if (!this.audioContext) {
+          this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
 
-        // SOLUCIÓN OFICIAL: Convertir base64 a Blob y usar Blob URL en lugar de data URI
-        // Esto asegura que el navegador trate el audio como archivo completo y lo bufferice correctamente
+        // Convertir base64 a ArrayBuffer
         const byteCharacters = atob(audioBase64);
-        const byteNumbers = new Array(byteCharacters.length);
+        const byteArray = new Uint8Array(byteCharacters.length);
         for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: mimeType });
-        const blobUrl = URL.createObjectURL(blob);
-
-        // Usar Blob URL en lugar de data URI
-        const audio = new Audio(blobUrl);
-
-        // Guardar flag isWelcome y blobUrl en el elemento audio para acceso en callbacks
-        audio._isWelcome = isWelcome;
-        audio._blobUrl = blobUrl;
-
-        // Si es el saludo, reproducir de forma simple y directa
-        if (isWelcome) {
-          console.log('👋 [CLIENTE] Cargando saludo inicial...');
-
-          // Evento cuando el audio está listo
-          audio.addEventListener('canplaythrough', () => {
-            console.log('✅ [CLIENTE] Audio listo, reproduciendo...');
-            audio.play()
-              .then(() => console.log('✅ [CLIENTE] Saludo iniciado'))
-              .catch(e => console.error('❌ Error:', e));
-          }, { once: true });
-
-          // Forzar carga
-          audio.load();
+          byteArray[i] = byteCharacters.charCodeAt(i);
         }
 
-        this.currentAudio = audio;
+        console.log('🎵 [CLIENTE] Decodificando audio con Web Audio API...');
 
-        // Si NO es el saludo, reproducir inmediatamente
-        if (!isWelcome) {
-          console.log('▶️ [CLIENTE] Reproduciendo audio de Sandra...');
-          audio.play().catch(e => console.error('Error reproduciendo audio:', e));
-        }
+        // Decodificar el audio COMPLETAMENTE antes de reproducir
+        this.audioContext.decodeAudioData(byteArray.buffer)
+          .then(audioBuffer => {
+            console.log('✅ [CLIENTE] Audio decodificado:', audioBuffer.duration.toFixed(2), 'segundos');
 
-        audio.onplay = () => {
-          console.log('▶️ [CLIENTE] Audio iniciado');
-        };
+            // Crear source node
+            const source = this.audioContext.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(this.audioContext.destination);
 
-        audio.onended = () => {
-          console.log('✅ [CLIENTE] Audio de Sandra finalizado completamente');
-          this.isSpeaking = false;
-          
-          // CRÍTICO: NO limpiar currentAudio inmediatamente (evitar cortes al final)
-          // Aumentar delay para asegurar que el audio termine completamente
-          setTimeout(() => {
-            // Revocar Blob URL para liberar memoria
-            if (audio._blobUrl) {
-              URL.revokeObjectURL(audio._blobUrl);
-              audio._blobUrl = null;
-            }
-            this.currentAudio = null;
-          }, 800); // Aumentado a 800ms para evitar cortes al final
-          
-          // Si es el saludo, iniciar grabación después de un delay
-          if (audio._isWelcome) {
-            console.log('👋 [CLIENTE] Saludo terminado, iniciando grabación en 500ms...');
-            setTimeout(() => {
-              if (this.activeCall && this.activeCall.startNewRecording && !this.isSpeaking) {
-                this.activeCall.startNewRecording();
-              }
-            }, 500); // 500ms de margen después del saludo
-          } else {
-            // CRÍTICO: Esperar tiempo mínimo antes de reiniciar grabación para evitar eco
-            // Reiniciar grabación SOLO después de que Sandra termine completamente de hablar
-            if (this.activeCall && this.activeCall.mediaRecorder && this.activeCall.mediaRecorder.state === 'inactive' && this.activeCall.startNewRecording) {
-              console.log('🎙️ [CLIENTE] Esperando 500ms antes de reiniciar grabación (evitar eco)...');
-              setTimeout(() => {
-                if (this.activeCall && this.activeCall.mediaRecorder && this.activeCall.mediaRecorder.state === 'inactive' && !this.isSpeaking) {
-                  console.log('🎙️ [CLIENTE] Reiniciando grabación de USUARIO (Sandra callada)');
-                  this.activeCall.startNewRecording();
-                } else {
-                  console.log('⚠️ [CLIENTE] No reiniciar grabación:', {
-                    hasActiveCall: !!this.activeCall,
-                    mediaRecorderState: this.activeCall?.mediaRecorder?.state,
-                    isSpeaking: this.isSpeaking
-                  });
+            // Guardar referencia
+            this.currentAudioSource = source;
+            source._isWelcome = isWelcome;
+
+            // Evento cuando termina
+            source.onended = () => {
+              console.log('✅ [CLIENTE] Audio finalizado');
+              this.isSpeaking = false;
+              this.currentAudioSource = null;
+
+              // Si es saludo, iniciar grabación
+              if (isWelcome) {
+                console.log('👋 [CLIENTE] Saludo terminado, iniciando grabación...');
+                setTimeout(() => {
+                  if (this.activeCall && this.activeCall.startNewRecording && !this.isSpeaking) {
+                    this.activeCall.startNewRecording();
+                  }
+                }, 500);
+              } else {
+                // Reiniciar grabación para respuestas normales
+                if (this.activeCall && this.activeCall.mediaRecorder &&
+                    this.activeCall.mediaRecorder.state === 'inactive' &&
+                    this.activeCall.startNewRecording) {
+                  setTimeout(() => {
+                    if (this.activeCall && !this.isSpeaking) {
+                      this.activeCall.startNewRecording();
+                    }
+                  }, 300);
                 }
-              }, 300); // Delay optimizado para menor latencia
-            }
-          }
-          
-          // Reproducir siguiente audio en cola si existe
-          if (this.audioQueue && this.audioQueue.length > 0) {
-            const nextItem = this.audioQueue.shift();
-            console.log('📋 [CLIENTE] Reproduciendo siguiente audio en cola');
-            // Manejar tanto formato antiguo (string) como nuevo (objeto)
-            if (typeof nextItem === 'string') {
-              this.playAudioResponse(nextItem, false, 'mp3');
-            } else {
-              this.playAudioResponse(nextItem.audio, false, nextItem.format || 'mp3');
-            }
-          }
-        };
-        
-        audio.onerror = (e) => {
-          console.error('❌ Error reproduciendo audio:', e, audio.error);
-          this.isSpeaking = false;
-          // Revocar Blob URL en caso de error
-          if (audio._blobUrl) {
-            URL.revokeObjectURL(audio._blobUrl);
-            audio._blobUrl = null;
-          }
-          this.currentAudio = null;
-        };
+              }
+
+              // Reproducir siguiente en cola
+              if (this.audioQueue && this.audioQueue.length > 0) {
+                const nextItem = this.audioQueue.shift();
+                if (typeof nextItem === 'string') {
+                  this.playAudioResponse(nextItem, false, 'mp3');
+                } else {
+                  this.playAudioResponse(nextItem.audio, false, nextItem.format || 'mp3');
+                }
+              }
+            };
+
+            // REPRODUCIR - El audio está 100% decodificado, no puede cortarse
+            console.log('▶️ [CLIENTE] Reproduciendo audio (100% decodificado)...');
+            source.start(0);
+          })
+          .catch(error => {
+            console.error('❌ Error decodificando audio:', error);
+            this.isSpeaking = false;
+          });
       }
 
       addMessage(text, type) {
