@@ -684,10 +684,15 @@ class SandraWidget {
 // Auto-inicializar cuando el DOM esté listo
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
-    window.uigSandra = new UIGSandra();
+    if (!window.sandraWidgetInstance) {
+      window.sandraWidgetInstance = new SandraWidget();
+    }
   });
 } else {
-  window.uigSandra = new UIGSandra();
+  if (!window.sandraWidgetInstance) {
+    window.sandraWidgetInstance = new SandraWidget();
+  }
 }
 
-window.UIGSandra = UIGSandra;
+// Exportar para uso global
+window.SandraWidget = SandraWidget;
