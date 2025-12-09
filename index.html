@@ -2687,11 +2687,12 @@
             if (!this.isSpeaking) {
               this.isSpeaking = true;
               console.log('▶️ [CLIENTE] Reproduciendo audio de Sandra...');
-              this.playAudioResponse(data.audio, data.isWelcome || false);
+              console.log('🔍 [DEBUG] Formato del audio:', data.format || 'mp3');
+              this.playAudioResponse(data.audio, data.isWelcome || false, data.format || 'mp3');
             } else {
-              // Si ya está hablando, encolar
+              // Si ya está hablando, encolar con formato
               console.log('📋 [CLIENTE] Audio encolado (Sandra ya está hablando)');
-              this.audioQueue.push(data.audio);
+              this.audioQueue.push({ audio: data.audio, format: data.format || 'mp3' });
             }
           } else if (data.type === 'noSpeech') {
             // No se entendió el audio - no es un error, solo informar al usuario
@@ -2714,300 +2715,87 @@
         console.log('✅ WebSocket configurado completamente');
       }
 
-      playAudioResponse(audioBase64, isWelcome = false) {
-        // Si es el saludo inicial, NO detener audio anterior (no debería haber)
-        if (!isWelcome && this.currentAudio) {
-          this.currentAudio.pause();
-          // Revocar Blob URL del audio anterior si existe
-          if (this.currentAudio._blobUrl) {
-            URL.revokeObjectURL(this.currentAudio._blobUrl);
-          }
-          this.currentAudio = null;
+      playAudioResponse(audioBase64, isWelcome = false, format = 'mp3') {
+        // Detener audio anterior si existe
+        if (this.currentAudioSource) {
+          try { this.currentAudioSource.stop(); } catch(e) {}
+          this.currentAudioSource = null;
         }
-        
-        // SOLUCIÓN OFICIAL: Convertir base64 a Blob y usar Blob URL en lugar de data URI
-        // Esto asegura que el navegador trate el audio como archivo completo y lo bufferice correctamente
+
+        // Crear AudioContext si no existe
+        if (!this.audioContext) {
+          this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        // Convertir base64 a ArrayBuffer
         const byteCharacters = atob(audioBase64);
-        const byteNumbers = new Array(byteCharacters.length);
+        const byteArray = new Uint8Array(byteCharacters.length);
         for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
+          byteArray[i] = byteCharacters.charCodeAt(i);
         }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: 'audio/mp3' });
-        const blobUrl = URL.createObjectURL(blob);
-        
-        // Usar Blob URL en lugar de data URI
-        const audio = new Audio(blobUrl);
-        
-        // Guardar flag isWelcome y blobUrl en el elemento audio para acceso en callbacks
-        audio._isWelcome = isWelcome;
-        audio._blobUrl = blobUrl; // Guardar para revocar después de la reproducción
-        
-        // FORZAR velocidad calmada (0.92x) para tono relajado pero natural
-        audio.playbackRate = 0.92;
-        audio.defaultPlaybackRate = 0.92;
-        
-        // Si es el saludo, esperar a que el audio esté COMPLETAMENTE cargado antes de reproducir
-        if (isWelcome) {
-          console.log('👋 [CLIENTE] Cargando saludo inicial, esperando a que esté COMPLETAMENTE listo...');
-          audio.preload = 'auto';
-          
-          // Prevenir reproducción duplicada
-          let hasStartedPlaying = false;
-          let playCheckInterval = null;
-          
-          const playWhenFullyReady = () => {
-            if (hasStartedPlaying) return;
-            
-            // CRÍTICO: Verificar que el buffer esté COMPLETO desde el inicio hasta el final
-            const hasEnoughData = audio.readyState === 4; // HAVE_ENOUGH_DATA
-            const hasValidDuration = audio.duration && audio.duration > 0 && isFinite(audio.duration);
-            
-            // Verificar que el buffer cubra TODO el audio desde 0 hasta el final
-            let hasCompleteBufferFromStart = false;
-            let hasSeekableRange = false;
-            
-            if (audio.buffered.length > 0 && hasValidDuration) {
-              const firstBufferStart = audio.buffered.start(0);
-              const firstBufferEnd = audio.buffered.end(0);
-              // CRÍTICO: El buffer DEBE empezar desde 0 y cubrir TODO el audio (100%)
-              hasCompleteBufferFromStart = firstBufferStart === 0 &&
-                                          firstBufferEnd > 0 &&
-                                          firstBufferEnd >= audio.duration; // 100% completo - sin tolerancia
-            }
-            
-            // Verificar también seekable (más confiable que buffered)
-            if (audio.seekable.length > 0 && hasValidDuration) {
-              const firstSeekableStart = audio.seekable.start(0);
-              const firstSeekableEnd = audio.seekable.end(0);
-              hasSeekableRange = firstSeekableStart === 0 &&
-                                firstSeekableEnd > 0 &&
-                                firstSeekableEnd >= audio.duration; // 100% completo
-              
-              console.log('🔍 [DEBUG] Seekable check:', {
-                start: firstSeekableStart,
-                end: firstSeekableEnd,
-                duration: audio.duration,
-                coverage: ((firstSeekableEnd / audio.duration) * 100).toFixed(1) + '%',
-                isComplete: hasSeekableRange
-              });
-            }
-            
-            if (audio.buffered.length > 0 && hasValidDuration) {
-              const firstBufferStart = audio.buffered.start(0);
-              const firstBufferEnd = audio.buffered.end(0);
-              console.log('🔍 [DEBUG] Buffer check:', {
-                start: firstBufferStart,
-                end: firstBufferEnd,
-                duration: audio.duration,
-                coverage: ((firstBufferEnd / audio.duration) * 100).toFixed(1) + '%',
-                readyState: audio.readyState,
-                isComplete: hasCompleteBufferFromStart,
-                seekableComplete: hasSeekableRange
-              });
-            }
-            
-            // Requerir que TANTO buffered COMO seekable estén completos
-            const isFullyReady = hasCompleteBufferFromStart && hasSeekableRange;
-            
-            if (hasEnoughData && hasValidDuration && isFullyReady) {
-              // Limpiar intervalo de verificación
-              if (playCheckInterval) {
-                clearInterval(playCheckInterval);
-                playCheckInterval = null;
-              }
-              
-              // MEDIR LATENCIA: Calcular tiempo desde descuelgue hasta inicio del saludo
-              if (this.activeCall && this.activeCall.pickupTime) {
-                const latency = Date.now() - this.activeCall.pickupTime;
-                console.log(`⏱️ [LATENCIA] Tiempo desde descuelgue hasta inicio del saludo: ${latency}ms`);
-              }
 
-              // SOLUCIÓN: Esperar 1 segundo completo para que el buffer se estabilice
-              setTimeout(() => {
-                if (hasStartedPlaying) return;
-                hasStartedPlaying = true;
+        console.log('🎵 [CLIENTE] Decodificando audio con Web Audio API...');
 
-                // Una sola asignación de currentTime al inicio
-                audio.currentTime = 0;
+        // Decodificar el audio COMPLETAMENTE antes de reproducir
+        this.audioContext.decodeAudioData(byteArray.buffer)
+          .then(audioBuffer => {
+            console.log('✅ [CLIENTE] Audio decodificado:', audioBuffer.duration.toFixed(2), 'segundos');
 
-                console.log('✅ [CLIENTE] Saludo COMPLETAMENTE listo (buffer 100%), reproduciendo...');
-                console.log('🔍 [DEBUG] currentTime antes de play():', audio.currentTime);
+            // Crear source node
+            const source = this.audioContext.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(this.audioContext.destination);
 
-                // Reproducir directamente sin verificaciones post-play
-                audio.play()
-                  .then(() => {
-                    console.log('✅ [CLIENTE] Audio iniciado correctamente desde el principio');
-                  })
-                  .catch(e => console.error('❌ Error reproduciendo saludo:', e));
+            // Guardar referencia
+            this.currentAudioSource = source;
+            source._isWelcome = isWelcome;
 
-              }, 1000); // 1 segundo de delay para estabilizar buffer completamente
-            }
-          };
-          
-          // Escuchar loadeddata (primeros datos cargados)
-          audio.addEventListener('loadeddata', () => {
-            console.log('📥 [CLIENTE] Saludo loadeddata recibido, duración:', audio.duration);
-            audio.currentTime = 0;
-            // Verificar si ya está listo
-            playWhenFullyReady();
-          }, { once: true });
-          
-          // Escuchar canplaythrough (audio listo para reproducir sin cortes)
-          audio.addEventListener('canplaythrough', () => {
-            console.log('✅ [CLIENTE] Saludo canplaythrough recibido, verificando buffer completo...');
-            // Verificar buffer completo
-            playWhenFullyReady();
-          }, { once: true });
-          
-          // Escuchar loadedmetadata para obtener duración y asegurar currentTime=0
-          audio.addEventListener('loadedmetadata', () => {
-            console.log('📊 [CLIENTE] Saludo metadata cargada, duración:', audio.duration);
-            audio.currentTime = 0;
-          }, { once: true });
-          
-          // Escuchar progress para verificar que el buffer se está cargando
-          audio.addEventListener('progress', () => {
-            if (audio.buffered.length > 0 && audio.duration) {
-              const bufferedEnd = audio.buffered.end(0);
-              const bufferedPercent = (bufferedEnd / audio.duration * 100).toFixed(1);
-              console.log(`📥 [CLIENTE] Buffer cargando: ${bufferedPercent}%`);
-              
-              // Si el buffer está completo (99%+), verificar si está listo para reproducir
-              if (bufferedPercent >= 99) {
-                playWhenFullyReady();
-              }
-            }
-          });
-          
-          // Verificación periódica como respaldo (cada 200ms, menos agresivo)
-          playCheckInterval = setInterval(() => {
-            if (!hasStartedPlaying) {
-              playWhenFullyReady();
-            } else {
-              clearInterval(playCheckInterval);
-              playCheckInterval = null;
-            }
-          }, 200);
-          
-          // Forzar carga del audio
-          audio.load();
-          
-          // Timeout de seguridad (8 segundos máximo)
-          setTimeout(() => {
-            if (playCheckInterval) {
-              clearInterval(playCheckInterval);
-              playCheckInterval = null;
-            }
-            if (!hasStartedPlaying && audio.readyState >= 2) {
-              console.log('⏰ [CLIENTE] Timeout de seguridad: forzando reproducción');
-              audio.currentTime = 0;
-              hasStartedPlaying = true;
-              audio.play().catch(e => console.error('❌ Error reproduciendo saludo:', e));
-            }
-          }, 8000);
-        }
-        
-        audio.onloadedmetadata = () => {
-          console.log(`📊 [CLIENTE] Audio cargado: duración ${audio.duration.toFixed(2)}s, velocidad actual ${audio.playbackRate}x`);
-          // Verificar y forzar velocidad calmada después de cargar
-          if (audio.playbackRate !== 0.92) {
-            console.warn('⚠️ [CLIENTE] Velocidad incorrecta detectada, corrigiendo a 0.92x...');
-            audio.playbackRate = 0.92;
-          }
-        };
-        
-        // Interceptar cualquier cambio de velocidad
-        const originalSetPlaybackRate = Object.getOwnPropertyDescriptor(HTMLAudioElement.prototype, 'playbackRate')?.set;
-        if (originalSetPlaybackRate) {
-          Object.defineProperty(audio, 'playbackRate', {
-            get: () => 0.92,
-            set: (value) => {
-              console.warn('⚠️ Intento de cambiar playbackRate a', value, '- ignorado, forzando 0.92');
-            },
-            configurable: true
-          });
-        }
-        
-        this.currentAudio = audio; // Guardar referencia para poder detenerlo
-        
-        // Si NO es el saludo, reproducir inmediatamente
-        if (!isWelcome) {
-          console.log('▶️ [CLIENTE] Reproduciendo audio de Sandra (velocidad calmada: 0.92x, formato: MP3)...');
-          audio.play().catch(e => console.error('Error reproduciendo audio:', e));
-        }
-        
-        audio.onplay = () => {
-          console.log(`▶️ [CLIENTE] Audio iniciado, velocidad: ${audio.playbackRate}x`);
-          // Verificar velocidad calmada al iniciar reproducción (solo una vez, sin intervalos)
-          if (audio.playbackRate !== 0.92) {
-            console.warn('⚠️ [CLIENTE] Velocidad incorrecta al iniciar, corrigiendo a 0.92x...');
-            audio.playbackRate = 0.92;
-          }
-          // NO usar intervalos para forzar playbackRate - causa glitches de audio
-        };
-        
-        audio.onended = () => {
-          console.log('✅ [CLIENTE] Audio de Sandra finalizado completamente');
-          this.isSpeaking = false;
-          
-          // CRÍTICO: NO limpiar currentAudio inmediatamente (evitar cortes al final)
-          // Aumentar delay para asegurar que el audio termine completamente
-          setTimeout(() => {
-            // Revocar Blob URL para liberar memoria
-            if (audio._blobUrl) {
-              URL.revokeObjectURL(audio._blobUrl);
-              audio._blobUrl = null;
-            }
-            this.currentAudio = null;
-          }, 800); // Aumentado a 800ms para evitar cortes al final
-          
-          // Si es el saludo, iniciar grabación después de un delay
-          if (audio._isWelcome) {
-            console.log('👋 [CLIENTE] Saludo terminado, iniciando grabación en 500ms...');
-            setTimeout(() => {
-              if (this.activeCall && this.activeCall.startNewRecording && !this.isSpeaking) {
-                this.activeCall.startNewRecording();
-              }
-            }, 500); // 500ms de margen después del saludo
-          } else {
-            // CRÍTICO: Esperar tiempo mínimo antes de reiniciar grabación para evitar eco
-            // Reiniciar grabación SOLO después de que Sandra termine completamente de hablar
-            if (this.activeCall && this.activeCall.mediaRecorder && this.activeCall.mediaRecorder.state === 'inactive' && this.activeCall.startNewRecording) {
-              console.log('🎙️ [CLIENTE] Esperando 500ms antes de reiniciar grabación (evitar eco)...');
-              setTimeout(() => {
-                if (this.activeCall && this.activeCall.mediaRecorder && this.activeCall.mediaRecorder.state === 'inactive' && !this.isSpeaking) {
-                  console.log('🎙️ [CLIENTE] Reiniciando grabación de USUARIO (Sandra callada)');
-                  this.activeCall.startNewRecording();
-                } else {
-                  console.log('⚠️ [CLIENTE] No reiniciar grabación:', {
-                    hasActiveCall: !!this.activeCall,
-                    mediaRecorderState: this.activeCall?.mediaRecorder?.state,
-                    isSpeaking: this.isSpeaking
-                  });
+            // Evento cuando termina
+            source.onended = () => {
+              console.log('✅ [CLIENTE] Audio finalizado');
+              this.isSpeaking = false;
+              this.currentAudioSource = null;
+
+              // Si es saludo, iniciar grabación
+              if (isWelcome) {
+                console.log('👋 [CLIENTE] Saludo terminado, iniciando grabación...');
+                setTimeout(() => {
+                  if (this.activeCall && this.activeCall.startNewRecording && !this.isSpeaking) {
+                    this.activeCall.startNewRecording();
+                  }
+                }, 500);
+              } else {
+                // Reiniciar grabación para respuestas normales
+                if (this.activeCall && this.activeCall.mediaRecorder &&
+                    this.activeCall.mediaRecorder.state === 'inactive' &&
+                    this.activeCall.startNewRecording) {
+                  setTimeout(() => {
+                    if (this.activeCall && !this.isSpeaking) {
+                      this.activeCall.startNewRecording();
+                    }
+                  }, 300);
                 }
-              }, 300); // Delay optimizado para menor latencia
-            }
-          }
-          
-          // Reproducir siguiente audio en cola si existe
-          if (this.audioQueue && this.audioQueue.length > 0) {
-            const nextAudio = this.audioQueue.shift();
-            console.log('📋 [CLIENTE] Reproduciendo siguiente audio en cola');
-            this.playAudioResponse(nextAudio);
-          }
-        };
-        
-        audio.onerror = (e) => {
-          console.error('❌ Error reproduciendo audio:', e, audio.error);
-          this.isSpeaking = false;
-          // Revocar Blob URL en caso de error
-          if (audio._blobUrl) {
-            URL.revokeObjectURL(audio._blobUrl);
-            audio._blobUrl = null;
-          }
-          this.currentAudio = null;
-        };
+              }
+
+              // Reproducir siguiente en cola
+              if (this.audioQueue && this.audioQueue.length > 0) {
+                const nextItem = this.audioQueue.shift();
+                if (typeof nextItem === 'string') {
+                  this.playAudioResponse(nextItem, false, 'mp3');
+                } else {
+                  this.playAudioResponse(nextItem.audio, false, nextItem.format || 'mp3');
+                }
+              }
+            };
+
+            // REPRODUCIR - El audio está 100% decodificado, no puede cortarse
+            console.log('▶️ [CLIENTE] Reproduciendo audio (100% decodificado)...');
+            source.start(0);
+          })
+          .catch(error => {
+            console.error('❌ Error decodificando audio:', error);
+            this.isSpeaking = false;
+          });
       }
 
       addMessage(text, type) {
