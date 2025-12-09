@@ -1,0 +1,309 @@
+{
+  "status": "ready_tested",
+  "questions": [],
+  "mcp_endpoint": {
+    "url": "https://api-staging.guestsvalencia.es/bastanteo/mcp",
+    "local_dev_url": "http://localhost:4042/mcp",
+    "auth": {
+      "type": "api_key",
+      "details": "API Key debe enviarse en header: 'X-API-Key: tu-api-key-aqui'. La API key se configura en variable de entorno BASTANTEO_MCP_API_KEY."
+    }
+  },
+  "connector_metadata": {
+    "name": "Bastanteo Conversacional",
+    "description": "Sistema conversacional de Bastanteo/BAPA con Sandra IA. Permite crear sesiones de conversación, enviar mensajes y recibir respuestas del motor conversacional que soporta múltiples backends LLM (GPT-4o, Gemini, Groq). También permite configurar qué modelos LLM usar para cada tenant o aplicación.",
+    "suggested_url_for_chatgpt_connector": "https://api-staging.guestsvalencia.es/bastanteo/mcp",
+    "api_key_header": "X-API-Key",
+    "environment": "STAGING",
+    "github_repo": "https://github.com/GUESTVALENCIA/PWA"
+  },
+  "tools": [
+    {
+      "name": "bastanteo_start_session",
+      "description": "Crea una nueva sesión de conversación en Bastanteo. La sesión mantiene el historial de conversación y el contexto para respuestas coherentes.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "ID lógico del usuario final (opcional, se generará automáticamente si no se proporciona)"
+          },
+          "locale": {
+            "type": "string",
+            "description": "Idioma de la conversación (por defecto: 'es-ES')",
+            "default": "es-ES"
+          },
+          "llm_backend": {
+            "type": "string",
+            "description": "Backend LLM a usar para esta sesión: 'gpt-4o', 'gemini-2.5-flash', 'groq', 'auto' (por defecto: 'auto' que usa Gemini primero, luego GPT-4o)",
+            "enum": ["gpt-4o", "gemini-2.5-flash", "groq", "auto"],
+            "default": "auto"
+          },
+          "context": {
+            "type": "string",
+            "description": "Contexto/rol para la conversación (por defecto: 'luxury' para Concierge)",
+            "default": "luxury"
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "bastanteo_send_message",
+      "description": "Envía un mensaje de texto a una sesión activa de Bastanteo y devuelve la respuesta del asistente Sandra. El mensaje se procesa usando el backend LLM configurado para la sesión.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "ID de la sesión obtenido de bastanteo_start_session"
+          },
+          "message": {
+            "type": "string",
+            "description": "Mensaje de texto del usuario a procesar"
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Datos adicionales opcionales (tags, contexto extra, etc.)",
+            "properties": {}
+          }
+        },
+        "required": ["session_id", "message"]
+      }
+    },
+    {
+      "name": "bastanteo_get_session_state",
+      "description": "Obtiene el estado completo de una sesión: historial de conversación, backend LLM activo, configuración, y metadatos.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "ID de la sesión a consultar"
+          }
+        },
+        "required": ["session_id"]
+      }
+    },
+    {
+      "name": "bastanteo_end_session",
+      "description": "Finaliza y cierra una sesión de conversación. El historial se puede conservar o eliminar según configuración.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "ID de la sesión a cerrar"
+          },
+          "keep_history": {
+            "type": "boolean",
+            "description": "Si es true, conserva el historial para consultas futuras (por defecto: false)",
+            "default": false
+          }
+        },
+        "required": ["session_id"]
+      }
+    },
+    {
+      "name": "bastanteo_configure_llms",
+      "description": "Configura qué modelos LLM se usan (ChatGPT-4o, Gemini, Groq, etc.) para una aplicación, tenant o globalmente. Permite establecer modelos primarios y de respaldo (fallback).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "description": "Alcance de la configuración: 'global' (toda la aplicación), 'tenant' (un tenant específico), 'session' (una sesión específica)",
+            "enum": ["global", "tenant", "session"],
+            "default": "global"
+          },
+          "target_id": {
+            "type": "string",
+            "description": "ID del tenant o session si scope es 'tenant' o 'session' (no requerido para 'global')"
+          },
+          "primary_llm": {
+            "type": "string",
+            "description": "Modelo LLM principal a usar. Valores: 'gpt-4o', 'gemini-2.5-flash', 'groq'",
+            "enum": ["gpt-4o", "gemini-2.5-flash", "groq"],
+            "default": "gemini-2.5-flash"
+          },
+          "fallback_llms": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["gpt-4o", "gemini-2.5-flash", "groq"]
+            },
+            "description": "Lista ordenada de modelos de respaldo a usar si el primario falla",
+            "default": ["gpt-4o"]
+          }
+        },
+        "required": ["scope"]
+      }
+    },
+    {
+      "name": "bastanteo_list_sessions",
+      "description": "Lista todas las sesiones activas o recientes (útil para debugging y administración).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "Filtrar sesiones por user_id (opcional)"
+          },
+          "active_only": {
+            "type": "boolean",
+            "description": "Si es true, solo devuelve sesiones activas (por defecto: true)",
+            "default": true
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Número máximo de sesiones a devolver (por defecto: 50)",
+            "default": 50,
+            "minimum": 1,
+            "maximum": 500
+          }
+        },
+        "required": []
+      }
+    }
+  ],
+  "implementation_notes": [
+    "El servidor MCP debe implementarse como un endpoint HTTP/HTTPS que exponga las herramientas mediante el protocolo MCP (Model Context Protocol).",
+    "Basarse en el código existente: server-websocket.js (puerto 4041) y server.js (puerto 4040) para reutilizar la lógica de AIOrchestrator y generateStreamingResponse.",
+    "El endpoint MCP debe montarse en una ruta como /mcp o /api/bastanteo/mcp en el servidor HTTP existente o en un nuevo servidor dedicado.",
+    "Las sesiones pueden almacenarse inicialmente en memoria (similar a conversationHistory en server-websocket.js), pero debería planificarse migración a almacenamiento persistente (Redis o DB) para producción.",
+    "Reutilizar las funciones existentes: callGeminiStreaming, callGPT4oStreaming, callGroqStreaming, generateTTS de server-websocket.js.",
+    "El servidor MCP debe validar autenticación según el tipo elegido (API key, Bearer token, etc.) antes de procesar cualquier request.",
+    "Implementar manejo de errores robusto: rate limiting, timeout, fallback entre LLMs como ya existe en el código actual.",
+    "Para producción, el servidor MCP debe exponerse vía HTTPS con certificado válido (Let's Encrypt o similar).",
+    "Considerar usar el mismo puerto que server.js (4040) o crear un nuevo puerto dedicado (ej: 4042) para el servidor MCP.",
+    "El protocolo MCP requiere respuestas en formato JSON-RPC 2.0 para las llamadas a herramientas."
+  ],
+  "next_actions_for_user": [
+    "✅ COMPLETADO: Servidor MCP implementado y probado localmente con éxito",
+    "✅ COMPLETADO: Scripts de prueba funcionando correctamente",
+    "⏭️ Configurar variable de entorno BASTANTEO_MCP_API_KEY con una clave secreta segura para staging/producción.",
+    "⏭️ Configurar dominio staging: api-staging.guestsvalencia.es (o usar ngrok/Cloudflare Tunnel para desarrollo local).",
+    "⏭️ Configurar certificado SSL para HTTPS (Let's Encrypt recomendado para staging).",
+    "⏭️ Desplegar el servidor MCP en el entorno STAGING.",
+    "⏭️ Configurar el conector MCP en ChatGPT Desktop/Web: Settings → Apps & Connectors → Connectors → Create → URL: https://api-staging.guestsvalencia.es/bastanteo/mcp, Header: X-API-Key: tu-api-key."
+  ],
+  "testing_status": {
+    "local_tests": "passed",
+    "test_date": "2024-12-19",
+    "test_results": {
+      "session_creation": "success",
+      "message_sending": "success",
+      "response_received": "success",
+      "backend_used": "gemini-2.5-flash",
+      "sample_session_id": "639399c9-2041-4a8b-aaa2-993124a01c1c"
+    }
+  },
+  "implementation_file": "server-mcp.js",
+  "port": 4042,
+  "session_storage": "memory",
+  "current_architecture_analysis": {
+    "existing_servers": [
+      {
+        "file": "server.js",
+        "port": 4040,
+        "description": "Servidor HTTP local con API Gateway para Sandra (chat, voice, transcribe)"
+      },
+      {
+        "file": "server-websocket.js",
+        "port": 4041,
+        "description": "Servidor WebSocket para llamadas conversacionales en tiempo real con Sandra"
+      }
+    ],
+    "existing_llm_backends": [
+      {
+        "name": "Gemini",
+        "models": ["gemini-2.5-flash", "gemini-2.0-flash-exp"],
+        "priority": "primary",
+        "code_reference": "callGeminiStreaming, callGeminiLiveSTTAndLLM"
+      },
+      {
+        "name": "OpenAI GPT-4o",
+        "models": ["gpt-4o"],
+        "priority": "fallback",
+        "code_reference": "callGPT4oStreaming"
+      },
+      {
+        "name": "Groq",
+        "models": ["groq"],
+        "priority": "fallback",
+        "code_reference": "callGroqStreaming"
+      }
+    ],
+    "tts_provider": {
+      "name": "Cartesia",
+      "voice_id": "CARTESIA_VOICE_ID (from env)",
+      "model": "sonic-multilingual",
+      "code_reference": "generateTTS"
+    },
+    "session_management": {
+      "current": "memory (conversationHistory array in WebSocket connection)",
+      "mcp_storage": "memory (en objeto global sessionsStore con limpieza automática de sesiones inactivas)",
+      "recommendation": "Para producción, migrar a Redis o base de datos para persistencia entre reinicios"
+    }
+  },
+  "mcp_server_specification": {
+    "protocol": "JSON-RPC 2.0",
+    "endpoint": "/mcp",
+    "supported_methods": [
+      "initialize",
+      "tools/list",
+      "tools/call"
+    ],
+    "request_format": {
+      "jsonrpc": "2.0",
+      "id": "number or string",
+      "method": "tools/call",
+      "params": {
+        "name": "bastanteo_start_session",
+        "arguments": {}
+      }
+    },
+    "response_format": {
+      "jsonrpc": "2.0",
+      "id": "same as request",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "response data"
+          }
+        ]
+      }
+    }
+  },
+  "environment_variables_required": [
+    "BASTANTEO_MCP_API_KEY (API key para autenticación del servidor MCP)",
+    "GEMINI_API_KEY (ya existe, para backend LLM Gemini)",
+    "OPENAI_API_KEY (ya existe, para backend LLM GPT-4o)",
+    "GROQ_API_KEY (ya existe, para backend LLM Groq)",
+    "CARTESIA_API_KEY (ya existe, para TTS)",
+    "CARTESIA_VOICE_ID (ya existe, para TTS)"
+  ],
+  "deployment_checklist": {
+    "staging": [
+      "Configurar DNS para api-staging.guestsvalencia.es apuntando al servidor",
+      "Configurar certificado SSL (Let's Encrypt)",
+      "Configurar variable BASTANTEO_MCP_API_KEY en servidor",
+      "Desplegar server-mcp.js en puerto 4042 o integrarlo en server.js existente",
+      "Configurar firewall/security groups para permitir HTTPS (puerto 443)",
+      "Probar endpoints MCP con herramienta HTTP (curl, Postman, etc.)",
+      "Verificar autenticación con API key",
+      "Testear todas las herramientas MCP",
+      "Configurar logging y monitoreo"
+    ],
+    "production": [
+      "Cambiar URL a https://api.guestsvalencia.es/bastanteo/mcp",
+      "Migrar almacenamiento de sesiones de memory a Redis o DB",
+      "Configurar rate limiting más estricto",
+      "Implementar monitoring y alertas",
+      "Configurar backup de sesiones si es necesario",
+      "Revisar y actualizar API keys de producción"
+    ]
+  }
+}
+

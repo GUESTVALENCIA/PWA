@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "websocket": "node server-websocket.js"
+    "websocket": "node server-websocket.js",
+    "mcp": "node server-mcp.js"
   },
   "dependencies": {
     "dotenv": "^16.6.1",
