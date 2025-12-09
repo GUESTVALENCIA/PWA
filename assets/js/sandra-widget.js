@@ -1,10 +1,10 @@
 /**
- * UIGSandra - User Interaction Gateway para Sandra IA
+ * SandraWidget - Widget conversacional de Sandra IA
  * Widget conversacional que se conecta con el servidor MCP
  * Flujo completo de llamada conversacional según CALLFLOW.md
  */
 
-class UIGSandra {
+class SandraWidget {
   constructor() {
     this.isEnabled = this.checkEnabled();
     this.mcpServerUrl = this.getMcpServerUrl();
@@ -51,13 +51,13 @@ class UIGSandra {
   init() {
     this.ensureVisibility();
     
-    if (!document.getElementById('uig-sandra-widget')) {
+    if (!document.getElementById('sandra-widget-button-container')) {
       this.mountWidget();
     }
     
     this.attachEventListeners();
     
-    console.log('✅ UIGSandra inicializado', {
+    console.log('✅ SandraWidget inicializado', {
       enabled: this.isEnabled,
       mcpServerUrl: this.mcpServerUrl
     });
@@ -81,7 +81,7 @@ class UIGSandra {
     
     if (!container) {
       const newContainer = document.createElement('div');
-      newContainer.id = 'uig-sandra-widget';
+      newContainer.id = 'sandra-widget-button-container';
       newContainer.className = 'fixed bottom-4 right-4 z-[9999]';
       document.body.appendChild(newContainer);
       this.createWidgetUI(newContainer);
@@ -92,7 +92,7 @@ class UIGSandra {
 
   createWidgetUI(container) {
     container.innerHTML = `
-      <div id="uig-sandra-button" class="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 shadow-lg cursor-pointer hover:shadow-xl transition-all flex items-center justify-center group">
+      <div id="sandra-widget-button" class="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 shadow-lg cursor-pointer hover:shadow-xl transition-all flex items-center justify-center group" style="display: block !important; visibility: visible !important; opacity: 1 !important;">
         <svg class="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
         </svg>
@@ -102,7 +102,7 @@ class UIGSandra {
   }
 
   attachEventListeners() {
-    const button = document.getElementById('uig-sandra-button');
+    const button = document.getElementById('sandra-widget-button');
     if (button) {
       button.addEventListener('click', () => this.startCall());
     }
@@ -653,7 +653,7 @@ class UIGSandra {
   }
 
   updateUI(state) {
-    const button = document.getElementById('uig-sandra-button');
+    const button = document.getElementById('sandra-widget-button');
     if (!button) return;
 
     if (state === 'active') {

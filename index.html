@@ -3542,7 +3542,7 @@
       new SandraWidget();
     });
 
-    // === UIG SANDRA - User Interaction Gateway ===
+    // === SANDRA WIDGET - Widget Conversacional ===
     // Configuración del widget conversacional
     window.WIDGET_ENABLED = true;
     window.MCP_SERVER_URL = (() => {
@@ -3556,11 +3556,17 @@
         : 'https://mcp.sandra-ia.com';
     })();
     
-    // Cargar UIGSandra
-    const uigScript = document.createElement('script');
-    uigScript.src = '/assets/js/uig-sandra.js';
-    uigScript.async = true;
-    document.head.appendChild(uigScript);
+    // Cargar SandraWidget
+    const sandraScript = document.createElement('script');
+    sandraScript.src = '/assets/js/sandra-widget.js';
+    sandraScript.async = true;
+    sandraScript.onerror = function() {
+      console.error('❌ Error cargando sandra-widget.js');
+    };
+    sandraScript.onload = function() {
+      console.log('✅ SandraWidget cargado correctamente');
+    };
+    document.head.appendChild(sandraScript);
   </script>
 </body>
 </html>
