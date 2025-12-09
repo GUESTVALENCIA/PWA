@@ -6,6 +6,7 @@
 
 const express = require('express');
 const router = express.Router();
+const eventBus = require('../utils/event_bus');
 
 module.exports = (services) => {
   // Procesar mensaje conversacional
@@ -27,6 +28,13 @@ module.exports = (services) => {
         context: context || 'Eres Sandra, la conserje virtual de GuestsValencia. Eres amable, profesional y siempre disponible para ayudar.',
         bridgeData: bridgeDataContext,
         ambientation,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Emitir evento de mensaje para subagentes
+      eventBus.emit('conserje.message', {
+        message,
+        response: response.text,
         timestamp: new Date().toISOString()
       });
       
@@ -54,6 +62,18 @@ module.exports = (services) => {
       
       // 1. Transcripción (STT)
       const transcript = await services.transcriber.transcribe(audio);
+      
+      // Emitir evento de transcripción para subagentes
+      eventBus.emit('audio.transcribed', {
+        transcript,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Emitir evento de flujo de voz
+      eventBus.emit('voice.flow', {
+        transcript,
+        timestamp: new Date().toISOString()
+      });
       
       // 2. Procesamiento con LLM
       const bridgeDataContext = await services.bridgeData.getContext();

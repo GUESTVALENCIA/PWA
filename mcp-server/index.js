@@ -36,6 +36,9 @@ const AmbientationService = require('./services/ambientation');
 const SnapshotService = require('./services/snapshot');
 const PublicAPIsService = require('./services/publicAPIs');
 
+// Import Subagentes System
+const subagentesSystem = require('./agents/subagentes_mcp_setup');
+
 // Import Middleware
 const authMiddleware = require('./middleware/auth');
 const errorHandler = require('./middleware/errorHandler');
@@ -298,6 +301,9 @@ const HOST = process.env.MCP_HOST || '0.0.0.0';
 
 async function start() {
   await initializeServices();
+  
+  // Inicializar sistema de subagentes automáticos
+  subagentesSystem.inicializar();
   
   server.listen(PORT, HOST, () => {
     console.log('='.repeat(60));
