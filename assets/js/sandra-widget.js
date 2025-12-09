@@ -68,26 +68,48 @@ class SandraWidget {
                       document.getElementById('sandra-widget-container');
     
     if (container) {
-      container.style.display = 'block';
-      container.style.visibility = 'visible';
-      container.style.opacity = '1';
-      container.style.zIndex = '9999';
+      container.style.setProperty('display', 'block', 'important');
+      container.style.setProperty('visibility', 'visible', 'important');
+      container.style.setProperty('opacity', '1', 'important');
+      container.style.setProperty('z-index', '9999', 'important');
+    }
+    
+    // También asegurar que el contenedor del botón sea visible
+    const buttonContainer = document.getElementById('sandra-widget-button-container');
+    if (buttonContainer) {
+      buttonContainer.style.setProperty('display', 'block', 'important');
+      buttonContainer.style.setProperty('visibility', 'visible', 'important');
+      buttonContainer.style.setProperty('opacity', '1', 'important');
     }
   }
 
   mountWidget() {
-    const container = document.getElementById('sandra-widget-root') || 
-                      document.getElementById('sandra-widget-container');
+    // Intentar usar contenedor existente primero
+    let container = document.getElementById('sandra-widget-root') || 
+                    document.getElementById('sandra-widget-container') ||
+                    document.getElementById('sandra-widget-button-container');
     
     if (!container) {
-      const newContainer = document.createElement('div');
-      newContainer.id = 'sandra-widget-button-container';
-      newContainer.className = 'fixed bottom-4 right-4 z-[9999]';
-      document.body.appendChild(newContainer);
-      this.createWidgetUI(newContainer);
-    } else {
-      this.createWidgetUI(container);
+      // Crear nuevo contenedor si no existe
+      container = document.createElement('div');
+      container.id = 'sandra-widget-button-container';
+      container.className = 'fixed bottom-4 right-4 z-[9999]';
+      container.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important; z-index: 9999 !important; position: fixed !important; bottom: 1rem !important; right: 1rem !important;';
+      document.body.appendChild(container);
     }
+    
+    // Si el contenedor existe pero está oculto, forzar visibilidad
+    if (container) {
+      container.style.setProperty('display', 'block', 'important');
+      container.style.setProperty('visibility', 'visible', 'important');
+      container.style.setProperty('opacity', '1', 'important');
+      container.style.setProperty('z-index', '9999', 'important');
+      container.style.setProperty('position', 'fixed', 'important');
+      container.style.setProperty('bottom', '1rem', 'important');
+      container.style.setProperty('right', '1rem', 'important');
+    }
+    
+    this.createWidgetUI(container);
   }
 
   createWidgetUI(container) {
