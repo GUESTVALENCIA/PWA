@@ -12,16 +12,16 @@ const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY || ''; // Para STT
 const CARTESIA_API_KEY = process.env.CARTESIA_API_KEY;
 const CARTESIA_VOICE_ID = process.env.CARTESIA_VOICE_ID;
 
-// Reglas conversacionales para LLAMADA DE VOZ EN TIEMPO REAL
+// Reglas conversacionales
 const GLOBAL_CONVERSATION_RULES = `
-REGLAS PARA LLAMADA DE VOZ EN TIEMPO REAL (Sandra IA):
-- ESTÁS EN UNA LLAMADA DE VOZ EN TIEMPO REAL. El usuario ya está hablando contigo por voz.
-- NO ofrezcas iniciar llamadas - YA ESTÁS EN UNA LLAMADA.
-- Responde de forma natural y conversacional, como si hablaras por teléfono.
-- Respuestas CORTAS: máximo 2-3 frases. Es una conversación hablada, no escrita.
-- Español neutro, tono profesional pero cálido.
-- Eres Sandra, concierge de lujo para Guests Valencia.
-- Si preguntan por disponibilidad, ofrece revisar datos.
+REGLAS CONVERSACIONALES GLOBALES (Sandra IA 8.0 Pro):
+- Responde SIEMPRE en español neutro, con buena ortografía y gramática.
+- Usa párrafos cortos y bien separados.
+- Actúa como una experta en Hospitalidad y Turismo para Guests Valencia.
+- Si te preguntan por disponibilidad, ofrece revisar datos en tiempo real.
+- Brevedad estricta: máximo 4 frases salvo que se pida detalle.
+- Role: luxury (Concierge)
+- IMPORTANTE: Sandra SÍ puede realizar llamadas de voz conversacionales en tiempo real. Cuando un usuario solicite "llamada de voz", "llamada conversacional" o "hablar contigo", debes ofrecerle amablemente esta opción. NO es una videollamada, es una llamada de voz en tiempo real con audio bidireccional. NUNCA digas que no puedes hacer llamadas de voz.
 `;
 
 // Crear servidor WebSocket
@@ -29,18 +29,16 @@ const wss = new WebSocket.Server({ port: 4041 });
 
 // PRE-GENERAR AUDIO DEL SALUDO (grabación) al iniciar el servidor
 let preGeneratedWelcomeAudio = null;
-let welcomeAudioFormat = 'mp3';
-// SOLUCIÓN: Agregar pausa larga al inicio para compensar cualquier corte
-const WELCOME_MESSAGE = '... ... ... Hola, soy Sandra, bienvenido a GuestsValencia, ¿en qué puedo ayudarte hoy?';
+const WELCOME_MESSAGE = 'Hola, soy Sandra, bienvenido a GuestsValencia, ¿en qué puedo ayudarte hoy?';
 
 async function preGenerateWelcomeAudio() {
   try {
-    console.log('🎙️ [SERVIDOR] Pre-generando audio del saludo con pausa inicial...');
+    console.log('🎙️ [SERVIDOR] Pre-generando audio del saludo inicial (grabación)...');
     preGeneratedWelcomeAudio = await generateTTS(WELCOME_MESSAGE);
-    welcomeAudioFormat = 'mp3';
-    console.log('✅ [SERVIDOR] Audio del saludo pre-generado');
+    console.log('✅ [SERVIDOR] Audio del saludo pre-generado y guardado en memoria');
   } catch (error) {
     console.error('❌ [SERVIDOR] Error pre-generando saludo:', error);
+    console.log('⚠️ [SERVIDOR] El saludo se generará en tiempo real si es necesario');
   }
 }
 
@@ -110,14 +108,12 @@ wss.on('connection', async (ws) => {
       
       console.log('🔍 [DEBUG] Tamaño del audio a enviar:', welcomeAudio ? welcomeAudio.length : 0, 'caracteres');
       
-      // Enviar saludo con flag isWelcome y formato de audio
+      // Enviar saludo con flag isWelcome
       const messageToSend = JSON.stringify({
         type: 'audio',
         audio: welcomeAudio,
-        isWelcome: true,
-        format: welcomeAudioFormat  // 'wav' o 'mp3'
+        isWelcome: true
       });
-      console.log('🔍 [DEBUG] Formato del audio:', welcomeAudioFormat);
       console.log('🔍 [DEBUG] Tamaño del mensaje JSON:', messageToSend.length, 'caracteres');
       
       ws.send(messageToSend);
@@ -136,16 +132,18 @@ wss.on('connection', async (ws) => {
     try {
       const data = JSON.parse(message);
       
-      // Si el cliente notifica que está listo, enviar el saludo INMEDIATAMENTE
-      // (el audio está pre-generado, no hay latencia de API)
+      // Si el cliente notifica que está listo, enviar el saludo con delay de 1 segundo
       if (data.type === 'ready') {
         console.log('✅ [SERVIDOR] Cliente notificó que está completamente listo');
         clientReady = true;
-
-        // Enviar saludo inmediatamente (el delay de buffering está en el cliente)
-        console.log('📤 [SERVIDOR] Enviando saludo inmediatamente (audio pre-generado)...');
-        await sendWelcomeMessage();
-
+        
+        // CRÍTICO: Delay de 1 segundo antes de enviar saludo (para que no parezca falso)
+        console.log('⏱️ [SERVIDOR] Esperando 1 segundo antes de enviar saludo...');
+        welcomeTimeout = setTimeout(async () => {
+          welcomeTimeout = null; // Limpiar timeout antes de enviar
+          await sendWelcomeMessage();
+        }, 1000); // 1 segundo de delay
+        
         return;
       }
       
@@ -772,56 +770,6 @@ function generateTTS(text) {
         }
         const audioBuffer = Buffer.concat(chunks);
         const audioBase64 = audioBuffer.toString('base64');
-        resolve(audioBase64);
-      });
-    });
-
-    req.on('error', reject);
-    req.write(postData);
-    req.end();
-  });
-}
-
-// Generar TTS en formato WAV (sin encoder delay) - Para el saludo inicial
-function generateTTSWav(text) {
-  return new Promise((resolve, reject) => {
-    const postData = JSON.stringify({
-      model_id: 'sonic-multilingual',
-      transcript: text,
-      voice: {
-        mode: 'id',
-        id: CARTESIA_VOICE_ID
-      },
-      output_format: {
-        container: 'wav',
-        sample_rate: 44100,
-        encoding: 'pcm_s16le'  // PCM 16-bit little-endian (estándar WAV)
-      }
-    });
-
-    const options = {
-      hostname: 'api.cartesia.ai',
-      path: '/tts/bytes',
-      method: 'POST',
-      headers: {
-        'Cartesia-Version': '2024-06-10',
-        'X-API-Key': CARTESIA_API_KEY,
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(postData)
-      }
-    };
-
-    const req = https.request(options, (res) => {
-      const chunks = [];
-      res.on('data', (chunk) => chunks.push(chunk));
-      res.on('end', () => {
-        if (res.statusCode !== 200) {
-          reject(new Error(`Cartesia WAV Error: ${res.statusCode}`));
-          return;
-        }
-        const audioBuffer = Buffer.concat(chunks);
-        const audioBase64 = audioBuffer.toString('base64');
-        console.log(`✅ [TTS] Audio WAV generado: ${audioBuffer.length} bytes`);
         resolve(audioBase64);
       });
     });
