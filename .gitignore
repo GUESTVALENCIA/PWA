@@ -3,6 +3,3 @@ node_modules/
 .cursor/
 *.log
 .DS_Store
-
-.vscode/
-

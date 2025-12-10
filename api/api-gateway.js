@@ -312,11 +312,23 @@ const handler = async (req, res) => {
   try {
     // Extract endpoint from URL
     // Vercel routes: /api/sandra/chat -> endpoint: sandra/chat
+    // Handle both direct access and rewrites
     let endpoint = req.url || '';
+    
+    // For Vercel, also check the originalUrl if available
+    if (req.originalUrl) {
+      endpoint = req.originalUrl;
+    } else if (req.url) {
+      endpoint = req.url;
+    }
+    
     // Remove query string
     endpoint = endpoint.split('?')[0];
     // Remove /api/ prefix if present
     endpoint = endpoint.replace(/^\/api\//, '').replace(/^\/|\/$/g, '');
+    
+    // Log for debugging
+    console.log('API Gateway - Request URL:', req.url, 'Endpoint:', endpoint);
 
     // Parse body based on content type
     const contentType = req.headers['content-type'] || '';

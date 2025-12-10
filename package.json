@@ -6,16 +6,13 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "websocket": "node server-websocket.js",
-    "mcp": "node server-mcp.js",
-    "build": "echo 'No build step required - static site with serverless functions'",
-    "preview": "node server.js"
+    "websocket": "node server-websocket.js"
   },
   "dependencies": {
     "dotenv": "^16.6.1",
     "ws": "^8.18.3"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=14.0.0"
   }
 }

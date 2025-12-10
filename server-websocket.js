@@ -29,15 +29,13 @@ const wss = new WebSocket.Server({ port: 4041 });
 
 // PRE-GENERAR AUDIO DEL SALUDO (grabación) al iniciar el servidor
 let preGeneratedWelcomeAudio = null;
-let preGeneratedWelcomeFormat = 'mp3'; // Rastrear formato real generado
 const WELCOME_MESSAGE = 'Hola, soy Sandra, bienvenido a GuestsValencia, ¿en qué puedo ayudarte hoy?';
 
 async function preGenerateWelcomeAudio() {
   try {
     console.log('🎙️ [SERVIDOR] Pre-generando audio del saludo inicial (grabación)...');
     preGeneratedWelcomeAudio = await generateTTS(WELCOME_MESSAGE);
-    preGeneratedWelcomeFormat = 'mp3'; // MP3 es el formato por defecto
-    console.log('✅ [SERVIDOR] Audio del saludo pre-generado y guardado en memoria (formato: MP3)');
+    console.log('✅ [SERVIDOR] Audio del saludo pre-generado y guardado en memoria');
   } catch (error) {
     console.error('❌ [SERVIDOR] Error pre-generando saludo:', error);
     console.log('⚠️ [SERVIDOR] El saludo se generará en tiempo real si es necesario');
@@ -100,26 +98,20 @@ wss.on('connection', async (ws) => {
       
       // Usar audio pre-generado si está disponible, sino generar en tiempo real
       let welcomeAudio;
-      let audioFormat = 'mp3'; // Formato por defecto
-      
       if (preGeneratedWelcomeAudio) {
         welcomeAudio = preGeneratedWelcomeAudio;
-        audioFormat = preGeneratedWelcomeFormat; // Usar formato real generado
-        console.log(`✅ [SERVIDOR] Usando saludo pre-generado (sin latencia de API, formato: ${audioFormat.toUpperCase()})`);
+        console.log('✅ [SERVIDOR] Usando saludo pre-generado (sin latencia de API)');
       } else {
         console.log('⚠️ [SERVIDOR] Saludo pre-generado no disponible, generando en tiempo real...');
         welcomeAudio = await generateTTS(WELCOME_MESSAGE);
-        audioFormat = 'mp3'; // generateTTS siempre genera MP3
       }
       
       console.log('🔍 [DEBUG] Tamaño del audio a enviar:', welcomeAudio ? welcomeAudio.length : 0, 'caracteres');
-      console.log('🔍 [DEBUG] Formato del audio:', audioFormat);
       
-      // Enviar saludo con flag isWelcome y formato correcto
+      // Enviar saludo con flag isWelcome
       const messageToSend = JSON.stringify({
         type: 'audio',
         audio: welcomeAudio,
-        format: audioFormat,
         isWelcome: true
       });
       console.log('🔍 [DEBUG] Tamaño del mensaje JSON:', messageToSend.length, 'caracteres');
