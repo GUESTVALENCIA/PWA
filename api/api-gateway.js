@@ -61,17 +61,36 @@ class AIOrchestrator {
         const response = await this.callOpenAI(shortPrompt, fullSystemPrompt);
         return { text: response, model: 'gpt-4o' };
       } catch (openaiError) {
-        console.warn("⚠️ GPT-4o falló, intentando Groq (Qwen)...", openaiError.message);
+        console.warn("⚠️ GPT-4o falló:", openaiError.message);
+        console.warn("⚠️ Detalle del error OpenAI:", {
+          message: openaiError.message,
+          stack: openaiError.stack,
+          hasApiKey: !!process.env.OPENAI_API_KEY,
+          apiKeyPrefix: process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.substring(0, 10) + '...' : 'NO CONFIGURADA'
+        });
+        console.warn("⚠️ Intentando Groq (Qwen) como fallback...");
         try {
           const response = await this.callGroq(shortPrompt, fullSystemPrompt, 'qwen');
           return { text: response, model: 'qwen/qwen-2.5-72b-instruct' };
         } catch (groqError) {
-          console.warn("⚠️ Groq falló, intentando Groq (DeepSeek)...", groqError.message);
+          console.warn("⚠️ Groq (Qwen) falló:", groqError.message);
+          console.warn("🔍 Groq Debug:", {
+            hasApiKey: !!process.env.GROQ_API_KEY,
+            apiKeyPrefix: process.env.GROQ_API_KEY ? process.env.GROQ_API_KEY.substring(0, 15) + '...' : 'NO CONFIGURADA',
+            errorType: groqError.constructor.name
+          });
+          console.warn("⚠️ Intentando Groq (DeepSeek) como fallback...");
           try {
             const response = await this.callGroq(shortPrompt, fullSystemPrompt, 'deepseek');
             return { text: response, model: 'deepseek/deepseek-r1' };
           } catch (deepseekError) {
-            console.warn("⚠️ DeepSeek falló, usando Gemini como último recurso...", deepseekError.message);
+            console.warn("⚠️ Groq (DeepSeek) falló:", deepseekError.message);
+            console.warn("🔍 DeepSeek Debug:", {
+              hasApiKey: !!process.env.GROQ_API_KEY,
+              apiKeyPrefix: process.env.GROQ_API_KEY ? process.env.GROQ_API_KEY.substring(0, 15) + '...' : 'NO CONFIGURADA',
+              errorType: deepseekError.constructor.name
+            });
+            console.warn("⚠️ Usando Gemini como último recurso...");
             try {
               const response = await this.callGemini(shortPrompt, fullSystemPrompt);
               return { text: response, model: 'gemini-2.5-flash-lite' };
@@ -93,8 +112,14 @@ class AIOrchestrator {
         try {
           const response = await this.callOpenAI(shortPrompt, fullSystemPrompt);
           return { text: response, model: 'gpt-4o' };
-        } catch (openaiError) {
-          console.warn("⚠️ GPT-4o falló, intentando Groq (Qwen)...", openaiError.message);
+      } catch (openaiError) {
+        console.warn("⚠️ GPT-4o falló:", openaiError.message);
+        console.warn("🔍 OpenAI Debug:", {
+          hasApiKey: !!process.env.OPENAI_API_KEY,
+          apiKeyPrefix: process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.substring(0, 15) + '...' : 'NO CONFIGURADA',
+          errorType: openaiError.constructor.name
+        });
+        console.warn("⚠️ Intentando Groq (Qwen) como fallback...");
           try {
             const response = await this.callGroq(shortPrompt, fullSystemPrompt, 'qwen');
             return { text: response, model: 'qwen/qwen-2.5-72b-instruct' };

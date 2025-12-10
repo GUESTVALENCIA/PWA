@@ -284,7 +284,13 @@ export default async function handler(req, res) {
         
         // Si estamos en producción y falló, intentar fallbacks
         if (isProduction && !useGroq && process.env.GROQ_API_KEY) {
-          console.warn('⚠️ OpenAI falló en producción, usando Groq (Qwen) como fallback');
+          console.warn('⚠️ OpenAI falló en producción');
+          console.warn('🔍 OpenAI Error:', errorText);
+          console.warn('🔍 OpenAI Debug:', {
+            hasApiKey: !!process.env.OPENAI_API_KEY,
+            apiKeyPrefix: process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.substring(0, 15) + '...' : 'NO CONFIGURADA'
+          });
+          console.warn('⚠️ Usando Groq (Qwen) como fallback...');
           useGroq = true;
           groqModel = 'qwen';
           usedModel = 'qwen/qwen-2.5-72b-instruct';
@@ -305,7 +311,14 @@ export default async function handler(req, res) {
           });
           
           if (!aiRes.ok && process.env.GEMINI_API_KEY) {
-            console.warn('⚠️ Groq falló, usando Gemini como último recurso');
+            const groqErrorText = await aiRes.text();
+            console.warn('⚠️ Groq (Qwen) falló');
+            console.warn('🔍 Groq Error:', groqErrorText);
+            console.warn('🔍 Groq Debug:', {
+              hasApiKey: !!process.env.GROQ_API_KEY,
+              apiKeyPrefix: process.env.GROQ_API_KEY ? process.env.GROQ_API_KEY.substring(0, 15) + '...' : 'NO CONFIGURADA'
+            });
+            console.warn('⚠️ Usando Gemini como último recurso...');
             usedModel = 'gemini-2.5-flash-lite';
             return await handleGeminiConversation(req, res, finalTranscription, messages, conversation);
           }
