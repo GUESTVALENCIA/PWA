@@ -413,7 +413,6 @@ async function handleGeminiConversation(req, res, transcription, messages, conve
 
     // Manejar respuesta
     if (!geminiResponse.ok) {
-      });
       const errorText = await geminiResponse.text();
       throw new Error(`Gemini API Error: ${geminiResponse.status} - ${errorText}`);
     }
