@@ -12,6 +12,10 @@
   },
   "rewrites": [
     {
+      "source": "/api/diagnostico",
+      "destination": "/api/diagnostico"
+    },
+    {
       "source": "/api/config",
       "destination": "/api/config"
     },
