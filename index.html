@@ -1454,7 +1454,6 @@
       constructor() {
         // Dynamic base URL detection (local vs production)
         if (window.location.hostname === 'localhost' || window.location.port === '4040') {
-          // Desarrollo local: usar servidor local
           this.baseUrl = '/api';
           this.wsUrl = 'ws://localhost:4041';
         } else if (window.location.protocol === 'file:') {
@@ -1462,27 +1461,14 @@
           this.baseUrl = 'http://localhost:4040/api';
           this.wsUrl = 'ws://localhost:4041';
         } else {
-          // Producción: usar servidor MCP según README
+          // Producción: usar rutas relativas o configurar según el servidor MCP
           this.baseUrl = '/api';
-          
-          // Obtener URL del servidor MCP desde variable de entorno o usar default
-          // Según README: MCP_SERVER_URL debe configurarse en Vercel Environment Variables
-          const mcpServerUrl = typeof window !== 'undefined' && window.MCP_SERVER_URL
-            ? window.MCP_SERVER_URL
-            : 'https://mcp.sandra-ia.com'; // URL por defecto según README
-          
-          // Convertir HTTP/HTTPS a WS/WSS para WebSocket
-          // El servidor MCP escucha WebSocket directamente en la raíz (sin /ws)
-          if (mcpServerUrl.startsWith('https://')) {
-            this.wsUrl = mcpServerUrl.replace('https://', 'wss://');
-          } else if (mcpServerUrl.startsWith('http://')) {
-            this.wsUrl = mcpServerUrl.replace('http://', 'ws://');
-          } else {
-            // Si no tiene protocolo, asumir HTTPS/WSS
-            this.wsUrl = `wss://${mcpServerUrl}`;
-          }
-          
-          console.log('🌐 [GATEWAY] Servidor MCP configurado:', this.wsUrl);
+          // Para producción, el WebSocket puede ser relativo o configurar según el servidor
+          // Por defecto, mantener localhost para desarrollo, pero permitir override
+          const hostname = window.location.hostname;
+          this.wsUrl = hostname === 'localhost' || hostname === '127.0.0.1' 
+            ? 'ws://localhost:4041' 
+            : `wss://${hostname}/ws`; // Ajustar según tu configuración de producción
         }
       }
 
@@ -1524,12 +1510,43 @@
 
       init() {
         this.createWidgetUI();
+        this.ensureVisibility();
         this.bindEvents();
       }
 
+      ensureVisibility() {
+        const widgetRoot = document.getElementById('sandra-widget-root');
+        if (widgetRoot) {
+          // Forzar visibilidad con estilos !important (como widget inyectable)
+          widgetRoot.style.setProperty('display', 'block', 'important');
+          widgetRoot.style.setProperty('visibility', 'visible', 'important');
+          widgetRoot.style.setProperty('opacity', '1', 'important');
+          widgetRoot.style.setProperty('z-index', '99999', 'important');
+          widgetRoot.style.setProperty('position', 'fixed', 'important');
+          widgetRoot.style.setProperty('bottom', '1rem', 'important');
+          widgetRoot.style.setProperty('right', '1rem', 'important');
+          widgetRoot.style.setProperty('pointer-events', 'auto', 'important');
+          
+          const toggleBtn = document.getElementById('sandra-toggle-btn');
+          if (toggleBtn) {
+            toggleBtn.style.setProperty('display', 'flex', 'important');
+            toggleBtn.style.setProperty('visibility', 'visible', 'important');
+            toggleBtn.style.setProperty('opacity', '1', 'important');
+          }
+          
+          console.log('✅ Widget visibility asegurada con estilos !important');
+        }
+      }
+
       createWidgetUI() {
+        // Evitar duplicados
+        if (document.getElementById('sandra-widget-root')) {
+          console.warn('⚠️ Widget ya existe, no se creará duplicado');
+          return;
+        }
+        
         const widgetHTML = `
-          <div id="sandra-widget-root" class="fixed bottom-4 right-4 z-50 font-sans">
+          <div id="sandra-widget-root" class="fixed bottom-4 right-4 z-50 font-sans" style="display: block !important; visibility: visible !important; opacity: 1 !important; z-index: 99999 !important; position: fixed !important; pointer-events: auto !important;">
             <button id="sandra-toggle-btn" class="w-14 h-14 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xl hover:scale-105 transition-transform flex items-center justify-center group overflow-hidden border-2 border-white/20">
               <span class="text-2xl group-hover:hidden">💬</span>
               <img src="assets/images/sandra-avatar.png" onerror="this.style.display='none'" class="hidden group-hover:block w-full h-full object-cover rounded-full">
@@ -3205,10 +3222,40 @@
       }
     }
 
-    // Initialize widget
-    document.addEventListener('DOMContentLoaded', () => {
-      new SandraWidget();
-    });
+    // Initialize widget (con lógica de widget inyectable)
+    function initSandraWidget() {
+      try {
+        console.log('🚀 Inicializando SandraWidget...');
+        
+        // Prevenir múltiples inicializaciones
+        if (window.sandraWidgetInstance) {
+          console.warn('⚠️ Widget ya inicializado, saltando...');
+          return;
+        }
+        
+        // Limpiar duplicados si existen
+        const existingRoots = document.querySelectorAll('#sandra-widget-root');
+        if (existingRoots.length > 1) {
+          console.warn(`⚠️ Encontrados ${existingRoots.length} widgets. Eliminando duplicados...`);
+          for (let i = 1; i < existingRoots.length; i++) {
+            existingRoots[i].remove();
+          }
+        }
+        
+        window.sandraWidgetInstance = new SandraWidget();
+        console.log('✅ SandraWidget inicializado correctamente');
+      } catch (error) {
+        console.error('❌ Error al inicializar SandraWidget:', error);
+      }
+    }
+    
+    // Intentar inicializar cuando el DOM esté listo o ya esté listo
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initSandraWidget);
+    } else {
+      // DOM ya está listo, inicializar inmediatamente
+      initSandraWidget();
+    }
   </script>
 </body>
 </html>
