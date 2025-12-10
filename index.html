@@ -1487,62 +1487,61 @@
     class SandraGateway {
       constructor() {
         // Dynamic base URL detection (local vs production)
-        // - LOCAL: Usa servidores locales (ws://localhost:4041) con formato simple
-        // - PRODUCCIÓN: Usa servidor MCP oficial (wss://mcp-server:4042) con formato MCP (route, action, payload)
-        if (window.location.hostname === 'localhost' || window.location.port === '4040') {
-          // DESARROLLO LOCAL: Usar servidores locales
-          this.baseUrl = '/api';
-          this.wsUrl = 'ws://localhost:4041';
-          this.useMCPFormat = false; // Formato simple para servidor local
-        } else if (window.location.protocol === 'file:') {
-          // Si se abre desde file://, usar localhost
-          this.baseUrl = 'http://localhost:4040/api';
-          this.wsUrl = 'ws://localhost:4041';
-          this.useMCPFormat = false; // Formato simple para servidor local
-        } else {
-          // PRODUCCIÓN: Usar servidor MCP oficial (NUNCA localhost)
-          this.baseUrl = '/api'; // REST API sigue yendo a Vercel functions
-          
-          // Obtener URL del servidor MCP desde variable de entorno o usar default
-          // CRÍTICO: En producción, SIEMPRE usar servidor MCP en Render, nunca localhost
-          const mcpServerUrl = window.MCP_SERVER_URL || 'https://pwa-imbf.onrender.com';
-          
-          // Validar que no sea localhost (seguridad adicional)
-          if (mcpServerUrl.includes('localhost') || mcpServerUrl.includes('127.0.0.1')) {
-            console.error('❌ [MCP] ERROR: Intentando usar localhost en producción. Usando servidor MCP en Render por defecto.');
-            const fallbackUrl = 'https://pwa-imbf.onrender.com';
-            var validatedMcpUrl = fallbackUrl;
-          } else {
-            var validatedMcpUrl = mcpServerUrl;
-          }
-          
-          // Convertir HTTP/HTTPS a WS/WSS
-          let wsProtocol = 'wss://';
-          let mcpHost = validatedMcpUrl.replace(/^https?:\/\//, ''); // Remover http:// o https://
-          mcpHost = mcpHost.replace(/\/$/, ''); // Remover trailing slash
-          
-          // Render maneja WebSocket automáticamente - NO añadir puerto para Render
-          // Para otros servicios, añadir puerto si no lo tiene
-          const isRender = mcpHost.includes('onrender.com');
-          if (!isRender && !mcpHost.includes(':')) {
-            mcpHost = `${mcpHost}:4042`;
-          } else if (isRender && mcpHost.includes(':')) {
-            // Si es Render y tiene puerto, removerlo (Render lo maneja)
-            mcpHost = mcpHost.split(':')[0];
-          }
-          
-          // Construir URL WebSocket completa (con token si está disponible)
-          const mcpToken = window.MCP_TOKEN || '';
-          this.wsUrl = `${wsProtocol}${mcpHost}${mcpToken ? `?token=${mcpToken}` : ''}`;
-          this.useMCPFormat = true; // Usar formato MCP para producción
-          
-          console.log('🔌 [MCP] Configuración de producción:', {
-            mcpServerUrl: validatedMcpUrl,
-            wsUrl: this.wsUrl,
-            useMCPFormat: this.useMCPFormat,
-            isLocalhost: false // Confirmar que no es localhost
-          });
+        this.baseUrl = '/api';
+        this.useMCPFormat = false;
+        this.wsUrl = null; // Se construirá dinámicamente
+      }
+
+      // Obtener URL WebSocket dinámicamente (por si la config se carga después)
+      getWebSocketUrl() {
+        // LOCAL: Usa servidores locales
+        if (window.location.hostname === 'localhost' || window.location.port === '4040' || window.location.protocol === 'file:') {
+          this.useMCPFormat = false;
+          return 'ws://localhost:4041';
         }
+        
+        // PRODUCCIÓN: Usar servidor MCP en Render
+        // Obtener URL del servidor MCP (puede haberse cargado después del constructor)
+        const mcpServerUrl = window.MCP_SERVER_URL || 'https://pwa-imbf.onrender.com';
+        
+        // Validar que no sea localhost (seguridad adicional)
+        if (mcpServerUrl.includes('localhost') || mcpServerUrl.includes('127.0.0.1')) {
+          console.error('❌ [MCP] ERROR: Intentando usar localhost en producción. Usando Render por defecto.');
+          var validatedMcpUrl = 'https://pwa-imbf.onrender.com';
+        } else {
+          var validatedMcpUrl = mcpServerUrl;
+        }
+        
+        // Convertir HTTP/HTTPS a WS/WSS
+        let wsProtocol = 'wss://';
+        let mcpHost = validatedMcpUrl.replace(/^https?:\/\//, ''); // Remover http:// o https://
+        mcpHost = mcpHost.replace(/\/$/, ''); // Remover trailing slash
+        
+        // Render maneja WebSocket automáticamente - NO añadir puerto para Render
+        const isRender = mcpHost.includes('onrender.com');
+        if (!isRender && !mcpHost.includes(':')) {
+          mcpHost = `${mcpHost}:4042`;
+        } else if (isRender && mcpHost.includes(':')) {
+          // Si es Render y tiene puerto, removerlo (Render lo maneja)
+          mcpHost = mcpHost.split(':')[0];
+        }
+        
+        // Construir URL WebSocket completa (con token si está disponible)
+        const mcpToken = window.MCP_TOKEN || '';
+        const wsUrl = `${wsProtocol}${mcpHost}${mcpToken ? `?token=${mcpToken}` : ''}`;
+        
+        this.useMCPFormat = true;
+        this.wsUrl = wsUrl;
+        
+        console.log('🔌 [MCP] URL WebSocket construida:', {
+          mcpServerUrl: validatedMcpUrl,
+          wsUrl: wsUrl,
+          useMCPFormat: true,
+          isRender: isRender,
+          isLocalhost: false
+        });
+        
+        return wsUrl;
       }
 
       async sendMessage(message, role = 'hospitality') {
@@ -2562,8 +2561,8 @@
       }
 
       startRealTimeCall() {
-        // Usar URL dinámica del gateway
-        const wsUrl = this.gateway.wsUrl;
+        // Obtener URL WebSocket dinámicamente (asegura que tenga la URL más reciente)
+        const wsUrl = this.gateway.getWebSocketUrl();
         console.log(`🔌 Iniciando conexión WebSocket a ${wsUrl}...`);
         console.log('📋 Estado actual del widget:', {
           isOpen: this.isOpen,
