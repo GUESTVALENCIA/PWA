@@ -2990,10 +2990,18 @@
             // Mapear formato MCP a formato interno
             if (rawData.route === 'audio' && rawData.action === 'tts') {
               data.type = 'audio';
-              // El audio viene en data.audio o data.payload.audio según implementación
-              if (!data.audio && rawData.payload) {
-                data.audio = rawData.payload.audio;
-                data.isWelcome = rawData.payload.isWelcome || false;
+              // data ya ES rawData.payload, entonces data.audio ya debería estar disponible
+              // Solo verificar que esté presente
+              if (!data.audio) {
+                console.error('❌ [CLIENTE] ERROR: Audio no encontrado en payload:', {
+                  route: rawData.route,
+                  action: rawData.action,
+                  payloadKeys: Object.keys(data),
+                  payload: data
+                });
+              } else {
+                console.log('✅ [CLIENTE] Audio encontrado en payload, tamaño:', data.audio.length, 'caracteres');
+                console.log('✅ [CLIENTE] isWelcome flag:', data.isWelcome);
               }
             } else if (rawData.route === 'conserje' && rawData.action === 'message') {
               if (data.text) {
@@ -3035,10 +3043,25 @@
             // Solo log para debugging
             console.log('📝 Respuesta de Sandra (no mostrada en chat durante llamada):', data.text);
           } else if (data.type === 'audio') {
-            console.log('🔊 [CLIENTE] Audio recibido de Sandra, tamaño:', data.audio ? data.audio.length : 0, 'caracteres');
-            console.log('🔍 [DEBUG] isWelcome flag:', data.isWelcome);
+            console.log('🔊 [CLIENTE] Audio recibido de Sandra');
             console.log('🔍 [DEBUG] Tipo de mensaje:', data.type);
             console.log('🔍 [DEBUG] Audio presente:', !!data.audio);
+            console.log('🔍 [DEBUG] Tamaño del audio:', data.audio ? data.audio.length : 0, 'caracteres');
+            console.log('🔍 [DEBUG] isWelcome flag:', data.isWelcome);
+            console.log('🔍 [DEBUG] Datos completos:', {
+              type: data.type,
+              hasAudio: !!data.audio,
+              audioLength: data.audio ? data.audio.length : 0,
+              isWelcome: data.isWelcome,
+              format: data.format
+            });
+            
+            // CRÍTICO: Verificar que el audio esté presente antes de continuar
+            if (!data.audio) {
+              console.error('❌ [CLIENTE] ERROR CRÍTICO: data.audio es null/undefined');
+              console.error('❌ [CLIENTE] Datos recibidos:', JSON.stringify(data, null, 2));
+              return; // Salir sin procesar
+            }
             
             // CRÍTICO: Detener grabación INMEDIATAMENTE cuando Sandra empieza a hablar
             // Esto evita que el MediaRecorder capture el audio de Sandra por los altavoces
