@@ -1448,6 +1448,12 @@
   </script>
 
   <!-- Sistema Galaxy - Widget Flotante -->
+  <!-- Sandra-Live: Módulos de Function Calling -->
+  <script src="/lib/sessionState.js"></script>
+  <script src="/lib/clientTools.js"></script>
+  <script src="/lib/callFunctions.js"></script>
+  <script src="/lib/systemPrompt.js"></script>
+  
   <script>
     // Cargar configuración MCP desde API antes de inicializar el widget
     (async function loadMcpConfig() {
@@ -1550,6 +1556,44 @@
           throw error;
         }
       }
+
+      /**
+       * Enviar mensaje con function calling (Sandra-Live)
+       * @param {string} message - Mensaje del usuario
+       * @param {Array} conversationHistory - Historial de conversación
+       * @param {string} transcription - Transcripción de audio (opcional)
+       * @returns {Promise<object>} Respuesta con texto, acciones y audio
+       */
+      async sendMessageWithTools(message, conversationHistory = [], transcription = null) {
+        try {
+          const response = await fetch(`${this.baseUrl}/sandra/assistant`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              transcription: transcription || message,
+              messages: conversationHistory,
+              generateAudio: false // El widget maneja el audio por separado
+            })
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Assistant API Error: ${response.status} - ${errorText}`);
+          }
+
+          const data = await response.json();
+          return {
+            reply: data.reply || data.text || '',
+            action: data.action || null,
+            params: data.params || null,
+            transcription: data.transcription || message,
+            audio: data.audio || null
+          };
+        } catch (error) {
+          console.error('❌ [SandraGateway] Error en sendMessageWithTools:', error);
+          throw error;
+        }
+      }
     }
 
     // Sandra Widget
@@ -1563,6 +1607,8 @@
         this.isSpeaking = false;
         this.audioQueue = [];
         this.currentAudio = null;
+        this.useFunctionCalling = true; // Activar Sandra-Live function calling
+        this.conversationHistory = []; // Historial para function calling
       this.activeCall = null;
       this.chatLocked = false; // bloquea chat durante llamada de voz
       this.ringtoneInterval = null;
@@ -1571,9 +1617,28 @@
       }
 
       init() {
+        this.initSessionState(); // Inicializar estado de sesión (Sandra-Live)
         this.createWidgetUI();
         this.ensureVisibility();
         this.bindEvents();
+      }
+
+      /**
+       * Inicializar estado de sesión (Sandra-Live)
+       */
+      initSessionState() {
+        // Cargar sessionState si está disponible
+        if (typeof window !== 'undefined' && window.sessionState) {
+          window.sessionState = window.sessionState;
+          // Conectar con el widget
+          if (window.sessionState.addAction) {
+            const originalAddAction = window.sessionState.addAction;
+            window.sessionState.addAction = (actionType, data) => {
+              originalAddAction(actionType, data);
+              console.log('📋 [Widget] Acción registrada:', actionType, data);
+            };
+          }
+        }
       }
 
       ensureVisibility() {
@@ -1744,10 +1809,51 @@
           this.showTyping(true);
 
           try {
-            // Siempre usar rol "luxury" (Concierge) sin mostrarlo
-            const response = await this.gateway.sendMessage(text, 'luxury');
+            let response;
+            let actionResult = null;
+
+            // Usar nuevo endpoint con function calling si está activado
+            if (this.useFunctionCalling) {
+              try {
+                const assistantResponse = await this.gateway.sendMessageWithTools(
+                  text,
+                  this.conversationHistory.map(msg => ({
+                    sender: msg.sender,
+                    text: msg.text
+                  }))
+                );
+
+                response = assistantResponse.reply;
+                
+                // Manejar acciones si la IA invocó una herramienta
+                if (assistantResponse.action && assistantResponse.params) {
+                  actionResult = await this.handleToolAction(
+                    assistantResponse.action,
+                    assistantResponse.params
+                  );
+                }
+
+                // Actualizar historial
+                this.conversationHistory.push({ sender: 'user', text });
+                this.conversationHistory.push({ sender: 'assistant', text: response });
+
+              } catch (assistantError) {
+                console.warn('⚠️ [Widget] Error con assistant endpoint, usando método legacy:', assistantError);
+                // Fallback al método legacy
+                response = await this.gateway.sendMessage(text, 'luxury');
+              }
+            } else {
+              // Método legacy
+              response = await this.gateway.sendMessage(text, 'luxury');
+            }
+
             this.showTyping(false);
             this.addMessage(response, 'bot');
+
+            // Si hubo una acción, mostrar feedback adicional si es necesario
+            if (actionResult && actionResult.success) {
+              console.log('✅ [Widget] Acción ejecutada:', actionResult);
+            }
             
             // Detectar si el usuario solicita llamada de voz conversacional
             const lowerText = text.toLowerCase();
@@ -1974,6 +2080,47 @@
         this.initChatCleanup();
       }
 
+      /**
+       * Manejar acción de herramienta invocada por la IA (Sandra-Live)
+       * @param {string} actionName - Nombre de la acción
+       * @param {object} params - Parámetros de la acción
+       * @returns {Promise<object>} Resultado de la ejecución
+       */
+      async handleToolAction(actionName, params) {
+        console.log('🔧 [Widget] Ejecutando acción:', actionName, params);
+
+        try {
+          // Verificar que callFunctions esté disponible
+          if (typeof window === 'undefined' || !window.callFunctions || !window.callFunctions.invokeTool) {
+            console.warn('⚠️ [Widget] callFunctions no disponible, cargando fallback...');
+            // Intentar cargar módulos si no están disponibles
+            if (typeof window !== 'undefined' && !window.callFunctions) {
+              // Los módulos deberían estar cargados vía script tags
+              // Si no están, usar fallback básico
+              return { success: false, message: 'Sistema de herramientas no disponible' };
+            }
+          }
+
+          // Ejecutar herramienta
+          const result = window.callFunctions.invokeTool(actionName, params);
+
+          // Mostrar feedback visual si es necesario
+          if (result.success) {
+            console.log('✅ [Widget] Acción ejecutada exitosamente:', result.message);
+          } else {
+            console.error('❌ [Widget] Error ejecutando acción:', result.message);
+          }
+
+          return result;
+        } catch (error) {
+          console.error('❌ [Widget] Error manejando acción:', error);
+          return {
+            success: false,
+            message: `Error ejecutando ${actionName}: ${error.message}`
+          };
+        }
+      }
+
       initChatCleanup() {
         const CHAT_EXPIRY_HOURS = 48; // 48 horas
         const lastCleanup = localStorage.getItem('sandra-chat-last-cleanup');
@@ -1996,6 +2143,8 @@
             messagesContainer.appendChild(welcomeMessage);
           }
         }
+        // Limpiar historial de conversación (Sandra-Live)
+        this.conversationHistory = [];
       }
 
       showCallPrompt() {

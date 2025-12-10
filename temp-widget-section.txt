@@ -1,0 +1,1999 @@
+﻿
+>   <!-- Sistema Galaxy - Widget Flotante -->
+    <script>
+      // Sandra Gateway Client
+      class SandraGateway {
+        constructor() {
+          // Dynamic base URL detection (local vs production)
+          if (window.location.hostname === 'localhost' || window.location.port 
+=== '4040') {
+            this.baseUrl = '/api';
+          } else if (window.location.protocol === 'file:') {
+            // Si se abre desde file://, usar localhost
+            this.baseUrl = 'http://localhost:4040/api';
+          } else {
+            this.baseUrl = '/api';
+          }
+        }
+  
+        async sendMessage(message, role = 'hospitality') {
+          try {
+            const response = await fetch(`${this.baseUrl}/sandra/chat`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ message, role })
+            });
+  
+            if (!response.ok) throw new Error('Gateway Error');
+            const data = await response.json();
+            return data.reply;
+          } catch (error) {
+            console.error('Conversation Error:', error);
+            throw error;
+          }
+        }
+      }
+  
+      // Sandra Widget
+      class SandraWidget {
+        constructor() {
+          this.gateway = new SandraGateway();
+          this.isOpen = false;
+          this.isRecording = false;
+          this.isCallPaused = false;
+          this.isMicrophoneMuted = false;
+          this.isSpeaking = false;
+          this.audioQueue = [];
+          this.currentAudio = null;
+        this.activeCall = null;
+        this.chatLocked = false; // bloquea chat durante llamada de voz
+        this.ringtoneInterval = null;
+        this.lastNoSpeechTime = null;
+          this.init();
+        }
+  
+        init() {
+          this.createWidgetUI();
+          this.bindEvents();
+        }
+  
+        createWidgetUI() {
+          const widgetHTML = `
+            <div id="sandra-widget-root" class="fixed bottom-4 right-4 z-50 
+font-sans">
+              <button id="sandra-toggle-btn" class="w-14 h-14 rounded-full 
+bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xl 
+hover:scale-105 transition-transform flex items-center justify-center group 
+overflow-hidden border-2 border-white/20">
+                <span class="text-2xl group-hover:hidden">­ƒÆ¼</span>
+                <img src="assets/images/sandra-avatar.png" 
+onerror="this.style.display='none'" class="hidden group-hover:block w-full 
+h-full object-cover rounded-full">
+                <span class="absolute top-0 right-0 w-3 h-3 bg-green-500 
+border-2 border-white rounded-full"></span>
+              </button>
+  
+              <div id="sandra-chat-window" class="hidden absolute bottom-16 
+right-0 w-[320px] h-[450px] bg-white rounded-xl shadow-2xl flex flex-col 
+overflow-hidden border border-slate-200 transform origin-bottom-right 
+transition-all duration-300 scale-95 opacity-0">
+                <div class="p-3 bg-gradient-to-r from-[#0F172A] to-[#1E293B] 
+text-white flex justify-between items-center">
+                  <div class="flex items-center gap-2 flex-1">
+                    <div class="relative">
+                      <div class="w-8 h-8 rounded-full bg-gradient-to-tr 
+from-blue-400 to-purple-500 flex items-center justify-center text-sm 
+font-bold">S</div>
+                      <div class="absolute bottom-0 right-0 w-2.5 h-2.5 
+bg-green-400 border-2 border-[#0F172A] rounded-full animate-pulse"></div>
+                    </div>
+                    <div>
+                      <h3 class="font-bold text-xs">Sandra IA</h3>
+                      <p class="text-[10px] text-blue-200">Asistente Virtual 
+24/7</p>
+                    </div>
+                  </div>
+                  <button id="sandra-close-btn" class="text-white/60 
+hover:text-white transition-colors text-lg leading-none">Ô£ò</button>
+                </div>
+  
+  
+                <div id="sandra-messages" class="flex-1 overflow-y-auto p-3 
+space-y-3 bg-slate-50 scroll-smooth">
+                  <div class="flex gap-2">
+                    <div class="w-6 h-6 rounded-full bg-gradient-to-tr 
+from-blue-400 to-purple-500 flex-shrink-0 flex items-center justify-center 
+text-[10px] text-white font-bold">S</div>
+                    <div class="bg-white p-2.5 rounded-xl rounded-tl-none 
+shadow-sm border border-slate-100 text-xs text-slate-700 max-w-[85%]">
+                      <p>┬íHola! Soy Sandra. Bienvenido a GuestsValencia. ┬┐En 
+qu├® puedo ayudarte hoy?</p>
+                    </div>
+                  </div>
+                  <!-- Bot├│n de llamada conversacional (se muestra despu├®s 
+del primer mensaje) -->
+                  <div id="sandra-call-prompt" class="flex gap-2 mt-2">
+                    <div class="w-6 h-6 rounded-full bg-gradient-to-tr 
+from-blue-400 to-purple-500 flex-shrink-0 flex items-center justify-center 
+text-[10px] text-white font-bold">S</div>
+                    <div class="bg-white p-2.5 rounded-xl rounded-tl-none 
+shadow-sm border border-slate-100 text-xs text-slate-700 max-w-[85%]">
+                      <p class="mb-2">┬┐Prefieres una llamada de voz 
+conversacional para entendernos mejor?</p>
+                      <div class="flex gap-2 mt-2">
+                        <button id="sandra-accept-call" class="px-3 py-1.5 
+bg-green-600 text-white text-[10px] rounded-lg hover:bg-green-700 
+transition-colors font-semibold">
+                          Ô£ô Aceptar llamada
+                        </button>
+                        <button id="sandra-decline-call" class="px-3 py-1.5 
+bg-slate-200 text-slate-700 text-[10px] rounded-lg hover:bg-slate-300 
+transition-colors">
+                          Continuar por chat
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+  
+                <div id="sandra-typing" class="hidden px-3 py-1.5 text-[10px] 
+text-slate-400 italic">
+                  Sandra est├í escribiendo...
+                </div>
+  
+                <div class="p-3 bg-white border-t border-slate-100">
+                  <!-- Barrita flotante de control de llamada (solo visible 
+durante llamada) -->
+                  <div id="sandra-call-controls" class="hidden mb-2 flex 
+justify-center items-center gap-2 bg-slate-50 rounded-full px-3 py-2 shadow-sm 
+border border-slate-200">
+                    <!-- Bot├│n Colgar (rojo) -->
+                    <button id="sandra-hangup-btn" class="p-2 rounded-full 
+bg-red-600 text-white hover:bg-red-700 transition-colors shadow-sm" 
+title="Colgar llamada">
+                      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" 
+stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" 
+stroke-width="2" d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12a9 9 0 1018 0 9 9 
+0 00-18 0z" /></svg>
+                    </button>
+                    <!-- Bot├│n Pausar -->
+                    <button id="sandra-pause-btn" class="p-2 rounded-full 
+bg-yellow-500 text-white hover:bg-yellow-600 transition-colors shadow-sm" 
+title="Pausar llamada">
+                      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" 
+stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" 
+stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </button>
+                    <!-- Bot├│n Silenciar micr├│fono -->
+                    <button id="sandra-mute-btn" class="p-2 rounded-full 
+bg-slate-400 text-white hover:bg-slate-500 transition-colors shadow-sm" 
+title="Silenciar micr├│fono">
+                      <svg id="sandra-mute-icon" class="w-4 h-4" fill="none" 
+viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" 
+stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 
+01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" 
+/></svg>
+                      <svg id="sandra-unmute-icon" class="w-4 h-4 hidden" 
+fill="none" viewBox="0 0 24 24" stroke="currentColor"><path 
+stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 
+15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 
+5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /><path stroke-linecap="round" 
+stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 
+2" /></svg>
+                    </button>
+                  </div>
+                  <div class="relative flex items-center gap-1.5">
+                    <input type="text" id="sandra-input" placeholder="Escribe 
+tu mensaje..." class="flex-1 bg-slate-100 border-0 rounded-full px-3 py-2 
+text-xs focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all">
+                    <button id="sandra-mic-btn" class="p-2 rounded-full 
+bg-slate-100 text-slate-600 hover:bg-blue-100 hover:text-blue-600 
+transition-colors">
+                      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" 
+stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" 
+stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 
+0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                    </button>
+                    <button id="sandra-send-btn" class="p-2 rounded-full 
+bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-blue-500/30 
+transition-all">
+                      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" 
+stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" 
+stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                    </button>
+                  </div>
+                  <div class="text-[9px] text-center text-slate-400 mt-1">
+                    Powered by Gemini & GPT-4o
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+          document.body.insertAdjacentHTML('beforeend', widgetHTML);
+        }
+  
+        bindEvents() {
+          const toggleBtn = document.getElementById('sandra-toggle-btn');
+          const closeBtn = document.getElementById('sandra-close-btn');
+          const chatWindow = document.getElementById('sandra-chat-window');
+          const sendBtn = document.getElementById('sandra-send-btn');
+          const input = document.getElementById('sandra-input');
+  
+          const toggleChat = () => {
+            this.isOpen = !this.isOpen;
+            if (this.isOpen) {
+              chatWindow.classList.remove('hidden');
+              setTimeout(() => {
+                chatWindow.classList.remove('scale-95', 'opacity-0');
+                chatWindow.classList.add('scale-100', 'opacity-100');
+                input.focus();
+              }, 10);
+            } else {
+              chatWindow.classList.remove('scale-100', 'opacity-100');
+              chatWindow.classList.add('scale-95', 'opacity-0');
+              setTimeout(() => chatWindow.classList.add('hidden'), 300);
+            }
+          };
+  
+          toggleBtn.addEventListener('click', toggleChat);
+          closeBtn.addEventListener('click', toggleChat);
+  
+          const sendMessage = async () => {
+            // VERIFICACI├ôN DE SEGURIDAD: Resetear chatLocked si no hay 
+llamada activa
+            if (!this.activeCall && this.chatLocked) {
+              console.log('ƒöº Reseteando chatLocked: no hay llamada activa 
+pero el flag estaba bloqueado');
+              this.chatLocked = false;
+            }
+            
+            // BLOQUEAR CHAT DURANTE LLAMADA CONVERSACIONAL
+            if (this.activeCall || this.chatLocked) {
+              console.log('ÔÜá´©Å Chat bloqueado: hay una llamada 
+conversacional activa');
+              this.addMessage('Est├ís en una llamada conversacional. Por 
+favor, habla directamente o cuelga la llamada para usar el chat.', 'bot');
+              return;
+            }
+            
+            const text = input.value.trim();
+            if (!text) return;
+  
+            this.addMessage(text, 'user');
+            input.value = '';
+            this.showTyping(true);
+  
+            try {
+              // Siempre usar rol "luxury" (Concierge) sin mostrarlo
+              const response = await this.gateway.sendMessage(text, 'luxury');
+              this.showTyping(false);
+              this.addMessage(response, 'bot');
+              
+              // Detectar si el usuario solicita llamada de voz conversacional
+              const lowerText = text.toLowerCase();
+              const callKeywords = ['llamada de voz', 'llamada 
+conversacional', 'hablar contigo', 'llamar', 'llamada', 'hablar', 
+'conversaci├│n de voz', 'audio', 'voz'];
+              // Excluir palabras que puedan confundir con videollamada
+              const excludeKeywords = ['videollamada', 'video llamada', 
+'videocall', 'video'];
+              const wantsCall = callKeywords.some(keyword => 
+lowerText.includes(keyword)) && 
+                              !excludeKeywords.some(keyword => 
+lowerText.includes(keyword));
+              
+              if (wantsCall) {
+                // Mostrar mensaje autom├ítico de Sandra y el bot├│n de 
+llamada de voz
+                setTimeout(() => {
+                  this.addMessage('┬íPor supuesto! Te ofrezco una llamada de 
+voz conversacional en tiempo real para que podamos entendernos mejor. 
+┬┐Quieres iniciarla?', 'bot');
+                  setTimeout(() => {
+                    this.showCallPrompt();
+                  }, 500);
+                }, 800);
+              }
+            } catch (error) {
+              this.showTyping(false);
+              this.addMessage("Lo siento, tuve un problema de conexi├│n. 
+Int├®ntalo de nuevo.", 'bot');
+            }
+          };
+  
+          sendBtn.addEventListener('click', sendMessage);
+          input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+          });
+  
+          // === BOT├ôN DE MICR├ôFONO (DICTADO) ===
+          const micBtn = document.getElementById('sandra-mic-btn');
+          let isRecording = false;
+          let mediaRecorder = null;
+          let audioChunks = [];
+          let recordingStream = null;
+          let recordingStartTime = null;
+          const MAX_RECORDING_TIME = 20 * 60 * 1000; // 20 minutos
+          const CHUNK_DURATION = 30 * 1000; // 30 segundos
+          
+          if (micBtn) {
+            // VERIFICACI├ôN DE SEGURIDAD: Asegurar que el bot├│n est├® 
+habilitado si no hay llamada activa
+            if (!this.activeCall) {
+              micBtn.disabled = false;
+              micBtn.style.opacity = '1';
+            }
+            
+            micBtn.addEventListener('click', async () => {
+              // VERIFICACI├ôN DE SEGURIDAD: Resetear estado si no hay llamada 
+activa
+              if (!this.activeCall && (micBtn.disabled || micBtn.style.opacity 
+=== '0.5')) {
+                micBtn.disabled = false;
+                micBtn.style.opacity = '1';
+              }
+              
+              if (!isRecording) {
+                // Iniciar grabaci├│n
+                try {
+                  const stream = await navigator.mediaDevices.getUserMedia({ 
+audio: true });
+                  recordingStream = stream;
+                  recordingStartTime = Date.now();
+                  
+                  mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: 'audio/webm;codecs=opus'
+                  });
+                  
+                  audioChunks = [];
+                  
+                  mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                      audioChunks.push(event.data);
+                    }
+                  };
+                  
+                  mediaRecorder.onstop = async () => {
+                    // Procesar chunk de 30 segundos
+                    if (audioChunks.length > 0) {
+                      const audioBlob = new Blob(audioChunks, { type: 
+'audio/webm' });
+                      audioChunks = [];
+                      
+                      // Convertir a base64 y transcribir
+                      const reader = new FileReader();
+                      reader.onloadend = async () => {
+                        const base64Audio = reader.result.split(',')[1];
+                        
+                        // Mostrar indicador de transcripci├│n
+                        this.showTyping(true);
+                        this.addMessage('­ƒÄñ Transcribiendo...', 'user');
+                        
+                        try {
+                          // Llamar a la API para transcribir con Deepgram
+                          const response = await 
+fetch('http://localhost:4040/api/sandra/transcribe', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ audio: base64Audio })
+                          });
+                          
+                          const data = await response.json();
+                          
+                          if (data.transcript && data.transcript.trim()) {
+                            // Eliminar el mensaje de "Transcribiendo..."
+                            const messagesContainer = 
+document.getElementById('sandra-messages');
+                            const lastMessage = 
+messagesContainer.lastElementChild;
+                            if (lastMessage && 
+lastMessage.textContent.includes('Transcribiendo')) {
+                              lastMessage.remove();
+                            }
+                            
+                            // Agregar texto transcrito al input y enviar
+                            input.value = data.transcript;
+                            sendMessage();
+                          } else {
+                            this.showTyping(false);
+                            this.addMessage('No se pudo transcribir el audio. 
+Intenta de nuevo.', 'bot');
+                          }
+                        } catch (error) {
+                          console.error('Error transcribiendo:', error);
+                          this.showTyping(false);
+                          this.addMessage('Error al transcribir. Intenta de 
+nuevo.', 'bot');
+                        }
+                      };
+                      reader.readAsDataURL(audioBlob);
+                    }
+                    
+                    // Si a├║n estamos grabando y no hemos alcanzado el 
+l├¡mite, continuar
+                    const elapsed = Date.now() - recordingStartTime;
+                    if (isRecording && elapsed < MAX_RECORDING_TIME) {
+                      setTimeout(() => {
+                        if (isRecording && mediaRecorder && 
+mediaRecorder.state === 'inactive') {
+                          mediaRecorder.start(CHUNK_DURATION);
+                        }
+                      }, 500);
+                    }
+                  };
+                  
+                  // Iniciar grabaci├│n con chunks de 30 segundos
+                  mediaRecorder.start(CHUNK_DURATION);
+                  isRecording = true;
+                  
+                  // Actualizar UI
+                  micBtn.classList.add('bg-red-500', 'text-white');
+                  micBtn.classList.remove('bg-slate-100', 'text-slate-600');
+                  micBtn.innerHTML = '<svg class="w-4 h-4" fill="currentColor" 
+viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 
+3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 
+5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 
+6-6.92h-2z"/></svg>';
+                  
+                  this.addMessage('ƒÄñ Grabando... (m├íximo 20 minutos)', 
+'bot');
+                  
+                } catch (error) {
+                  console.error('Error accediendo al micr├│fono:', error);
+                  this.addMessage('No se pudo acceder al micr├│fono. Por 
+favor, permite el acceso.', 'bot');
+                }
+              } else {
+                // Detener grabaci├│n
+                isRecording = false;
+                if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                  mediaRecorder.stop();
+                }
+                if (recordingStream) {
+                  recordingStream.getTracks().forEach(track => track.stop());
+                  recordingStream = null;
+                }
+                
+                // Actualizar UI
+                micBtn.classList.remove('bg-red-500', 'text-white');
+                micBtn.classList.add('bg-slate-100', 'text-slate-600');
+                micBtn.innerHTML = '<svg class="w-4 h-4" fill="none" 
+viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" 
+stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 
+01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" 
+/></svg>';
+                
+                this.addMessage('ÔÅ╣´©Å Grabaci├│n detenida', 'bot');
+              }
+            });
+          }
+  
+          // === LLAMADA CONVERSACIONAL ===
+          const acceptCallBtn = document.getElementById('sandra-accept-call');
+          const declineCallBtn = 
+document.getElementById('sandra-decline-call');
+          const callPrompt = document.getElementById('sandra-call-prompt');
+  
+          if (acceptCallBtn) {
+            acceptCallBtn.addEventListener('click', () => {
+              this.startConversationalCall();
+              if (callPrompt) callPrompt.style.display = 'none';
+              // Mostrar barrita de control
+              const callControls = 
+document.getElementById('sandra-call-controls');
+              if (callControls) callControls.classList.remove('hidden');
+            });
+          }
+  
+          if (declineCallBtn) {
+            declineCallBtn.addEventListener('click', () => {
+              if (callPrompt) callPrompt.style.display = 'none';
+              this.stopRingtone();
+            });
+          }
+  
+          // === BARRA DE CONTROL DE LLAMADA ===
+          const hangupBtn = document.getElementById('sandra-hangup-btn');
+          const pauseBtn = document.getElementById('sandra-pause-btn');
+          const muteBtn = document.getElementById('sandra-mute-btn');
+          const callControls = document.getElementById('sandra-call-controls');
+          
+          if (hangupBtn) {
+            hangupBtn.addEventListener('click', () => {
+              this.endConversationalCall();
+              if (callControls) callControls.classList.add('hidden');
+            });
+          }
+          
+          // Bot├│n Pausar
+          if (pauseBtn) {
+            pauseBtn.addEventListener('click', () => {
+              this.toggleCallPause();
+            });
+          }
+          
+          // Bot├│n Silenciar micr├│fono
+          if (muteBtn) {
+            muteBtn.addEventListener('click', () => {
+              this.toggleMicrophoneMute();
+            });
+          }
+  
+          // === L├ôGICA DE LIMPIEZA DE CHAT (48 horas) ===
+          this.initChatCleanup();
+        }
+  
+        initChatCleanup() {
+          const CHAT_EXPIRY_HOURS = 48; // 48 horas
+          const lastCleanup = localStorage.getItem('sandra-chat-last-cleanup');
+          const now = Date.now();
+          
+          // Si no hay registro o han pasado m├ís de 48 horas, limpiar chat
+          if (!lastCleanup || (now - parseInt(lastCleanup)) > 
+(CHAT_EXPIRY_HOURS * 60 * 60 * 1000)) {
+            this.clearChatHistory();
+            localStorage.setItem('sandra-chat-last-cleanup', now.toString());
+          }
+        }
+  
+        clearChatHistory() {
+          const messagesContainer = document.getElementById('sandra-messages');
+          if (messagesContainer) {
+            // Mantener solo el mensaje inicial de bienvenida
+            const welcomeMessage = 
+messagesContainer.querySelector('.flex.gap-2:first-child');
+            messagesContainer.innerHTML = '';
+            if (welcomeMessage) {
+              messagesContainer.appendChild(welcomeMessage);
+            }
+          }
+        }
+  
+        showCallPrompt() {
+          const callPrompt = document.getElementById('sandra-call-prompt');
+          if (callPrompt) {
+            callPrompt.style.display = 'flex';
+            // Scroll suave sin mover todo el chat hacia arriba
+            setTimeout(() => {
+              callPrompt.scrollIntoView({ behavior: 'smooth', block: 
+'nearest', inline: 'nearest' });
+            }, 100);
+          }
+        }
+  
+        startConversationalCall() {
+          console.log('Iniciando llamada conversacional...');
+          this.chatLocked = true; // bloquear chat al iniciar llamada
+          // Reproducir ringtone (3 rings largos, se descuelga 
+autom├íticamente en el tercero)
+          this.playRingtone();
+          // El ringtone ahora maneja el descolgar autom├íticamente despu├®s 
+del tercer ring
+        }
+  
+        endConversationalCall() {
+          console.log('Finalizando llamada conversacional...');
+          this.playHangupSound();
+          this.stopRingtone();
+          
+          // Cerrar WebSocket si est├í activo
+          if (this.activeCall) {
+            // Limpiar timer de grabaci├│n si existe
+            if (this.activeCall.recordingTimer) {
+              clearInterval(this.activeCall.recordingTimer);
+            }
+            // Detener MediaRecorder si existe
+            if (this.activeCall.mediaRecorder && 
+this.activeCall.mediaRecorder.state !== 'inactive') {
+              this.activeCall.mediaRecorder.stop();
+            }
+            // Detener stream si existe - CR├ìTICO: Detener tracks para cerrar 
+micr├│fono
+            if (this.activeCall.stream) {
+              this.activeCall.stream.getTracks().forEach(track => {
+                track.stop(); // Detener completamente el track
+              });
+            }
+            // Cerrar WebSocket
+            if (this.activeCall.close) {
+              this.activeCall.close();
+            }
+            this.activeCall = null;
+          }
+          
+          // REHABILITAR CHAT DESPU├ëS DE LLAMADA
+          const chatInput = document.getElementById('sandra-input');
+          const chatSendBtn = document.getElementById('sandra-send-btn');
+          const chatMicBtn = document.getElementById('sandra-mic-btn');
+          if (chatInput) {
+            chatInput.disabled = false;
+            chatInput.style.opacity = '1';
+            chatInput.placeholder = 'Escribe tu mensaje...';
+          }
+          if (chatSendBtn) {
+            chatSendBtn.disabled = false;
+            chatSendBtn.style.opacity = '1';
+          }
+          if (chatMicBtn) {
+            chatMicBtn.disabled = false;
+            chatMicBtn.style.opacity = '1';
+          }
+          
+          // Ocultar barrita de control
+          const callControls = document.getElementById('sandra-call-controls');
+          if (callControls) callControls.classList.add('hidden');
+          
+          // Detener y limpiar audio actual si existe
+          if (this.currentAudio) {
+            this.currentAudio.pause();
+            // Revocar Blob URL si existe
+            if (this.currentAudio._blobUrl) {
+              URL.revokeObjectURL(this.currentAudio._blobUrl);
+              this.currentAudio._blobUrl = null;
+            }
+            this.currentAudio = null;
+          }
+          
+          // Resetear estados de pausa y mute
+          this.isCallPaused = false;
+          this.isMicrophoneMuted = false;
+          
+          // Volver hero a imagen est├ítica
+          const heroImage = document.getElementById('hero-background-image');
+          const heroVideo = document.getElementById('hero-video');
+          if (heroImage && heroVideo) {
+            heroVideo.style.transition = 'opacity 0.5s ease-out';
+            heroVideo.style.opacity = '0';
+            setTimeout(() => {
+              heroVideo.style.display = 'none';
+              heroImage.style.display = 'block';
+              heroImage.style.opacity = '0';
+              heroImage.style.transition = 'opacity 0.5s ease-in';
+              setTimeout(() => {
+                heroImage.style.opacity = '1';
+              }, 100);
+            }, 500);
+          }
+          
+          this.addMessage('Llamada finalizada. ┬┐En qu├® m├ís puedo 
+ayudarte?', 'bot');
+          this.chatLocked = false; // desbloquear chat tras colgar
+          // Reponer prompt de llamada/chat
+          setTimeout(() => {
+            this.showCallPrompt();
+          }, 200);
+        }
+  
+        toggleCallPause() {
+          this.isCallPaused = !this.isCallPaused;
+          const pauseBtn = document.getElementById('sandra-pause-btn');
+          
+          if (this.isCallPaused) {
+            // Pausar: detener grabaci├│n y audio
+            if (this.activeCall && this.activeCall.mediaRecorder && 
+this.activeCall.mediaRecorder.state === 'recording') {
+              this.activeCall.mediaRecorder.stop();
+            }
+            if (this.currentAudio) {
+              this.currentAudio.pause();
+              // No revocar Blob URL aqu├¡, puede reanudarse
+            }
+            if (pauseBtn) {
+              pauseBtn.classList.remove('bg-yellow-500');
+              pauseBtn.classList.add('bg-green-500');
+              pauseBtn.title = 'Reanudar llamada';
+              pauseBtn.innerHTML = '<svg class="w-4 h-4" fill="none" 
+viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" 
+stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 
+0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path 
+stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 
+0 11-18 0 9 9 0 0118 0z" /></svg>';
+            }
+            this.addMessage('Llamada pausada', 'bot');
+          } else {
+            // Reanudar: reiniciar grabaci├│n
+            if (this.activeCall && this.activeCall.startNewRecording) {
+              this.activeCall.startNewRecording();
+            }
+            if (pauseBtn) {
+              pauseBtn.classList.remove('bg-green-500');
+              pauseBtn.classList.add('bg-yellow-500');
+              pauseBtn.title = 'Pausar llamada';
+              pauseBtn.innerHTML = '<svg class="w-4 h-4" fill="none" 
+viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" 
+stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 
+9 0 0118 0z" /></svg>';
+            }
+            this.addMessage('Llamada reanudada', 'bot');
+          }
+        }
+  
+        toggleMicrophoneMute() {
+          this.isMicrophoneMuted = !this.isMicrophoneMuted;
+          const muteBtn = document.getElementById('sandra-mute-btn');
+          const muteIcon = document.getElementById('sandra-mute-icon');
+          const unmuteIcon = document.getElementById('sandra-unmute-icon');
+          
+          if (this.activeCall && this.activeCall.stream) {
+            this.activeCall.stream.getAudioTracks().forEach(track => {
+              track.enabled = !this.isMicrophoneMuted;
+            });
+          }
+          
+          if (this.isMicrophoneMuted) {
+            if (muteBtn) {
+              muteBtn.classList.remove('bg-slate-400');
+              muteBtn.classList.add('bg-red-500');
+              muteBtn.title = 'Activar micr├│fono';
+            }
+            if (muteIcon) muteIcon.classList.add('hidden');
+            if (unmuteIcon) unmuteIcon.classList.remove('hidden');
+            this.addMessage('Micr├│fono silenciado', 'bot');
+          } else {
+            if (muteBtn) {
+              muteBtn.classList.remove('bg-red-500');
+              muteBtn.classList.add('bg-slate-400');
+              muteBtn.title = 'Silenciar micr├│fono';
+            }
+            if (muteIcon) muteIcon.classList.remove('hidden');
+            if (unmuteIcon) unmuteIcon.classList.add('hidden');
+            this.addMessage('Micr├│fono activado', 'bot');
+          }
+        }
+  
+        playRingtone() {
+          if (this.ringtoneInterval) return; // Ya est├í sonando
+          
+          const audioContext = new (window.AudioContext || 
+window.webkitAudioContext)();
+          let ringCount = 0;
+          const MAX_RINGS = 2; // Solo 2 rings, luego se descuelga
+          const RING_DURATION = 1.5; // Duraci├│n de cada ring (1.5 segundos - 
+balanceado)
+          const PAUSE_BETWEEN_RINGS = 2000; // Pausa de 2 segundos entre rings
+          
+          const playSingleRing = () => {
+            ringCount++;
+            console.log(`ƒöö Reproduciendo ring ${ringCount} de 
+${MAX_RINGS}...`);
+            
+            const baseTime = audioContext.currentTime;
+            
+            // RINGTONE CALMADO Y PROFESIONAL: Tono balanceado y suave (1.5 
+segundos)
+            // Frecuencias est├índar: 425Hz + 480Hz mezclados, volumen 
+moderado y transiciones suaves
+            
+            // RING (1.5 segundos) - 425Hz + 480Hz simult├íneos, suave
+            const osc1 = audioContext.createOscillator();
+            const gain1 = audioContext.createGain();
+            osc1.connect(gain1);
+            gain1.connect(audioContext.destination);
+            osc1.frequency.value = 425; // Frecuencia est├índar de tel├®fono
+            osc1.type = 'sine';
+            // Transiciones suaves y volumen moderado para sonido calmado
+            gain1.gain.setValueAtTime(0, baseTime);
+            gain1.gain.linearRampToValueAtTime(0.18, baseTime + 0.08); // 
+Subida suave
+            gain1.gain.setValueAtTime(0.18, baseTime + RING_DURATION - 0.1); 
+// Mantener volumen constante
+            gain1.gain.linearRampToValueAtTime(0, baseTime + RING_DURATION); 
+// Bajada suave
+            osc1.start(baseTime);
+            osc1.stop(baseTime + RING_DURATION);
+            
+            const osc2 = audioContext.createOscillator();
+            const gain2 = audioContext.createGain();
+            osc2.connect(gain2);
+            gain2.connect(audioContext.destination);
+            osc2.frequency.value = 480; // Segunda frecuencia para sonido m├ís 
+rico
+            osc2.type = 'sine';
+            // Volumen moderado para sonido calmado
+            gain2.gain.setValueAtTime(0, baseTime);
+            gain2.gain.linearRampToValueAtTime(0.15, baseTime + 0.08);
+            gain2.gain.setValueAtTime(0.15, baseTime + RING_DURATION - 0.1);
+            gain2.gain.linearRampToValueAtTime(0, baseTime + RING_DURATION);
+            osc2.start(baseTime);
+            osc2.stop(baseTime + RING_DURATION);
+            
+            console.log(`Ô£à Ring ${ringCount} de ${MAX_RINGS} completado`);
+            
+            // Verificar si es el ├║ltimo ring DESPU├ëS de reproducirlo
+            if (ringCount >= MAX_RINGS) {
+              // Despu├®s del segundo ring, detener y descolgar
+              console.log('ƒöö Segundo ring completado, descolgando 
+llamada...');
+              // Esperar a que termine el ring antes de descolgar
+              setTimeout(() => {
+                this.stopRingtone();
+                setTimeout(() => {
+                  console.log('ƒô× [PASO 1/4] Reproduciendo sonido de 
+descolgar...');
+                  this.playPickupSound();
+                  setTimeout(() => {
+                    console.log('ƒÄÑ [PASO 2/4] Iniciando transici├│n de 
+video...');
+                    this.transitionHeroToVideo();
+                    setTimeout(() => {
+                      console.log('ƒÄ¼ [PASO 3/4] Iniciando stream de video y 
+llamada...');
+                      this.startVideoStream();
+                      console.log('Ô£à [PASO 4/4] Flujo de descolgar 
+completado');
+                    }, 500);
+                  }, 300);
+                }, 200); // Pausa antes del pickup
+              }, RING_DURATION * 1000); // Esperar a que termine el ring actual
+            }
+          };
+          
+          // Reproducir primer ring inmediatamente
+          console.log('­ƒöö Iniciando ringtone...');
+          playSingleRing();
+          
+          // Reproducir segundo ring despu├®s de RING_DURATION + 
+PAUSE_BETWEEN_RINGS
+          setTimeout(() => {
+            if (ringCount < MAX_RINGS) {
+              playSingleRing();
+            }
+          }, (RING_DURATION * 1000) + PAUSE_BETWEEN_RINGS);
+        }
+  
+        stopRingtone() {
+          if (this.ringtoneInterval) {
+            clearInterval(this.ringtoneInterval);
+            this.ringtoneInterval = null;
+          }
+        }
+  
+        playPickupSound() {
+          console.log('­ƒô× Reproduciendo sonido de descolgar...');
+          // Sonido de descolgar llamada (call center) - "clic" claro y 
+distintivo
+          const audioContext = new (window.AudioContext || 
+window.webkitAudioContext)();
+          const currentTime = audioContext.currentTime;
+          
+          // Sonido de "clic" corto y claro (como un tel├®fono descolgando)
+          // Tono agudo y corto para simular el "clic" mec├ínico
+          const osc1 = audioContext.createOscillator();
+          const gain1 = audioContext.createGain();
+          osc1.connect(gain1);
+          gain1.connect(audioContext.destination);
+          osc1.frequency.value = 800; // Tono m├ís agudo para "clic"
+          osc1.type = 'sine';
+          gain1.gain.setValueAtTime(0, currentTime);
+          gain1.gain.linearRampToValueAtTime(0.4, currentTime + 0.01); // 
+Volumen m├ís alto para que se escuche
+          gain1.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.2); 
+// Un poco m├ís largo
+          osc1.start(currentTime);
+          osc1.stop(currentTime + 0.2);
+          
+          // Segundo tono m├ís bajo para darle cuerpo al "clic"
+          const osc2 = audioContext.createOscillator();
+          const gain2 = audioContext.createGain();
+          osc2.connect(gain2);
+          gain2.connect(audioContext.destination);
+          osc2.frequency.value = 400; // Tono m├ís bajo
+          osc2.type = 'sine';
+          gain2.gain.setValueAtTime(0, currentTime + 0.02);
+          gain2.gain.linearRampToValueAtTime(0.3, currentTime + 0.03); // 
+Volumen m├ís alto
+          gain2.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.25);
+          osc2.start(currentTime + 0.02);
+          osc2.stop(currentTime + 0.25);
+          
+          console.log('Ô£à Sonido de descolgar reproducido');
+        }
+  
+        playHangupSound() {
+          // Sonido de colgar llamada (call center)
+          const audioContext = new (window.AudioContext || 
+window.webkitAudioContext)();
+          
+          // Tono de desconexi├│n (beep descendente)
+          const osc = audioContext.createOscillator();
+          const gain = audioContext.createGain();
+          osc.connect(gain);
+          gain.connect(audioContext.destination);
+          osc.frequency.setValueAtTime(600, audioContext.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(300, 
+audioContext.currentTime + 0.2);
+          osc.type = 'sine';
+          gain.gain.setValueAtTime(0.15, audioContext.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, 
+audioContext.currentTime + 0.2);
+          osc.start(audioContext.currentTime);
+          osc.stop(audioContext.currentTime + 0.2);
+        }
+  
+        transitionHeroToVideo() {
+          console.log('­ƒÄÑ Transici├│n: Imagen est├ítica ÔåÆ Video');
+          const heroImage = document.getElementById('hero-background-image');
+          const heroVideo = document.getElementById('hero-video');
+          
+          if (heroImage && heroVideo) {
+            // Fade out imagen
+            heroImage.style.transition = 'opacity 0.8s ease-out';
+            heroImage.style.opacity = '0';
+            
+            // Fade in video despu├®s de un momento
+            setTimeout(() => {
+              heroImage.style.display = 'none';
+              heroVideo.style.display = 'block';
+              heroVideo.style.opacity = '0';
+              heroVideo.style.transition = 'opacity 0.8s ease-in';
+              setTimeout(() => {
+                heroVideo.style.opacity = '1';
+                console.log('Ô£à Transici├│n de video completada');
+              }, 100);
+            }, 800);
+          } else {
+            console.warn('ÔÜá´©Å No se encontraron elementos hero-image o 
+hero-video');
+          }
+        }
+  
+        startVideoStream() {
+          console.log('­ƒÄ¼ Iniciando stream de video...');
+          const heroVideo = document.getElementById('hero-video');
+          const videoSource = heroVideo.querySelector('source');
+          
+          // Mostrar barrita de control INMEDIATAMENTE (no esperar a WebSocket)
+          const callControls = document.getElementById('sandra-call-controls');
+          if (callControls) {
+            callControls.classList.remove('hidden');
+            console.log('Ô£à Barrita de control mostrada');
+          }
+          
+          // Mostrar mensaje de "Conectando..."
+          // NO mostrar "Conectando..." durante llamada - el saludo vendr├í 
+del servidor
+          
+          if (heroVideo && videoSource) {
+            // Usar el primer video (puedes alternar entre los dos)
+            videoSource.src = 'assets/videos/sandra-call-1.mp4';
+            heroVideo.load();
+            heroVideo.play().catch(e => console.log('Error al reproducir 
+video:', e));
+            
+            // Cuando termine el primer video, reproducir el segundo en loop
+            heroVideo.addEventListener('ended', () => {
+              videoSource.src = 'assets/videos/sandra-call-2.mp4';
+              heroVideo.load();
+              heroVideo.loop = true;
+              heroVideo.play().catch(e => console.log('Error al reproducir 
+video:', e));
+            }, { once: true });
+            
+            console.log('Ô£à Video de llamada iniciado');
+          }
+          
+          // Iniciar llamada conversacional en tiempo real
+          console.log('­ƒöî Iniciando conexi├│n WebSocket...');
+          this.startRealTimeCall();
+        }
+  
+        startRealTimeCall() {
+          console.log('ƒöî Iniciando conexi├│n WebSocket a 
+ws://localhost:4041...');
+          console.log('­ƒôï Estado actual del widget:', {
+            isOpen: this.isOpen,
+            activeCall: this.activeCall ? 'existe' : 'null'
+          });
+          
+          // PREVENIR DOBLE CONEXI├ôN: Cerrar conexi├│n anterior si existe
+          if (this.activeCall) {
+            console.log('ÔÜá´©Å [CLIENTE] Cerrando conexi├│n WebSocket 
+anterior para evitar doble conexi├│n...');
+            try {
+              if (this.activeCall.readyState === WebSocket.OPEN || 
+this.activeCall.readyState === WebSocket.CONNECTING) {
+                this.activeCall.close();
+              }
+              // Tambi├®n limpiar MediaRecorder y stream si existen
+              if (this.activeCall.mediaRecorder && 
+this.activeCall.mediaRecorder.state !== 'inactive') {
+                this.activeCall.mediaRecorder.stop();
+              }
+              if (this.activeCall.stream) {
+                this.activeCall.stream.getTracks().forEach(track => 
+track.stop());
+              }
+            } catch (e) {
+              console.error('Error cerrando conexi├│n anterior:', e);
+            }
+            this.activeCall = null;
+          }
+          
+          // Conectar WebSocket
+          const ws = new WebSocket('ws://localhost:4041');
+          console.log('ƒöî WebSocket creado, estado inicial:', ws.readyState); 
+// 0 = CONNECTING
+          let mediaRecorder = null;
+          let audioChunks = [];
+          let isRecording = false;
+          let stream = null; // Guardar referencia del stream
+          let recordingStartTime = null;
+          const RECORDING_DURATION = 1200; // 1.2 segundos por grabaci├│n 
+(optimizado para menor latencia)
+          this.isSpeaking = false; // Para barge-in (propiedad de instancia)
+          this.audioQueue = []; // Cola de audio para barge-in (propiedad de 
+instancia)
+          
+          // Timeout de conexi├│n (5 segundos)
+          let connectionTimeout = setTimeout(() => {
+            if (ws.readyState === WebSocket.CONNECTING || ws.readyState === 
+WebSocket.CLOSED) {
+              console.error('ÔÅ▒´©Å Timeout: WebSocket no se conect├│ en 5 
+segundos');
+              ws.close();
+              // Error cr├¡tico - permitir mostrar aunque haya llamada activa
+              if (!this.activeCall) {
+                this.addMessage('Error: No se pudo conectar al servidor. 
+Verifica que el servidor WebSocket est├® corriendo en el puerto 4041.', 'bot');
+              }
+              const callControls = 
+document.getElementById('sandra-call-controls');
+              if (callControls) callControls.classList.add('hidden');
+            }
+          }, 5000);
+          
+          // Funci├│n para enviar audio completo (WebM v├ílido)
+          const sendCompleteAudio = () => {
+            if (audioChunks.length === 0) {
+              console.log('ÔÜá´©Å No hay audio para enviar');
+              return;
+            }
+            
+            // Verificar que Sandra NO est├í hablando antes de procesar
+            if (this.isSpeaking) {
+              console.error('ÔØî [CLIENTE] ERROR: Intentando enviar audio 
+mientras Sandra habla - DESCARTADO');
+              audioChunks = [];
+              return;
+            }
+            
+            // Verificar si hay audio significativo (no silencio)
+            const hasAudio = ws.hasSignificantAudio ? ws.hasSignificantAudio() 
+: true;
+            if (!hasAudio) {
+              console.log('ÔÜá´©Å [CLIENTE] Audio sin energ├¡a significativa 
+(silencio) - DESCARTADO');
+              audioChunks = [];
+              if (ws.resetAudioEnergy) ws.resetAudioEnergy();
+              return;
+            }
+            
+            // Crear Blob completo con todos los chunks (esto forma un WebM 
+v├ílido)
+            const audioBlob = new Blob(audioChunks, { type: 
+'audio/webm;codecs=opus' });
+            
+            // Verificar que el blob tenga contenido
+            if (audioBlob.size === 0) {
+              console.log('ÔÜá´©Å Audio blob vac├¡o');
+              audioChunks = []; // Limpiar
+              return;
+            }
+            
+            // Verificar tama├▒o m├¡nimo (2000 bytes = ~200ms de audio) - 
+reducido para menor latencia
+            if (audioBlob.size < 2000) {
+              console.log(`ÔÜá´©Å Audio demasiado corto: ${audioBlob.size} 
+bytes`);
+              audioChunks = []; // Limpiar
+              return;
+            }
+            
+            console.log(`ƒôñ [CLIENTE] Enviando audio completo: 
+${audioBlob.size} bytes`);
+            
+            // Convertir a base64
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              let base64Audio = reader.result;
+              
+              // Remover prefijo "data:audio/webm;base64," si existe
+              if (base64Audio.includes(',')) {
+                base64Audio = base64Audio.split(',')[1];
+              }
+              
+              if (!base64Audio || base64Audio.length === 0) {
+                console.error('ÔØî Error: base64Audio vac├¡o despu├®s de 
+procesar');
+                audioChunks = []; // Limpiar
+                return;
+              }
+              
+              console.log(`ƒôñ [CLIENTE] Enviando audio a servidor: 
+${base64Audio.length} caracteres base64`);
+              console.log(`ƒôñ [CLIENTE] Audio blob: ${audioBlob.size} bytes, 
+tipo: ${audioBlob.type}`);
+              
+              ws.send(JSON.stringify({
+                type: 'audio',
+                audio: base64Audio
+              }));
+              
+              console.log('Ô£à [CLIENTE] Audio enviado correctamente al 
+servidor');
+              
+              // Limpiar chunks despu├®s de enviar y resetear flag de audio
+              audioChunks = [];
+              if (ws.resetAudioEnergy) ws.resetAudioEnergy();
+            };
+            reader.onerror = () => {
+              console.error('ÔØî Error leyendo audio blob');
+              audioChunks = []; // Limpiar en caso de error
+            };
+            reader.readAsDataURL(audioBlob);
+          };
+          
+          // Funci├│n para iniciar nueva grabaci├│n
+          const startNewRecording = () => {
+            // CR├ìTICO: Solo grabar si Sandra NO est├í hablando
+            if (this.isSpeaking) {
+              console.log('ÔÜá´©Å [CLIENTE] NO iniciar grabaci├│n - Sandra 
+est├í hablando');
+              return;
+            }
+            
+            if (!isRecording && mediaRecorder && mediaRecorder.state === 
+'inactive' && ws.readyState === WebSocket.OPEN && !this.isSpeaking) {
+              audioChunks = []; // Limpiar chunks anteriores
+              recordingStartTime = Date.now();
+              mediaRecorder.start(); // Sin par├ímetro = grabar hasta stop()
+              isRecording = true;
+              console.log('ƒÄÖ´©Å [CLIENTE] Iniciando nueva grabaci├│n de 
+USUARIO (Sandra callada)');
+            } else {
+              console.log('ÔÜá´©Å [CLIENTE] No se puede iniciar grabaci├│n:', {
+                isRecording,
+                mediaRecorderState: mediaRecorder?.state,
+                wsReadyState: ws.readyState,
+                isSpeaking: this.isSpeaking
+              });
+            }
+          };
+          
+          // Manejar errores de conexi├│n
+          ws.onerror = (error) => {
+            console.error('ÔØî Error de conexi├│n WebSocket:', error);
+            clearTimeout(connectionTimeout);
+            // Error cr├¡tico - permitir mostrar aunque haya llamada activa
+            if (!this.activeCall) {
+              this.addMessage('Error de conexi├│n. Verifica que el servidor 
+WebSocket est├® corriendo en el puerto 4041.', 'bot');
+            }
+            const callControls = 
+document.getElementById('sandra-call-controls');
+            if (callControls) callControls.classList.add('hidden');
+          };
+          
+          ws.onclose = (event) => {
+            console.log('­ƒöî WebSocket cerrado:', event.code, event.reason);
+            clearTimeout(connectionTimeout);
+            if (event.code !== 1000) { // 1000 = cierre normal
+              // Error cr├¡tico - permitir mostrar aunque haya llamada activa
+              if (!this.activeCall) {
+                this.addMessage('Conexi├│n cerrada inesperadamente.', 'bot');
+              }
+              const callControls = 
+document.getElementById('sandra-call-controls');
+              if (callControls) callControls.classList.add('hidden');
+            }
+          };
+          
+          ws.onopen = () => {
+            console.log('Ô£à WebSocket conectado exitosamente');
+            clearTimeout(connectionTimeout); // Limpiar timeout ya que se 
+conect├│
+            
+            // MEDIR LATENCIA: Marcar tiempo de descuelgue
+            const pickupTime = Date.now();
+            ws.pickupTime = pickupTime;
+            console.log('ÔÅ▒´©Å [LATENCIA] Tiempo de descuelgue:', pickupTime);
+            
+            // Mostrar bot├│n de colgar (ya deber├¡a estar visible desde 
+startVideoStream)
+            const callControls = 
+document.getElementById('sandra-call-controls');
+            if (callControls) callControls.classList.remove('hidden');
+            
+            // DESHABILITAR COMPLETAMENTE EL CHAT DURANTE LLAMADA
+            const chatInput = document.getElementById('sandra-input');
+            const chatSendBtn = document.getElementById('sandra-send-btn');
+            const chatMicBtn = document.getElementById('sandra-mic-btn');
+            const messagesContainer = 
+document.getElementById('sandra-messages');
+            
+            if (chatInput) {
+              chatInput.disabled = true;
+              chatInput.style.opacity = '0.5';
+              chatInput.placeholder = 'En llamada conversacional... Habla 
+directamente';
+            }
+            if (chatSendBtn) {
+              chatSendBtn.disabled = true;
+              chatSendBtn.style.opacity = '0.5';
+            }
+            if (chatMicBtn) {
+              chatMicBtn.disabled = true;
+              chatMicBtn.style.opacity = '0.5';
+            }
+            
+            // OCULTAR MENSAJES DEL CHAT DURANTE LLAMADA (no mostrar "Llamada 
+conectada")
+            // El saludo de voz se reproducir├í autom├íticamente desde el 
+servidor
+            
+            // Solicitar acceso al micr├│fono PRIMERO
+            console.log('­ƒÄÖ´©Å Solicitando acceso al micr├│fono...');
+            navigator.mediaDevices.getUserMedia({ audio: true })
+              .then(userStream => {
+                console.log('Ô£à Acceso al micr├│fono concedido');
+                stream = userStream; // Guardar referencia
+                // Configurar MediaRecorder para capturar audio
+                mediaRecorder = new MediaRecorder(stream, {
+                  mimeType: 'audio/webm;codecs=opus'
+                });
+                console.log('Ô£à MediaRecorder configurado');
+                
+                // NOTIFICAR AL SERVIDOR QUE EL CLIENTE EST├ü COMPLETAMENTE 
+LISTO (despu├®s de micr├│fono)
+                console.log('ƒôó Notificando al servidor que el cliente est├í 
+completamente listo...');
+                ws.send(JSON.stringify({
+                  type: 'ready',
+                  message: 'Cliente completamente listo para recibir saludo'
+                }));
+                
+                mediaRecorder.ondataavailable = (event) => {
+                  if (event.data.size > 0) {
+                    audioChunks.push(event.data);
+                    console.log(`ƒôª Chunk recibido: ${event.data.size} bytes 
+(total: ${audioChunks.length} chunks)`);
+                  }
+                };
+                
+                mediaRecorder.onstop = () => {
+                  console.log('ÔÅ╣´©Å [CLIENTE] MediaRecorder detenido, 
+procesando audio...');
+                  isRecording = false;
+                  
+                  // Solo enviar audio si Sandra NO est├í hablando
+                  if (!this.isSpeaking) {
+                    sendCompleteAudio();
+                    
+                    // Reiniciar grabaci├│n SOLO si Sandra no est├í hablando 
+(sin delay para menor latencia)
+                    if (ws.readyState === WebSocket.OPEN && !this.isSpeaking) {
+                      startNewRecording();
+                    } else {
+                      console.log('ÔÜá´©Å [CLIENTE] No reiniciar grabaci├│n - 
+Sandra hablando o WebSocket cerrado');
+                    }
+                  } else {
+                    console.log('ÔÜá´©Å [CLIENTE] NO enviar audio - Sandra 
+est├í hablando (audio descartado)');
+                    // Limpiar chunks si Sandra est├í hablando
+                    audioChunks = [];
+                  }
+                };
+                
+                // NO iniciar grabaci├│n hasta que el saludo termine 
+completamente
+                // La grabaci├│n se iniciar├í autom├íticamente cuando el 
+saludo termine (en audio.onended)
+                console.log('ƒÄÖ´©Å [CLIENTE] Preparado para grabar. Esperando 
+saludo inicial...', {
+                  isSpeaking: this.isSpeaking,
+                  mediaRecorderState: mediaRecorder.state
+                });
+                console.log('ÔÅ│ [CLIENTE] La grabaci├│n se iniciar├í 
+autom├íticamente cuando el saludo termine');
+                
+                // Timer para detener grabaci├│n cada RECORDING_DURATION 
+segundos
+                // CR├ìTICO: Solo detener si NO estamos en medio de una 
+respuesta de Sandra
+                const recordingTimer = setInterval(() => {
+                  if (isRecording && mediaRecorder && mediaRecorder.state === 
+'recording' && !this.isSpeaking) {
+                    const elapsed = Date.now() - recordingStartTime;
+                    if (elapsed >= RECORDING_DURATION) {
+                      console.log(`ÔÅ▒´©Å [CLIENTE] Tiempo m├íximo alcanzado 
+(${elapsed}ms), deteniendo grabaci├│n...`);
+                      mediaRecorder.stop();
+                    }
+                  } else if (isRecording && this.isSpeaking) {
+                    // Si Sandra est├í hablando mientras grabamos, detener 
+inmediatamente
+                    console.log('ƒøæ [CLIENTE] DETENIENDO grabaci├│n - Sandra 
+empez├│ a hablar');
+                    if (mediaRecorder && mediaRecorder.state === 'recording') {
+                      mediaRecorder.stop();
+                    }
+                  }
+                }, 500); // Verificar cada 500ms
+                
+                // Guardar referencias para limpiar al finalizar y acceso 
+desde callbacks
+                ws.recordingTimer = recordingTimer;
+                ws.mediaRecorder = mediaRecorder;
+                ws.stream = stream;
+                ws.audioChunks = audioChunks; // Hacer accesible desde 
+callbacks
+                ws.isRecording = () => isRecording; // Getter para estado
+                ws.setRecording = (val) => { isRecording = val; }; // Setter 
+para estado
+                ws.startNewRecording = startNewRecording; // Funci├│n para 
+reiniciar grabaci├│n
+                this.activeCall = ws; // Guardar referencia del WebSocket
+                
+                // Detectar cuando el usuario habla (barge-in) y medir 
+energ├¡a de audio
+                const audioContext = new (window.AudioContext || 
+window.webkitAudioContext)();
+                const analyser = audioContext.createAnalyser();
+                const source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser);
+                analyser.fftSize = 256;
+                analyser.smoothingTimeConstant = 0.8;
+                
+                // Variable para rastrear energ├¡a de audio
+                let audioEnergy = 0;
+                let hasSignificantAudio = false;
+                
+                const checkAudioLevel = () => {
+                  const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                  analyser.getByteFrequencyData(dataArray);
+                  const average = dataArray.reduce((a, b) => a + b) / 
+dataArray.length;
+                  audioEnergy = average;
+                  
+                  // Si la energ├¡a es significativa (> 20), marcar que hay 
+audio
+                  if (average > 20) {
+                    hasSignificantAudio = true;
+                  }
+                  
+                  if (average > 30 && this.isSpeaking) {
+                    // Usuario est├í hablando durante respuesta de IA -> 
+Barge-in
+                    console.log('­ƒøæ Barge-in detectado!');
+                    this.audioQueue = []; // Limpiar cola de audio
+                    this.isSpeaking = false;
+                    // Detener cualquier audio que se est├® reproduciendo
+                    if (this.currentAudio) {
+                      this.currentAudio.pause();
+                      // Revocar Blob URL en barge-in
+                      if (this.currentAudio._blobUrl) {
+                        URL.revokeObjectURL(this.currentAudio._blobUrl);
+                        this.currentAudio._blobUrl = null;
+                      }
+                      this.currentAudio = null;
+                    }
+                  }
+                  
+                  requestAnimationFrame(checkAudioLevel);
+                };
+                checkAudioLevel();
+                
+                // Guardar funci├│n para verificar energ├¡a de audio
+                ws.getAudioEnergy = () => audioEnergy;
+                ws.hasSignificantAudio = () => hasSignificantAudio;
+                ws.resetAudioEnergy = () => { hasSignificantAudio = false; };
+              })
+              .catch(err => {
+                console.error('ÔØî Error accediendo al micr├│fono:', err);
+                this.addMessage('No se pudo acceder al micr├│fono. Por favor, 
+permite el acceso.', 'bot');
+                const callControls = 
+document.getElementById('sandra-call-controls');
+                if (callControls) callControls.classList.add('hidden');
+              });
+          };
+          
+          ws.onmessage = (event) => {
+            console.log('ƒôÑ Mensaje recibido del servidor:', 
+event.data.substring(0, 100));
+            const data = JSON.parse(event.data);
+            
+            if (data.type === 'timeout') {
+              console.log('ÔÅ▒´©Å Llamada cerrada por inactividad');
+              this.addMessage('La llamada se ha cerrado por inactividad. Si 
+necesitas ayuda, puedes iniciar una nueva llamada.', 'bot');
+              if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+              }
+              if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+              }
+              ws.close();
+              return;
+            }
+            
+            if (data.type === 'text') {
+              // Durante llamada conversacional, NO mostrar texto en el chat
+              // Solo log para debugging
+              console.log('ƒôØ Respuesta de Sandra (no mostrada en chat 
+durante llamada):', data.text);
+            } else if (data.type === 'audio') {
+              console.log('ƒöè [CLIENTE] Audio recibido de Sandra, tama├▒o:', 
+data.audio ? data.audio.length : 0, 'caracteres');
+              console.log('­ƒöì [DEBUG] isWelcome flag:', data.isWelcome);
+              console.log('­ƒöì [DEBUG] Tipo de mensaje:', data.type);
+              console.log('­ƒöì [DEBUG] Audio presente:', !!data.audio);
+              
+              // CR├ìTICO: Detener grabaci├│n INMEDIATAMENTE cuando Sandra 
+empieza a hablar
+              // Esto evita que el MediaRecorder capture el audio de Sandra 
+por los altavoces
+              if (ws.mediaRecorder) {
+                if (ws.mediaRecorder.state === 'recording') {
+                  console.log('ÔÅ©´©Å [CLIENTE] DETENIENDO grabaci├│n 
+INMEDIATAMENTE - Sandra va a hablar');
+                  try {
+                    ws.mediaRecorder.stop();
+                    if (ws.setRecording) ws.setRecording(false);
+                    isRecording = false;
+                    // Limpiar chunks acumulados para evitar enviar audio 
+mezclado
+                    if (ws.audioChunks) {
+                      ws.audioChunks.length = 0;
+                      console.log('­ƒº╣ [CLIENTE] Chunks de audio limpiados');
+                    }
+                  } catch (e) {
+                    console.error('ÔØî [CLIENTE] Error deteniendo 
+MediaRecorder:', e);
+                  }
+                } else {
+                  console.log('Ôä╣´©Å [CLIENTE] MediaRecorder ya estaba 
+detenido (estado:', ws.mediaRecorder.state, ')');
+                }
+              }
+              
+              // Reproducir audio de la IA
+              if (!this.isSpeaking) {
+                this.isSpeaking = true;
+                console.log('ÔûÂ´©Å [CLIENTE] Reproduciendo audio de 
+Sandra...');
+                this.playAudioResponse(data.audio, data.isWelcome || false);
+              } else {
+                // Si ya est├í hablando, encolar
+                console.log('ƒôï [CLIENTE] Audio encolado (Sandra ya est├í 
+hablando)');
+                this.audioQueue.push(data.audio);
+              }
+            } else if (data.type === 'noSpeech') {
+              // No se entendi├│ el audio - no es un error, solo informar al 
+usuario
+              if (!this.lastNoSpeechTime || (Date.now() - 
+this.lastNoSpeechTime) > 3000) {
+                this.addMessage(data.message || 'No he podido o├¡rte bien. 
+┬┐Puedes repetirlo, por favor?', 'bot');
+                this.lastNoSpeechTime = Date.now();
+              }
+              // La llamada sigue activa, no se cierra ni se muestra en chat
+            } else if (data.type === 'error') {
+              console.error('ÔØî Error del servidor:', data.message);
+              this.addMessage('Error en la llamada: ' + data.message, 'bot');
+              const callControls = 
+document.getElementById('sandra-call-controls');
+              if (callControls) callControls.classList.add('hidden');
+            } else {
+              console.log('ÔÜá´©Å Tipo de mensaje desconocido:', data.type);
+            }
+          };
+          
+          // La referencia ya se guard├│ arriba: this.activeCall = ws;
+          console.log('Ô£à WebSocket configurado completamente');
+        }
+  
+        playAudioResponse(audioBase64, isWelcome = false) {
+          // Si es el saludo inicial, NO detener audio anterior (no deber├¡a 
+haber)
+          if (!isWelcome && this.currentAudio) {
+            this.currentAudio.pause();
+            // Revocar Blob URL del audio anterior si existe
+            if (this.currentAudio._blobUrl) {
+              URL.revokeObjectURL(this.currentAudio._blobUrl);
+            }
+            this.currentAudio = null;
+          }
+          
+          // SOLUCI├ôN OFICIAL: Convertir base64 a Blob y usar Blob URL en 
+lugar de data URI
+          // Esto asegura que el navegador trate el audio como archivo 
+completo y lo bufferice correctamente
+          const byteCharacters = atob(audioBase64);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: 'audio/mp3' });
+          const blobUrl = URL.createObjectURL(blob);
+          
+          // Usar Blob URL en lugar de data URI
+          const audio = new Audio(blobUrl);
+          
+          // Guardar flag isWelcome y blobUrl en el elemento audio para acceso 
+en callbacks
+          audio._isWelcome = isWelcome;
+          audio._blobUrl = blobUrl; // Guardar para revocar despu├®s de la 
+reproducci├│n
+          
+          // FORZAR velocidad calmada (0.92x) para tono relajado pero natural
+          audio.playbackRate = 0.92;
+          audio.defaultPlaybackRate = 0.92;
+          
+          // Si es el saludo, esperar a que el audio est├® COMPLETAMENTE 
+cargado antes de reproducir
+          if (isWelcome) {
+            console.log('ƒæï [CLIENTE] Cargando saludo inicial, esperando a 
+que est├® COMPLETAMENTE listo...');
+            audio.preload = 'auto';
+            
+            // Prevenir reproducci├│n duplicada
+            let hasStartedPlaying = false;
+            let playCheckInterval = null;
+            
+            const playWhenFullyReady = () => {
+              if (hasStartedPlaying) return;
+              
+              // CR├ìTICO: Verificar que el buffer est├® COMPLETO desde el 
+inicio hasta el final
+              const hasEnoughData = audio.readyState === 4; // HAVE_ENOUGH_DATA
+              const hasValidDuration = audio.duration && audio.duration > 0 && 
+isFinite(audio.duration);
+              
+              // Verificar que el buffer cubra TODO el audio desde 0 hasta el 
+final
+              let hasCompleteBufferFromStart = false;
+              let hasSeekableRange = false;
+              
+              if (audio.buffered.length > 0 && hasValidDuration) {
+                const firstBufferStart = audio.buffered.start(0);
+                const firstBufferEnd = audio.buffered.end(0);
+                // CR├ìTICO: El buffer DEBE empezar desde 0 y cubrir TODO el 
+audio (100%)
+                // Usar >= para tolerar peque├▒as diferencias de precisi├│n
+                hasCompleteBufferFromStart = firstBufferStart === 0 && 
+                                            firstBufferEnd > 0 &&
+                                            firstBufferEnd >= (audio.duration 
+* 0.99); // 99% m├¡nimo (tolerancia)
+              }
+              
+              // Verificar tambi├®n seekable (m├ís confiable que buffered)
+              if (audio.seekable.length > 0 && hasValidDuration) {
+                const firstSeekableStart = audio.seekable.start(0);
+                const firstSeekableEnd = audio.seekable.end(0);
+                hasSeekableRange = firstSeekableStart === 0 && 
+                                  firstSeekableEnd > 0 &&
+                                  firstSeekableEnd >= (audio.duration * 0.99);
+                
+                console.log('­ƒöì [DEBUG] Seekable check:', {
+                  start: firstSeekableStart,
+                  end: firstSeekableEnd,
+                  duration: audio.duration,
+                  coverage: ((firstSeekableEnd / audio.duration) * 
+100).toFixed(1) + '%',
+                  isComplete: hasSeekableRange
+                });
+              }
+              
+              if (audio.buffered.length > 0 && hasValidDuration) {
+                const firstBufferStart = audio.buffered.start(0);
+                const firstBufferEnd = audio.buffered.end(0);
+                console.log('­ƒöì [DEBUG] Buffer check:', {
+                  start: firstBufferStart,
+                  end: firstBufferEnd,
+                  duration: audio.duration,
+                  coverage: ((firstBufferEnd / audio.duration) * 
+100).toFixed(1) + '%',
+                  readyState: audio.readyState,
+                  isComplete: hasCompleteBufferFromStart,
+                  seekableComplete: hasSeekableRange
+                });
+              }
+              
+              // Requerir que TANTO buffered COMO seekable est├®n completos
+              const isFullyReady = hasCompleteBufferFromStart && 
+hasSeekableRange;
+              
+              if (hasEnoughData && hasValidDuration && isFullyReady) {
+                // Limpiar intervalo de verificaci├│n
+                if (playCheckInterval) {
+                  clearInterval(playCheckInterval);
+                  playCheckInterval = null;
+                }
+                
+                // MEDIR LATENCIA: Calcular tiempo desde descuelgue hasta 
+inicio del saludo
+                if (this.activeCall && this.activeCall.pickupTime) {
+                  const latency = Date.now() - this.activeCall.pickupTime;
+                  console.log(`ÔÅ▒´©Å [LATENCIA] Tiempo desde descuelgue hasta 
+inicio del saludo: ${latency}ms`);
+                }
+                
+                // CR├ìTICO: Esperar un momento adicional para que el buffer 
+se estabilice completamente
+                setTimeout(() => {
+                  if (hasStartedPlaying) return;
+                  
+                  // Establecer currentTime = 0 M├ÜLTIPLES veces antes de 
+reproducir
+                  audio.currentTime = 0;
+                  
+                  // Verificar que currentTime sea 0
+                  if (audio.currentTime !== 0) {
+                    console.warn('ÔÜá´©Å [CLIENTE] currentTime no es 0 
+despu├®s de establecer, forzando...');
+                    audio.currentTime = 0;
+                  }
+                  
+                  // Esperar un frame m├ís para asegurar que el navegador 
+proces├│ el cambio
+                  requestAnimationFrame(() => {
+                    if (hasStartedPlaying) return;
+                    
+                    // Verificar una vez m├ís que currentTime sea 0
+                    if (audio.currentTime !== 0) {
+                      console.warn('ÔÜá´©Å [CLIENTE] currentTime a├║n no es 0, 
+forzando nuevamente...');
+                      audio.currentTime = 0;
+                    }
+                    
+                    // Un ├║ltimo frame para estar seguros
+                    requestAnimationFrame(() => {
+                      if (hasStartedPlaying) return;
+                      
+                      // Verificaci├│n final de currentTime
+                      if (audio.currentTime !== 0) {
+                        console.warn('ÔÜá´©Å [CLIENTE] currentTime final no es 
+0, forzando...');
+                        audio.currentTime = 0;
+                      }
+                      
+                      if (!hasStartedPlaying) {
+                        console.log('Ô£à [CLIENTE] Saludo COMPLETAMENTE listo 
+(buffer 100%), reproduciendo desde currentTime=0...');
+                        console.log('ƒöì [DEBUG] currentTime antes de 
+play():', audio.currentTime);
+                        hasStartedPlaying = true;
+                        
+                        // ESTRATEGIA ROBUSTA: Reproducir y verificar 
+inmediatamente
+                        const startPlayback = () => {
+                          // Asegurar currentTime = 0 una vez m├ís justo antes 
+de reproducir
+                          audio.currentTime = 0;
+                          
+                          audio.play().then(() => {
+                            // Verificar currentTime inmediatamente despu├®s 
+de play()
+                            // Usar setTimeout para dar tiempo al navegador de 
+procesar
+                            setTimeout(() => {
+                              if (audio.currentTime > 0.1) { // Tolerancia de 
+100ms
+                                console.error('ÔØî [CLIENTE] ERROR: Audio 
+comenz├│ en', audio.currentTime, 'segundos, reiniciando...');
+                                audio.pause();
+                                audio.currentTime = 0;
+                                
+                                // Esperar un momento y volver a intentar
+                                setTimeout(() => {
+                                  audio.currentTime = 0;
+                                  audio.play().then(() => {
+                                    setTimeout(() => {
+                                      if (audio.currentTime > 0.1) {
+                                        console.error('ÔØî [CLIENTE] ERROR 
+PERSISTENTE: Audio a├║n no comienza desde 0');
+                                      } else {
+                                        console.log('Ô£à [CLIENTE] Audio 
+corregido, comenzando desde 0');
+                                      }
+                                    }, 50);
+                                  }).catch(e => console.error('ÔØî Error en 
+segundo intento:', e));
+                                }, 100);
+                              } else {
+                                console.log('Ô£à [CLIENTE] Audio confirmado 
+comenzando desde currentTime:', audio.currentTime);
+                              }
+                            }, 50); // Verificar despu├®s de 50ms
+                          }).catch(e => console.error('ÔØî Error reproduciendo 
+saludo:', e));
+                        };
+                        
+                        startPlayback();
+                      }
+                    });
+                  });
+                }, 200); // Delay adicional de 200ms despu├®s de verificar 
+buffer completo
+              }
+            };
+            
+            // Escuchar loadeddata (primeros datos cargados)
+            audio.addEventListener('loadeddata', () => {
+              console.log('ƒôÑ [CLIENTE] Saludo loadeddata recibido, 
+duraci├│n:', audio.duration);
+              audio.currentTime = 0;
+              // Verificar si ya est├í listo
+              playWhenFullyReady();
+            }, { once: true });
+            
+            // Escuchar canplaythrough (audio listo para reproducir sin cortes)
+            audio.addEventListener('canplaythrough', () => {
+              console.log('Ô£à [CLIENTE] Saludo canplaythrough recibido, 
+verificando buffer completo...');
+              // Verificar buffer completo
+              playWhenFullyReady();
+            }, { once: true });
+            
+            // Escuchar loadedmetadata para obtener duraci├│n y asegurar 
+currentTime=0
+            audio.addEventListener('loadedmetadata', () => {
+              console.log('ƒôè [CLIENTE] Saludo metadata cargada, duraci├│n:', 
+audio.duration);
+              audio.currentTime = 0;
+            }, { once: true });
+            
+            // Escuchar progress para verificar que el buffer se est├í cargando
+            audio.addEventListener('progress', () => {
+              if (audio.buffered.length > 0 && audio.duration) {
+                const bufferedEnd = audio.buffered.end(0);
+                const bufferedPercent = (bufferedEnd / audio.duration * 
+100).toFixed(1);
+                console.log(`ƒôÑ [CLIENTE] Buffer cargando: 
+${bufferedPercent}%`);
+                
+                // Si el buffer est├í completo (99%+), verificar si est├í 
+listo para reproducir
+                if (bufferedPercent >= 99) {
+                  playWhenFullyReady();
+                }
+              }
+            });
+            
+            // Verificaci├│n peri├│dica como respaldo (cada 200ms, menos 
+agresivo)
+            playCheckInterval = setInterval(() => {
+              if (!hasStartedPlaying) {
+                playWhenFullyReady();
+              } else {
+                clearInterval(playCheckInterval);
+                playCheckInterval = null;
+              }
+            }, 200);
+            
+            // Forzar carga del audio
+            audio.load();
+            
+            // Timeout de seguridad (8 segundos m├íximo)
+            setTimeout(() => {
+              if (playCheckInterval) {
+                clearInterval(playCheckInterval);
+                playCheckInterval = null;
+              }
+              if (!hasStartedPlaying && audio.readyState >= 2) {
+                console.log('ÔÅ░ [CLIENTE] Timeout de seguridad: forzando 
+reproducci├│n');
+                audio.currentTime = 0;
+                hasStartedPlaying = true;
+                audio.play().catch(e => console.error('ÔØî Error reproduciendo 
+saludo:', e));
+              }
+            }, 8000);
+          }
+          
+          audio.onloadedmetadata = () => {
+            console.log(`ƒôè [CLIENTE] Audio cargado: duraci├│n 
+${audio.duration.toFixed(2)}s, velocidad actual ${audio.playbackRate}x`);
+            // Verificar y forzar velocidad calmada despu├®s de cargar
+            if (audio.playbackRate !== 0.92) {
+              console.warn('ÔÜá´©Å [CLIENTE] Velocidad incorrecta detectada, 
+corrigiendo a 0.92x...');
+              audio.playbackRate = 0.92;
+            }
+          };
+          
+          // Interceptar cualquier cambio de velocidad
+          const originalSetPlaybackRate = 
+Object.getOwnPropertyDescriptor(HTMLAudioElement.prototype, 
+'playbackRate')?.set;
+          if (originalSetPlaybackRate) {
+            Object.defineProperty(audio, 'playbackRate', {
+              get: () => 0.92,
+              set: (value) => {
+                console.warn('ÔÜá´©Å Intento de cambiar playbackRate a', 
+value, '- ignorado, forzando 0.92');
+              },
+              configurable: true
+            });
+          }
+          
+          this.currentAudio = audio; // Guardar referencia para poder detenerlo
+          
+          // Si NO es el saludo, reproducir inmediatamente
+          if (!isWelcome) {
+            console.log('ÔûÂ´©Å [CLIENTE] Reproduciendo audio de Sandra 
+(velocidad calmada: 0.92x, formato: MP3)...');
+            audio.play().catch(e => console.error('Error reproduciendo 
+audio:', e));
+          }
+          
+          audio.onplay = () => {
+            console.log(`ÔûÂ´©Å [CLIENTE] Audio iniciado, velocidad: 
+${audio.playbackRate}x`);
+            // Verificar velocidad calmada al iniciar reproducci├│n
+            if (audio.playbackRate !== 0.92) {
+              console.warn('ÔÜá´©Å [CLIENTE] Velocidad incorrecta al iniciar, 
+corrigiendo a 0.92x...');
+              audio.playbackRate = 0.92;
+            }
+            
+            // CR├ìTICO: Monitorear y forzar playbackRate calmado 
+constantemente durante reproducci├│n
+            const forcePlaybackRate = setInterval(() => {
+              if (audio && !audio.paused && audio.playbackRate !== 0.92) {
+                console.warn('ÔÜá´©Å [CLIENTE] Velocidad cambiada durante 
+reproducci├│n, forzando 0.92x...');
+                try {
+                  audio.playbackRate = 0.92;
+                } catch (e) {
+                  console.error('ÔØî Error forzando playbackRate:', e);
+                }
+              }
+              // Limpiar intervalo cuando termine la reproducci├│n
+              if (audio.ended || audio.paused) {
+                clearInterval(forcePlaybackRate);
+              }
+            }, 100); // Verificar cada 100ms
+            
+            // Limpiar intervalo cuando termine
+            audio.addEventListener('ended', () => 
+clearInterval(forcePlaybackRate), { once: true });
+            audio.addEventListener('pause', () => 
+clearInterval(forcePlaybackRate), { once: true });
+          };
+          
+          audio.onended = () => {
+            console.log('Ô£à [CLIENTE] Audio de Sandra finalizado 
+completamente');
+            this.isSpeaking = false;
+            
+            // CR├ìTICO: NO limpiar currentAudio inmediatamente (evitar cortes 
+al final)
+            // Aumentar delay para asegurar que el audio termine completamente
+            setTimeout(() => {
+              // Revocar Blob URL para liberar memoria
+              if (audio._blobUrl) {
+                URL.revokeObjectURL(audio._blobUrl);
+                audio._blobUrl = null;
+              }
+              this.currentAudio = null;
+            }, 800); // Aumentado a 800ms para evitar cortes al final
+            
+            // Si es el saludo, iniciar grabaci├│n despu├®s de un delay
+            if (audio._isWelcome) {
+              console.log('ƒæï [CLIENTE] Saludo terminado, iniciando 
+grabaci├│n en 300ms...');
+              setTimeout(() => {
+                if (this.activeCall && this.activeCall.startNewRecording && 
+!this.isSpeaking) {
+                  this.activeCall.startNewRecording();
+                }
+              }, 300); // Delay m├¡nimo solo para el saludo
+            } else {
+              // CR├ìTICO: Esperar tiempo m├¡nimo antes de reiniciar 
+grabaci├│n para evitar eco
+              // Reiniciar grabaci├│n SOLO despu├®s de que Sandra termine 
+completamente de hablar
+              if (this.activeCall && this.activeCall.mediaRecorder && 
+this.activeCall.mediaRecorder.state === 'inactive' && 
+this.activeCall.startNewRecording) {
+                console.log('ƒÄÖ´©Å [CLIENTE] Esperando 500ms antes de 
+reiniciar grabaci├│n (evitar eco)...');
+                setTimeout(() => {
+                  if (this.activeCall && this.activeCall.mediaRecorder && 
+this.activeCall.mediaRecorder.state === 'inactive' && !this.isSpeaking) {
+                    console.log('ƒÄÖ´©Å [CLIENTE] Reiniciando grabaci├│n de 
+USUARIO (Sandra callada)');
+                    this.activeCall.startNewRecording();
+                  } else {
+                    console.log('ÔÜá´©Å [CLIENTE] No reiniciar grabaci├│n:', {
+                      hasActiveCall: !!this.activeCall,
+                      mediaRecorderState: 
+this.activeCall?.mediaRecorder?.state,
+                      isSpeaking: this.isSpeaking
+                    });
+                  }
+                }, 300); // Delay optimizado para menor latencia
+              }
+            }
+            
+            // Reproducir siguiente audio en cola si existe
+            if (this.audioQueue && this.audioQueue.length > 0) {
+              const nextAudio = this.audioQueue.shift();
+              console.log('ƒôï [CLIENTE] Reproduciendo siguiente audio en 
+cola');
+              this.playAudioResponse(nextAudio);
+            }
+          };
+          
+          audio.onerror = (e) => {
+            console.error('ÔØî Error reproduciendo audio:', e, audio.error);
+            this.isSpeaking = false;
+            // Revocar Blob URL en caso de error
+            if (audio._blobUrl) {
+              URL.revokeObjectURL(audio._blobUrl);
+              audio._blobUrl = null;
+            }
+            this.currentAudio = null;
+          };
+        }
+  
+        addMessage(text, type) {
+          // BLOQUEAR TODOS LOS MENSAJES DE TEXTO DURANTE LLAMADA 
+CONVERSACIONAL
+          // Solo permitir mensajes si NO hay llamada activa o si es un 
+mensaje cr├¡tico del sistema
+          if ((this.activeCall || this.chatLocked) && type !== 'system') {
+            console.log('ÔÜá´©Å Mensaje bloqueado durante llamada 
+conversacional:', text);
+            return; // No mostrar ning├║n mensaje durante la llamada
+          }
+          
+          const messagesContainer = document.getElementById('sandra-messages');
+          const isUser = type === 'user';
+  
+          const html = `
+            <div class="flex gap-2 ${isUser ? 'flex-row-reverse' : ''}">
+              ${!isUser ? '<div class="w-6 h-6 rounded-full bg-gradient-to-tr 
+from-blue-400 to-purple-500 flex-shrink-0 flex items-center justify-center 
+text-[10px] text-white font-bold">S</div>' : ''}
+              <div class="${isUser ? 'bg-blue-600 text-white' : 'bg-white 
+border border-slate-100 text-slate-700'} p-2.5 rounded-xl ${isUser ? 
+'rounded-tr-none' : 'rounded-tl-none'} shadow-sm text-xs max-w-[85%]">
+                <p>${text}</p>
+              </div>
+            </div>
+          `;
+  
+          messagesContainer.insertAdjacentHTML('beforeend', html);
+          // Auto-scroll suave al final
+          setTimeout(() => {
+            messagesContainer.scrollTo({
+              top: messagesContainer.scrollHeight,
+              behavior: 'smooth'
+            });
+          }, 50);
+        }
+  
+        showTyping(show) {
+          const typing = document.getElementById('sandra-typing');
+          if (show) typing.classList.remove('hidden');
+          else typing.classList.add('hidden');
+        }
+      }
+  
+      // Initialize widget
+      document.addEventListener('DOMContentLoaded', () => {
+        new SandraWidget();
+      });
+    </script>
+  </body>
+  </html>
+  
+
+

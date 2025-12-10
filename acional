@@ -1,0 +1,20 @@
+[33me2f319a[m Mejoras widget: controles persistentes durante llamada, audio completo, chat bloqueado
+[33mf1bdebc[m Fix: Corregir errores CSS inline y videos, asegurar widget desplegado
+[33me531b3f[m  Mejorado script de verificación del widget en producción
+[33m2ef9b7b[m fix(widget): Prevenir duplicación de botón y contenedores
+[33m01c4cce[m fix(widget): Eliminar código muerto y duplicado - 84KB eliminados
+[33md9a4b9d[m WIP on main: a27b2a0 fix: Resolver conflictos de merge - mantener mejoras de audio y agregar carga del widget
+[33m33173e4[m[33m ([m[1;35mrefs/stash[m[33m)[m WIP on main: a27b2a0 fix: Resolver conflictos de merge - mantener mejoras de audio y agregar carga del widget
+[33m8ab5664[m index on main: a27b2a0 fix: Resolver conflictos de merge - mantener mejoras de audio y agregar carga del widget
+[33ma27b2a0[m fix: Resolver conflictos de merge - mantener mejoras de audio y agregar carga del widget
+[33mda276aa[m fix: Resolver conflictos de merge - mantener mejoras de audio y agregar carga del widget
+[33m87159b1[m fix: Agregar carga del widget sandra-widget.js - el widget no aparecía en producción
+[33me14df60[m fix: Agregar carga del widget sandra-widget.js - el widget no aparecía en producción
+[33m29b1b82[m fix: Agregar carga del widget sandra-widget.js en index.html - el widget no aparecía porque no se estaba cargando el archivo externo
+[33m380ec46[m fix: Agregar carga del widget sandra-widget.js en index.html - el widget no aparecía porque no se estaba cargando el archivo externo
+[33m7cf37a1[m docs: Agregar checklist y script de verificación para widget en producción
+[33mf071455[m docs: Agregar checklist y script de verificación para widget en producción
+[33mb353fc0[m fix: Asegurar visibilidad del widget en producción con estilos !important
+[33mcac1712[m fix: Asegurar visibilidad del widget en producción con estilos !important
+[33m64669c9[m fix: Corregir referencias restantes a UIGSandra en sandra-widget.js
+[33mfcee078[m fix: Corregir referencias restantes a UIGSandra en sandra-widget.js

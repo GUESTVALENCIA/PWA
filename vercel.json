@@ -16,6 +16,10 @@
       "destination": "/api/config"
     },
     {
+      "source": "/api/sandra/assistant",
+      "destination": "/api/sandra/assistant"
+    },
+    {
       "source": "/api/sandra/:path*",
       "destination": "/api/api-gateway"
     },

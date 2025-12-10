@@ -1,0 +1,20 @@
+[33mf1bdebc[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Fix: Corregir errores CSS inline y videos, asegurar widget desplegado
+[33mc61fda0[m Merge branch 'main' of https://github.com/GUESTVALENCIA/PWA
+[33mbb1de52[m Merge branch 'main' of https://github.com/GUESTVALENCIA/PWA
+[33mcf2dc75[m Corrección automática de errores: videos, accesibilidad y compatibilidad - GROQ API configurada
+[33m85d2a44[m  Corregidos 41 errores de lint: CSS inline, accesibilidad, compatibilidad
+[33me531b3f[m  Mejorado script de verificación del widget en producción
+[33m793bd17[m  Corregidos 6 errores de lint en README_SUBAGENTES.md
+[33m93f6b1c[m feat(subagentes): Sistema completo con handlers y configuración JSON
+[33m9118c47[m feat(mcp): Integrar sistema de subagentes automáticos
+[33m2ef9b7b[m fix(widget): Prevenir duplicación de botón y contenedores
+[33m01c4cce[m fix(widget): Eliminar código muerto y duplicado - 84KB eliminados
+[33md9a4b9d[m WIP on main: a27b2a0 fix: Resolver conflictos de merge - mantener mejoras de audio y agregar carga del widget
+[33m33173e4[m[33m ([m[1;35mrefs/stash[m[33m)[m WIP on main: a27b2a0 fix: Resolver conflictos de merge - mantener mejoras de audio y agregar carga del widget
+[33m8ab5664[m index on main: a27b2a0 fix: Resolver conflictos de merge - mantener mejoras de audio y agregar carga del widget
+[33ma27b2a0[m fix: Resolver conflictos de merge - mantener mejoras de audio y agregar carga del widget
+[33mda276aa[m fix: Resolver conflictos de merge - mantener mejoras de audio y agregar carga del widget
+[33m87159b1[m fix: Agregar carga del widget sandra-widget.js - el widget no aparecía en producción
+[33me14df60[m fix: Agregar carga del widget sandra-widget.js - el widget no aparecía en producción
+[33m29b1b82[m fix: Agregar carga del widget sandra-widget.js en index.html - el widget no aparecía porque no se estaba cargando el archivo externo
+[33m380ec46[m fix: Agregar carga del widget sandra-widget.js en index.html - el widget no aparecía porque no se estaba cargando el archivo externo
