@@ -384,9 +384,9 @@ async function handleGeminiConversation(req, res, transcription, messages, conve
     const userMessages = conversation.filter(m => m.role === 'user').map(m => m.content).join('\n');
     const fullPrompt = `${systemPrompt}\n\nUsuario: ${userMessages}`;
 
-    // Intentar con gemini-1.5-pro primero, fallback a gemini-pro
-    let geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${process.env.GEMINI_API_KEY}`;
-    let geminiResponse = await fetch(geminiUrl, {
+    // Usar la misma URL que api-gateway.js usa (que sabemos que funciona)
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${process.env.GEMINI_API_KEY}`;
+    const geminiResponse = await fetch(geminiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -395,21 +395,6 @@ async function handleGeminiConversation(req, res, transcription, messages, conve
         }]
       })
     });
-
-    // Si falla con gemini-1.5-pro, intentar con gemini-pro
-    if (!geminiResponse.ok && geminiResponse.status === 404) {
-      console.log('⚠️ gemini-1.5-pro no disponible, usando gemini-pro');
-      geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${process.env.GEMINI_API_KEY}`;
-      geminiResponse = await fetch(geminiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{ text: fullPrompt }]
-          }]
-        })
-      });
-    }
 
     // Manejar respuesta
     if (!geminiResponse.ok) {

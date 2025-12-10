@@ -41,7 +41,13 @@ class AIOrchestrator {
       return await this.callGemini(shortPrompt, fullSystemPrompt);
     } catch (error) {
       console.warn("Gemini Failed, falling back to OpenAI", error.message);
-      return await this.callOpenAI(shortPrompt, fullSystemPrompt);
+      try {
+        return await this.callOpenAI(shortPrompt, fullSystemPrompt);
+      } catch (openaiError) {
+        console.error("Both Gemini and OpenAI failed:", openaiError.message);
+        // Si ambos fallan, retornar mensaje de error amigable
+        throw new Error("Lo siento, tuve un problema de conexión. Por favor, intenta de nuevo en un momento.");
+      }
     }
   }
 
