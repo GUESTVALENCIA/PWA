@@ -1467,15 +1467,25 @@
           this.wsUrl = 'ws://localhost:4041';
           this.useMCPFormat = false; // Formato simple para servidor local
         } else {
-          // PRODUCCIÓN: Usar servidor MCP oficial
+          // PRODUCCIÓN: Usar servidor MCP oficial (NUNCA localhost)
           this.baseUrl = '/api'; // REST API sigue yendo a Vercel functions
           
           // Obtener URL del servidor MCP desde variable de entorno o usar default
+          // CRÍTICO: En producción, SIEMPRE usar servidor MCP, nunca localhost
           const mcpServerUrl = window.MCP_SERVER_URL || 'https://mcp.sandra-ia.com';
+          
+          // Validar que no sea localhost (seguridad adicional)
+          if (mcpServerUrl.includes('localhost') || mcpServerUrl.includes('127.0.0.1')) {
+            console.error('❌ [MCP] ERROR: Intentando usar localhost en producción. Usando servidor MCP por defecto.');
+            const fallbackUrl = 'https://mcp.sandra-ia.com';
+            var validatedMcpUrl = fallbackUrl;
+          } else {
+            var validatedMcpUrl = mcpServerUrl;
+          }
           
           // Convertir HTTP/HTTPS a WS/WSS y añadir puerto 4042
           let wsProtocol = 'wss://';
-          let mcpHost = mcpServerUrl.replace(/^https?:\/\//, ''); // Remover http:// o https://
+          let mcpHost = validatedMcpUrl.replace(/^https?:\/\//, ''); // Remover http:// o https://
           mcpHost = mcpHost.replace(/\/$/, ''); // Remover trailing slash
           
           // Si ya tiene puerto, mantenerlo; si no, añadir 4042
@@ -1489,9 +1499,10 @@
           this.useMCPFormat = true; // Usar formato MCP para producción
           
           console.log('🔌 [MCP] Configuración de producción:', {
-            mcpServerUrl,
+            mcpServerUrl: validatedMcpUrl,
             wsUrl: this.wsUrl,
-            useMCPFormat: this.useMCPFormat
+            useMCPFormat: this.useMCPFormat,
+            isLocalhost: false // Confirmar que no es localhost
           });
         }
       }
@@ -2289,33 +2300,43 @@
       }
 
       transitionHeroToVideo() {
-        console.log('🎥 Transición: Imagen estática → Video');
+        console.log('🎥 Transición: Imagen estática → Video (sincronizado con saludo de audio)');
         const heroImage = document.getElementById('hero-background-image');
         const heroVideo = document.getElementById('hero-video');
         
         if (heroImage && heroVideo) {
-          // Fade out imagen
-          heroImage.style.transition = 'opacity 0.8s ease-out';
+          // Fade out imagen más rápido para mejor sincronización
+          heroImage.style.transition = 'opacity 0.5s ease-out';
           heroImage.style.opacity = '0';
           
-          // Fade in video después de un momento
+          // Iniciar video INMEDIATAMENTE (reducir delay para sincronización)
           setTimeout(() => {
             heroImage.style.display = 'none';
             heroVideo.style.display = 'block';
             heroVideo.style.opacity = '0';
-            heroVideo.style.transition = 'opacity 0.8s ease-in';
+            heroVideo.style.transition = 'opacity 0.5s ease-in';
+            
+            // Asegurar que el video esté en el inicio (currentTime = 0)
+            heroVideo.currentTime = 0;
+            
+            // Iniciar reproducción del video
+            heroVideo.play().catch(e => {
+              console.error('❌ Error al reproducir video del hero:', e);
+            });
+            
+            // Fade in video rápidamente para sincronización
             setTimeout(() => {
               heroVideo.style.opacity = '1';
-              console.log('✅ Transición de video completada');
-            }, 100);
-          }, 800);
+              console.log('✅ Video del hero iniciado y sincronizado con saludo de audio');
+            }, 50);
+          }, 500); // Reducido de 800ms a 500ms para mejor sincronización
         } else {
           console.warn('⚠️ No se encontraron elementos hero-image o hero-video');
         }
       }
 
       startVideoStream() {
-        console.log('🎬 Iniciando stream de video...');
+        console.log('🎬 Preparando stream de video (sincronizado con audio)...');
         const heroVideo = document.getElementById('hero-video');
         const videoSource = heroVideo.querySelector('source');
         
@@ -2330,14 +2351,16 @@
           console.log('✅ Barrita de control mostrada y asegurada visible (persistente durante llamada)');
         }
         
-        // Mostrar mensaje de "Conectando..."
-        // NO mostrar "Conectando..." durante llamada - el saludo vendrá del servidor
-        
+        // NO iniciar el video todavía - se iniciará cuando el saludo de audio esté listo
+        // Solo preparar el video para que esté listo cuando se necesite
         if (heroVideo && videoSource) {
           // Usar el primer video (puedes alternar entre los dos)
           videoSource.src = 'assets/videos/sandra-call-1.mp4';
           heroVideo.load();
-          heroVideo.play().catch(e => console.log('Error al reproducir video:', e));
+          
+          // Pre-cargar el video pero NO reproducirlo aún
+          // Se reproducirá cuando transitionHeroToVideo() sea llamado desde el saludo de audio
+          heroVideo.preload = 'auto';
           
           // Cuando termine el primer video, reproducir el segundo en loop
           heroVideo.addEventListener('ended', () => {
@@ -2346,6 +2369,8 @@
             heroVideo.loop = true;
             heroVideo.play().catch(e => console.log('Error al reproducir video:', e));
           }, { once: true });
+          
+          console.log('✅ Video preparado y listo para sincronización con saludo de audio');
           
           console.log('✅ Video de llamada iniciado');
         }
@@ -2929,217 +2954,130 @@
           
           // Prevenir reproducción duplicada
           let hasStartedPlaying = false;
-          let playCheckInterval = null;
+          let videoStarted = false;
           
-          const playWhenFullyReady = () => {
+          // CRÍTICO: Usar evento canplaythrough para asegurar carga completa
+          // Este evento se dispara cuando el navegador puede reproducir el audio sin interrupciones
+          const onCanPlayThrough = () => {
             if (hasStartedPlaying) return;
             
-            // CRÍTICO: Verificar que el buffer esté COMPLETO desde el inicio hasta el final
-            const hasEnoughData = audio.readyState === 4; // HAVE_ENOUGH_DATA
-            const hasValidDuration = audio.duration && audio.duration > 0 && isFinite(audio.duration);
+            console.log('✅ [CLIENTE] Evento canplaythrough disparado - Audio completamente cargado');
+            console.log('🔍 [DEBUG] Estado del audio:', {
+              readyState: audio.readyState,
+              duration: audio.duration,
+              buffered: audio.buffered.length > 0 ? {
+                start: audio.buffered.start(0),
+                end: audio.buffered.end(0),
+                coverage: ((audio.buffered.end(0) / audio.duration) * 100).toFixed(1) + '%'
+              } : 'no buffer',
+              seekable: audio.seekable.length > 0 ? {
+                start: audio.seekable.start(0),
+                end: audio.seekable.end(0)
+              } : 'no seekable'
+            });
             
-            // Verificar que el buffer cubra TODO el audio desde 0 hasta el final
-            let hasCompleteBufferFromStart = false;
-            let hasSeekableRange = false;
+            // Limpiar el listener una vez usado
+            audio.removeEventListener('canplaythrough', onCanPlayThrough);
             
-            if (audio.buffered.length > 0 && hasValidDuration) {
-              const firstBufferStart = audio.buffered.start(0);
-              const firstBufferEnd = audio.buffered.end(0);
-              // CRÍTICO: El buffer DEBE empezar desde 0 y cubrir TODO el audio (100%)
-              // Usar >= para tolerar pequeñas diferencias de precisión
-              hasCompleteBufferFromStart = firstBufferStart === 0 && 
-                                          firstBufferEnd > 0 &&
-                                          firstBufferEnd >= (audio.duration * 0.99); // 99% mínimo (tolerancia)
+            // MEDIR LATENCIA: Calcular tiempo desde descuelgue hasta inicio del saludo
+            if (this.activeCall && this.activeCall.pickupTime) {
+              const latency = Date.now() - this.activeCall.pickupTime;
+              console.log(`⏱️ [LATENCIA] Tiempo desde descuelgue hasta inicio del saludo: ${latency}ms`);
             }
             
-            // Verificar también seekable (más confiable que buffered)
-            if (audio.seekable.length > 0 && hasValidDuration) {
-              const firstSeekableStart = audio.seekable.start(0);
-              const firstSeekableEnd = audio.seekable.end(0);
-              hasSeekableRange = firstSeekableStart === 0 && 
-                                firstSeekableEnd > 0 &&
-                                firstSeekableEnd >= (audio.duration * 0.99);
-              
-              console.log('🔍 [DEBUG] Seekable check:', {
-                start: firstSeekableStart,
-                end: firstSeekableEnd,
-                duration: audio.duration,
-                coverage: ((firstSeekableEnd / audio.duration) * 100).toFixed(1) + '%',
-                isComplete: hasSeekableRange
-              });
+            // SINCRONIZAR VIDEO CON AUDIO: Iniciar video del hero justo antes del audio
+            if (!videoStarted) {
+              videoStarted = true;
+              this.transitionHeroToVideo();
+              console.log('🎬 [SYNC] Video del hero iniciado en sincronización con el saludo de audio');
             }
             
-            if (audio.buffered.length > 0 && hasValidDuration) {
-              const firstBufferStart = audio.buffered.start(0);
-              const firstBufferEnd = audio.buffered.end(0);
-              console.log('🔍 [DEBUG] Buffer check:', {
-                start: firstBufferStart,
-                end: firstBufferEnd,
-                duration: audio.duration,
-                coverage: ((firstBufferEnd / audio.duration) * 100).toFixed(1) + '%',
-                readyState: audio.readyState,
-                isComplete: hasCompleteBufferFromStart,
-                seekableComplete: hasSeekableRange
-              });
-            }
-            
-            // Requerir que TANTO buffered COMO seekable estén completos
-            const isFullyReady = hasCompleteBufferFromStart && hasSeekableRange;
-            
-            if (hasEnoughData && hasValidDuration && isFullyReady) {
-              // Limpiar intervalo de verificación
-              if (playCheckInterval) {
-                clearInterval(playCheckInterval);
-                playCheckInterval = null;
-              }
+            // Esperar un momento breve para que el video comience y luego reproducir audio
+            setTimeout(() => {
+              if (hasStartedPlaying) return;
               
-              // MEDIR LATENCIA: Calcular tiempo desde descuelgue hasta inicio del saludo
-              if (this.activeCall && this.activeCall.pickupTime) {
-                const latency = Date.now() - this.activeCall.pickupTime;
-                console.log(`⏱️ [LATENCIA] Tiempo desde descuelgue hasta inicio del saludo: ${latency}ms`);
-              }
+              // Establecer currentTime = 0 antes de reproducir
+              audio.currentTime = 0;
               
-              // CRÍTICO: Esperar un momento adicional para que el buffer se estabilice completamente
-              setTimeout(() => {
-                if (hasStartedPlaying) return;
-                
-                // Establecer currentTime = 0 MÚLTIPLES veces antes de reproducir
+              // Verificar que currentTime sea 0
+              if (audio.currentTime !== 0) {
+                console.warn('⚠️ [CLIENTE] currentTime no es 0 después de establecer, forzando...');
                 audio.currentTime = 0;
+              }
+              
+              if (!hasStartedPlaying) {
+                console.log('✅ [CLIENTE] Saludo COMPLETAMENTE listo (canplaythrough), reproduciendo desde currentTime=0...');
+                console.log('🔍 [DEBUG] currentTime antes de play():', audio.currentTime);
+                hasStartedPlaying = true;
                 
-                // Verificar que currentTime sea 0
-                if (audio.currentTime !== 0) {
-                  console.warn('⚠️ [CLIENTE] currentTime no es 0 después de establecer, forzando...');
-                  audio.currentTime = 0;
-                }
-                
-                // Esperar un frame más para asegurar que el navegador procesó el cambio
-                requestAnimationFrame(() => {
-                  if (hasStartedPlaying) return;
-                  
-                  // Verificar una vez más que currentTime sea 0
-                  if (audio.currentTime !== 0) {
-                    console.warn('⚠️ [CLIENTE] currentTime aún no es 0, forzando nuevamente...');
-                    audio.currentTime = 0;
-                  }
-                  
-                  // Un último frame para estar seguros
-                  requestAnimationFrame(() => {
-                    if (hasStartedPlaying) return;
-                    
-                    // Verificación final de currentTime
-                    if (audio.currentTime !== 0) {
-                      console.warn('⚠️ [CLIENTE] currentTime final no es 0, forzando...');
+                // Reproducir audio
+                audio.play().then(() => {
+                  // Verificar currentTime inmediatamente después de play()
+                  setTimeout(() => {
+                    if (audio.currentTime > 0.1) { // Tolerancia de 100ms
+                      console.error('❌ [CLIENTE] ERROR: Audio comenzó en', audio.currentTime, 'segundos, reiniciando...');
+                      audio.pause();
                       audio.currentTime = 0;
-                    }
-                    
-                    if (!hasStartedPlaying) {
-                      console.log('✅ [CLIENTE] Saludo COMPLETAMENTE listo (buffer 100%), reproduciendo desde currentTime=0...');
-                      console.log('🔍 [DEBUG] currentTime antes de play():', audio.currentTime);
-                      hasStartedPlaying = true;
                       
-                      // ESTRATEGIA ROBUSTA: Reproducir y verificar inmediatamente
-                      const startPlayback = () => {
-                        // Asegurar currentTime = 0 una vez más justo antes de reproducir
+                      // Esperar un momento y volver a intentar
+                      setTimeout(() => {
                         audio.currentTime = 0;
-                        
                         audio.play().then(() => {
-                          // Verificar currentTime inmediatamente después de play()
-                          // Usar setTimeout para dar tiempo al navegador de procesar
                           setTimeout(() => {
-                            if (audio.currentTime > 0.1) { // Tolerancia de 100ms
-                              console.error('❌ [CLIENTE] ERROR: Audio comenzó en', audio.currentTime, 'segundos, reiniciando...');
-                              audio.pause();
-                              audio.currentTime = 0;
-                              
-                              // Esperar un momento y volver a intentar
-                              setTimeout(() => {
-                                audio.currentTime = 0;
-                                audio.play().then(() => {
-                                  setTimeout(() => {
-                                    if (audio.currentTime > 0.1) {
-                                      console.error('❌ [CLIENTE] ERROR PERSISTENTE: Audio aún no comienza desde 0');
-                                    } else {
-                                      console.log('✅ [CLIENTE] Audio corregido, comenzando desde 0');
-                                    }
-                                  }, 50);
-                                }).catch(e => console.error('❌ Error en segundo intento:', e));
-                              }, 100);
+                            if (audio.currentTime > 0.1) {
+                              console.error('❌ [CLIENTE] ERROR PERSISTENTE: Audio aún no comienza desde 0');
                             } else {
-                              console.log('✅ [CLIENTE] Audio confirmado comenzando desde currentTime:', audio.currentTime);
+                              console.log('✅ [CLIENTE] Audio corregido, comenzando desde 0');
                             }
-                          }, 50); // Verificar después de 50ms
-                        }).catch(e => console.error('❌ Error reproduciendo saludo:', e));
-                      };
-                      
-                      startPlayback();
+                          }, 50);
+                        }).catch(e => console.error('❌ Error en segundo intento:', e));
+                      }, 100);
+                    } else {
+                      console.log('✅ [CLIENTE] Audio confirmado comenzando desde currentTime:', audio.currentTime);
                     }
-                  });
-                });
-              }, 200); // Delay adicional de 200ms después de verificar buffer completo
-            }
+                  }, 50); // Verificar después de 50ms
+                }).catch(e => console.error('❌ Error reproduciendo saludo:', e));
+              }
+            }, 100); // Pequeño delay para sincronización con video
           };
           
-          // Escuchar loadeddata (primeros datos cargados)
-          audio.addEventListener('loadeddata', () => {
-            console.log('📥 [CLIENTE] Saludo loadeddata recibido, duración:', audio.duration);
-            audio.currentTime = 0;
-            // Verificar si ya está listo
-            playWhenFullyReady();
-          }, { once: true });
+          // Añadir listener para canplaythrough
+          audio.addEventListener('canplaythrough', onCanPlayThrough);
           
-          // Escuchar canplaythrough (audio listo para reproducir sin cortes)
+          // Fallback: Si canplaythrough no se dispara en 5 segundos, usar readyState
+          const fallbackTimeout = setTimeout(() => {
+            if (!hasStartedPlaying && audio.readyState >= 3) { // HAVE_FUTURE_DATA o superior
+              console.warn('⚠️ [CLIENTE] canplaythrough no se disparó, usando fallback con readyState:', audio.readyState);
+              onCanPlayThrough();
+            }
+          }, 5000);
+          
+          // Limpiar timeout si canplaythrough se dispara
           audio.addEventListener('canplaythrough', () => {
-            console.log('✅ [CLIENTE] Saludo canplaythrough recibido, verificando buffer completo...');
-            // Verificar buffer completo
-            playWhenFullyReady();
+            clearTimeout(fallbackTimeout);
           }, { once: true });
           
-          // Escuchar loadedmetadata para obtener duración y asegurar currentTime=0
-          audio.addEventListener('loadedmetadata', () => {
-            console.log('📊 [CLIENTE] Saludo metadata cargada, duración:', audio.duration);
-            audio.currentTime = 0;
-          }, { once: true });
-          
-          // Escuchar progress para verificar que el buffer se está cargando
-          audio.addEventListener('progress', () => {
-            if (audio.buffered.length > 0 && audio.duration) {
-              const bufferedEnd = audio.buffered.end(0);
-              const bufferedPercent = (bufferedEnd / audio.duration * 100).toFixed(1);
-              console.log(`📥 [CLIENTE] Buffer cargando: ${bufferedPercent}%`);
-              
-              // Si el buffer está completo (99%+), verificar si está listo para reproducir
-              if (bufferedPercent >= 99) {
-                playWhenFullyReady();
-              }
-            }
-          });
-          
-          // Verificación periódica como respaldo (cada 200ms, menos agresivo)
-          playCheckInterval = setInterval(() => {
-            if (!hasStartedPlaying) {
-              playWhenFullyReady();
-            } else {
-              clearInterval(playCheckInterval);
-              playCheckInterval = null;
-            }
-          }, 200);
-          
-          // Forzar carga del audio
+          // Forzar carga del audio para disparar eventos
           audio.load();
           
-          // Timeout de seguridad (8 segundos máximo)
-          setTimeout(() => {
-            if (playCheckInterval) {
-              clearInterval(playCheckInterval);
-              playCheckInterval = null;
-            }
-            if (!hasStartedPlaying && audio.readyState >= 2) {
-              console.log('⏰ [CLIENTE] Timeout de seguridad: forzando reproducción');
+          // Timeout de seguridad: Si canplaythrough no se dispara en 8 segundos, intentar reproducir de todas formas
+          const safetyTimeout = setTimeout(() => {
+            if (!hasStartedPlaying && audio.readyState >= 3) { // HAVE_FUTURE_DATA o superior
+              console.warn('⏰ [CLIENTE] Timeout de seguridad: canplaythrough no se disparó en 8s, forzando reproducción');
+              if (!videoStarted) {
+                videoStarted = true;
+                this.transitionHeroToVideo();
+              }
               audio.currentTime = 0;
               hasStartedPlaying = true;
-              audio.play().catch(e => console.error('❌ Error reproduciendo saludo:', e));
+              audio.play().catch(e => console.error('❌ Error reproduciendo saludo (timeout):', e));
             }
           }, 8000);
+          
+          // Limpiar timeout si canplaythrough se dispara
+          audio.addEventListener('canplaythrough', () => {
+            clearTimeout(safetyTimeout);
+          }, { once: true });
         }
         
         audio.onloadedmetadata = () => {
