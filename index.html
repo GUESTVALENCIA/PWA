@@ -1454,6 +1454,7 @@
       constructor() {
         // Dynamic base URL detection (local vs production)
         if (window.location.hostname === 'localhost' || window.location.port === '4040') {
+          // Desarrollo local: usar servidor local
           this.baseUrl = '/api';
           this.wsUrl = 'ws://localhost:4041';
         } else if (window.location.protocol === 'file:') {
@@ -1461,14 +1462,27 @@
           this.baseUrl = 'http://localhost:4040/api';
           this.wsUrl = 'ws://localhost:4041';
         } else {
-          // Producción: usar rutas relativas o configurar según el servidor MCP
+          // Producción: usar servidor MCP según README
           this.baseUrl = '/api';
-          // Para producción, el WebSocket puede ser relativo o configurar según el servidor
-          // Por defecto, mantener localhost para desarrollo, pero permitir override
-          const hostname = window.location.hostname;
-          this.wsUrl = hostname === 'localhost' || hostname === '127.0.0.1' 
-            ? 'ws://localhost:4041' 
-            : `wss://${hostname}/ws`; // Ajustar según tu configuración de producción
+          
+          // Obtener URL del servidor MCP desde variable de entorno o usar default
+          // Según README: MCP_SERVER_URL debe configurarse en Vercel Environment Variables
+          const mcpServerUrl = typeof window !== 'undefined' && window.MCP_SERVER_URL
+            ? window.MCP_SERVER_URL
+            : 'https://mcp.sandra-ia.com'; // URL por defecto según README
+          
+          // Convertir HTTP/HTTPS a WS/WSS para WebSocket
+          // El servidor MCP escucha WebSocket directamente en la raíz (sin /ws)
+          if (mcpServerUrl.startsWith('https://')) {
+            this.wsUrl = mcpServerUrl.replace('https://', 'wss://');
+          } else if (mcpServerUrl.startsWith('http://')) {
+            this.wsUrl = mcpServerUrl.replace('http://', 'ws://');
+          } else {
+            // Si no tiene protocolo, asumir HTTPS/WSS
+            this.wsUrl = `wss://${mcpServerUrl}`;
+          }
+          
+          console.log('🌐 [GATEWAY] Servidor MCP configurado:', this.wsUrl);
         }
       }
 
