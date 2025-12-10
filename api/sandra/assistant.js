@@ -191,47 +191,63 @@ export default async function handler(req, res) {
     // 3. Definir funciones para OpenAI Function Calling
     const functionsDef = getToolDefinitions();
 
-    // 4. Determinar endpoint y headers (OpenAI o OpenRouter)
-    const useOpenRouter = !!process.env.OPENROUTER_API_KEY;
-    const apiUrl = useOpenRouter
-      ? 'https://openrouter.ai/api/v1/chat/completions'
-      : 'https://api.openai.com/v1/chat/completions';
+    // 4. Determinar endpoint y headers (OpenAI, OpenRouter o Gemini)
+    let useGemini = false;
+    let apiUrl;
+    let headers = { 'Content-Type': 'application/json' };
 
-    const headers = {
-      'Content-Type': 'application/json'
-    };
-
-    if (useOpenRouter) {
+    // Prioridad: OpenRouter > OpenAI > Gemini
+    if (process.env.OPENROUTER_API_KEY) {
+      apiUrl = 'https://openrouter.ai/api/v1/chat/completions';
       headers['Authorization'] = `Bearer ${process.env.OPENROUTER_API_KEY}`;
       if (process.env.OPENAI_API_KEY) {
         headers['X-OpenAI-Api-Key'] = process.env.OPENAI_API_KEY;
       }
-    } else if (process.env.OPENAI_API_KEY) {
+    } else if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.length > 20) {
+      // Verificar que la key tenga un formato válido (más de 20 caracteres)
+      apiUrl = 'https://api.openai.com/v1/chat/completions';
       headers['Authorization'] = `Bearer ${process.env.OPENAI_API_KEY}`;
     } else if (process.env.GEMINI_API_KEY) {
-      // Fallback a Gemini si OpenAI no está disponible
+      // Usar Gemini como fallback
+      useGemini = true;
       return await handleGeminiConversation(req, res, finalTranscription, messages, conversation);
     } else {
-      throw new Error('No hay API key configurada (OpenAI, OpenRouter o Gemini)');
+      throw new Error('No hay API key válida configurada (OpenAI, OpenRouter o Gemini)');
     }
 
     const model = process.env.OPENAI_MODEL_DEFAULT || 'gpt-4o';
 
-    // 5. Llamar a OpenAI con function calling
-    const aiRes = await fetch(apiUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model,
-        messages: conversation,
-        functions: functionsDef,
-        function_call: 'auto'
-      })
-    });
+    // 5. Llamar a OpenAI/OpenRouter con function calling
+    let aiRes;
+    try {
+      aiRes = await fetch(apiUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model,
+          messages: conversation,
+          functions: functionsDef,
+          function_call: 'auto'
+        })
+      });
 
-    if (!aiRes.ok) {
-      const errorText = await aiRes.text();
-      throw new Error(`AI API Error: ${aiRes.status} - ${errorText}`);
+      // Si falla con OpenAI y tenemos Gemini, usar fallback
+      if (!aiRes.ok && process.env.GEMINI_API_KEY && !useGemini) {
+        console.warn('⚠️ OpenAI falló, usando Gemini como fallback');
+        return await handleGeminiConversation(req, res, finalTranscription, messages, conversation);
+      }
+
+      if (!aiRes.ok) {
+        const errorText = await aiRes.text();
+        throw new Error(`AI API Error: ${aiRes.status} - ${errorText}`);
+      }
+    } catch (error) {
+      // Si hay error de red o API y tenemos Gemini, usar fallback
+      if (process.env.GEMINI_API_KEY && !useGemini && error.message.includes('API')) {
+        console.warn('⚠️ Error con OpenAI, usando Gemini como fallback:', error.message);
+        return await handleGeminiConversation(req, res, finalTranscription, messages, conversation);
+      }
+      throw error;
     }
 
     const aiData = await aiRes.json();
