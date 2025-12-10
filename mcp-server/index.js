@@ -18,6 +18,7 @@ const http = require('http');
 const WebSocket = require('ws');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 
 // Import Routes
 const audioRoutes = require('./routes/audio');
@@ -310,32 +311,58 @@ async function handleConserjeRoute(action, payload, services, ws) {
     case 'message':
       // Si el cliente está listo para recibir el saludo inicial
       if (payload.type === 'ready' || payload.message?.includes('listo para recibir saludo')) {
-        console.log('👋 [MCP] Cliente listo, generando saludo inicial...');
+        console.log('👋 [MCP] Cliente listo, cargando saludo inicial GRABADO...');
         
-        // Generar saludo contextual
-        const ambientation = await services.ambientation.getCurrentAmbientation(payload.timezone);
-        const welcomeText = `¡Hola! Soy Sandra, bienvenido a GuestsValencia. ¿En qué puedo ayudarte hoy?`;
-        
-        // Generar audio del saludo
-        const welcomeAudio = await services.cartesia.textToSpeech(welcomeText);
-        
-        console.log('✅ [MCP] Saludo inicial generado, enviando al cliente...');
-        
-        // Enviar saludo inicial directamente por WebSocket con isWelcome: true
-        ws.send(JSON.stringify({
-          route: 'audio',
-          action: 'tts',
-          payload: {
-            audio: welcomeAudio,
-            format: 'mp3',
-            text: welcomeText,
-            isWelcome: true,
-            ambientation
+        try {
+          // CRÍTICO: Leer archivo de audio GRABADO, NO generar con TTS
+          const welcomeAudioPath = path.join(__dirname, 'assets/audio/welcome.mp3');
+          
+          if (!fs.existsSync(welcomeAudioPath)) {
+            console.error('❌ [MCP] ERROR: Archivo de audio grabado no encontrado:', welcomeAudioPath);
+            throw new Error('Archivo de audio de bienvenida no encontrado');
           }
-        }));
-        
-        // No devolver respuesta adicional (ya se envió directamente)
-        return null;
+          
+          // Leer archivo y convertir a base64
+          const welcomeAudioBuffer = fs.readFileSync(welcomeAudioPath);
+          const welcomeAudio = welcomeAudioBuffer.toString('base64');
+          
+          const welcomeText = '¡Hola! Soy Sandra. Bienvenido a GuestsValencia. ¿En qué puedo ayudarte hoy?';
+          
+          console.log('✅ [MCP] Audio grabado cargado:', {
+            tamaño: `${(welcomeAudioBuffer.length / 1024).toFixed(2)} KB`,
+            formato: 'MP3, 44.1kHz',
+            texto: welcomeText
+          });
+          
+          // Enviar saludo inicial directamente por WebSocket con isWelcome: true
+          ws.send(JSON.stringify({
+            route: 'audio',
+            action: 'tts',
+            payload: {
+              audio: welcomeAudio,
+              format: 'mp3',
+              text: welcomeText,
+              isWelcome: true
+            }
+          }));
+          
+          console.log('✅ [MCP] Saludo inicial GRABADO enviado al cliente (sin latencia de API)');
+          
+          // No devolver respuesta adicional (ya se envió directamente)
+          return null;
+        } catch (error) {
+          console.error('❌ [MCP] Error cargando audio grabado:', error.message);
+          // NO usar fallback a TTS - si falla, es un error crítico
+          ws.send(JSON.stringify({
+            route: 'conserje',
+            action: 'message',
+            payload: {
+              type: 'error',
+              message: 'Error cargando saludo inicial'
+            }
+          }));
+          return null;
+        }
       }
       
       // Procesamiento normal de mensajes
