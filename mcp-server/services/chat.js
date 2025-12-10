@@ -1,7 +1,7 @@
 /**
  * Chat Service - Interfaz de texto
- * Modelos: DeepSeek R1 + Qwen
- * Fallback automático según latencia/disponibilidad
+ * Modelos: GPT-4o (OpenAI) > Groq (Qwen/DeepSeek) > Gemini
+ * Fallback automático según disponibilidad
  */
 
 const https = require('https');
@@ -9,9 +9,10 @@ const https = require('https');
 class ChatService {
   constructor() {
     this.models = {
-      primary: 'deepseek-chat', // DeepSeek R1
-      secondary: 'qwen', // Qwen
-      fallback: 'gpt-4o' // OpenAI como último recurso
+      primary: 'gpt-4o', // OpenAI GPT-4o
+      secondary: 'qwen/qwen-2.5-72b-instruct', // Groq Qwen
+      tertiary: 'deepseek/deepseek-r1', // Groq DeepSeek
+      fallback: 'gemini-2.5-flash-lite' // Gemini como último recurso
     };
     this.ready = true;
   }
@@ -23,86 +24,34 @@ class ChatService {
   async processMessage(message, options = {}) {
     const { context = '', model = null } = options;
     
+    // ESTRATEGIA: GPT-4o > Groq (Qwen) > Groq (DeepSeek) > Gemini
     try {
-      // Intentar modelo primario (DeepSeek)
+      // 1. Intentar GPT-4o (OpenAI)
       try {
-        return await this.callDeepSeek(message, context);
+        return await this.callOpenAI(message, context);
       } catch (error) {
-        console.warn('DeepSeek falló, intentando Qwen...', error.message);
+        console.warn('⚠️ OpenAI falló, intentando Groq (Qwen)...', error.message);
         
-        // Fallback a Qwen
+        // 2. Fallback a Groq (Qwen)
         try {
-          return await this.callQwen(message, context);
+          return await this.callGroqQwen(message, context);
         } catch (error2) {
-          console.warn('Qwen falló, usando OpenAI fallback...', error2.message);
+          console.warn('⚠️ Groq Qwen falló, intentando Groq (DeepSeek)...', error2.message);
           
-          // Último recurso: OpenAI
-          return await this.callOpenAI(message, context);
+          // 3. Fallback a Groq (DeepSeek)
+          try {
+            return await this.callGroqDeepSeek(message, context);
+          } catch (error3) {
+            console.warn('⚠️ Groq DeepSeek falló, usando Gemini como último recurso...', error3.message);
+            
+            // 4. Último recurso: Gemini
+            return await this.callGemini(message, context);
+          }
         }
       }
     } catch (error) {
       throw new Error(`Todos los modelos fallaron: ${error.message}`);
     }
-  }
-
-  async callDeepSeek(message, context) {
-    if (!process.env.DEEPSEEK_API_KEY) {
-      throw new Error('DEEPSEEK_API_KEY no configurada');
-    }
-
-    const response = await this.makeRequest('api.deepseek.com', '/v1/chat/completions', {
-      model: 'deepseek-chat',
-      messages: [
-        { role: 'system', content: context || 'Eres Sandra IA, asistente inteligente de GuestsValencia.' },
-        { role: 'user', content: message }
-      ],
-      temperature: 0.7,
-      max_tokens: 2000
-    }, {
-      'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`,
-      'Content-Type': 'application/json'
-    });
-
-    return {
-      text: response.choices[0].message.content,
-      model: 'deepseek-chat',
-      usage: response.usage
-    };
-  }
-
-  async callQwen(message, context) {
-    if (!process.env.QWEN_API_KEY && !process.env.GEMINI_API_KEY) {
-      throw new Error('QWEN_API_KEY o GEMINI_API_KEY no configuradas');
-    }
-
-    // Usar Gemini como proxy para Qwen si no hay Qwen directo
-    const apiKey = process.env.QWEN_API_KEY || process.env.GEMINI_API_KEY;
-    const url = process.env.QWEN_API_KEY 
-      ? 'dashscope.aliyuncs.com'
-      : 'generativelanguage.googleapis.com';
-    
-    const endpoint = process.env.QWEN_API_KEY
-      ? '/api/v1/services/aigc/text-generation/generation'
-      : '/v1beta/models/gemini-pro:generateContent';
-
-    const response = await this.makeRequest(url, endpoint, {
-      model: 'qwen-turbo',
-      input: {
-        messages: [
-          { role: 'system', content: context || 'Eres Sandra IA.' },
-          { role: 'user', content: message }
-        ]
-      }
-    }, {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    });
-
-    return {
-      text: response.output?.text || response.candidates[0].content.parts[0].text,
-      model: 'qwen',
-      usage: response.usage
-    };
   }
 
   async callOpenAI(message, context) {
@@ -113,10 +62,11 @@ class ChatService {
     const response = await this.makeRequest('api.openai.com', '/v1/chat/completions', {
       model: 'gpt-4o',
       messages: [
-        { role: 'system', content: context || 'Eres Sandra IA, asistente inteligente.' },
+        { role: 'system', content: context || 'Eres Sandra IA, asistente inteligente de GuestsValencia.' },
         { role: 'user', content: message }
       ],
-      temperature: 0.7
+      temperature: 0.7,
+      max_tokens: 2000
     }, {
       'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
       'Content-Type': 'application/json'
@@ -126,6 +76,88 @@ class ChatService {
       text: response.choices[0].message.content,
       model: 'gpt-4o',
       usage: response.usage
+    };
+  }
+
+  async callGroqQwen(message, context) {
+    if (!process.env.GROQ_API_KEY) {
+      throw new Error('GROQ_API_KEY no configurada');
+    }
+
+    const response = await this.makeRequest('api.groq.com', '/openai/v1/chat/completions', {
+      model: 'qwen/qwen-2.5-72b-instruct',
+      messages: [
+        { role: 'system', content: context || 'Eres Sandra IA, asistente inteligente de GuestsValencia.' },
+        { role: 'user', content: message }
+      ],
+      temperature: 0.7,
+      max_tokens: 2000
+    }, {
+      'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+      'Content-Type': 'application/json'
+    });
+
+    return {
+      text: response.choices[0].message.content,
+      model: 'qwen/qwen-2.5-72b-instruct',
+      usage: response.usage
+    };
+  }
+
+  async callGroqDeepSeek(message, context) {
+    if (!process.env.GROQ_API_KEY) {
+      throw new Error('GROQ_API_KEY no configurada');
+    }
+
+    const response = await this.makeRequest('api.groq.com', '/openai/v1/chat/completions', {
+      model: 'deepseek/deepseek-r1',
+      messages: [
+        { role: 'system', content: context || 'Eres Sandra IA, asistente inteligente de GuestsValencia.' },
+        { role: 'user', content: message }
+      ],
+      temperature: 0.7,
+      max_tokens: 2000
+    }, {
+      'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+      'Content-Type': 'application/json'
+    });
+
+    return {
+      text: response.choices[0].message.content,
+      model: 'deepseek/deepseek-r1',
+      usage: response.usage
+    };
+  }
+
+  async callGemini(message, context) {
+    if (!process.env.GEMINI_API_KEY) {
+      throw new Error('GEMINI_API_KEY no configurada');
+    }
+
+    const systemPrompt = context || 'Eres Sandra IA, asistente inteligente de GuestsValencia.';
+    const fullPrompt = `${systemPrompt}\n\nUsuario: ${message}\n\nSandra:`;
+
+    const response = await this.makeRequest(
+      'generativelanguage.googleapis.com',
+      `/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      {
+        contents: [{
+          parts: [{ text: fullPrompt }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 2000
+        }
+      },
+      {
+        'Content-Type': 'application/json'
+      }
+    );
+
+    return {
+      text: response.candidates[0].content.parts[0].text,
+      model: 'gemini-2.5-flash-lite',
+      usage: response.usageMetadata
     };
   }
 
