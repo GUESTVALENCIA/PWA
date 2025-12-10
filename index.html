@@ -1545,18 +1545,53 @@
       }
 
       async sendMessage(message, role = 'hospitality') {
+        const url = `${this.baseUrl}/sandra/chat`;
+        console.log('📤 [SandraGateway] Enviando mensaje de chat:', { url, message: message.substring(0, 50), role });
+        
         try {
-          const response = await fetch(`${this.baseUrl}/sandra/chat`, {
+          const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message, role })
           });
 
-          if (!response.ok) throw new Error('Gateway Error');
+          console.log('📥 [SandraGateway] Respuesta recibida:', { 
+            status: response.status, 
+            statusText: response.statusText,
+            ok: response.ok,
+            url: response.url 
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error('❌ [SandraGateway] Error en respuesta:', {
+              status: response.status,
+              statusText: response.statusText,
+              body: errorText.substring(0, 200)
+            });
+            throw new Error(`Gateway Error: ${response.status} ${response.statusText} - ${errorText.substring(0, 100)}`);
+          }
+          
           const data = await response.json();
+          console.log('✅ [SandraGateway] Datos parseados:', { 
+            hasReply: !!data.reply,
+            replyLength: data.reply ? data.reply.length : 0,
+            model: data.model || 'unknown'
+          });
+          
+          if (!data.reply) {
+            console.warn('⚠️ [SandraGateway] Respuesta sin campo reply:', data);
+            throw new Error('Respuesta inválida: no hay campo reply');
+          }
+          
           return data.reply;
         } catch (error) {
-          console.error('Conversation Error:', error);
+          console.error('❌ [SandraGateway] Error completo en sendMessage:', {
+            message: error.message,
+            stack: error.stack,
+            url,
+            baseUrl: this.baseUrl
+          });
           throw error;
         }
       }
@@ -1569,32 +1604,71 @@
        * @returns {Promise<object>} Respuesta con texto, acciones y audio
        */
       async sendMessageWithTools(message, conversationHistory = [], transcription = null) {
+        const url = `${this.baseUrl}/sandra/assistant`;
+        console.log('📤 [SandraGateway] Enviando mensaje con tools:', { 
+          url, 
+          message: message.substring(0, 50),
+          historyLength: conversationHistory.length
+        });
+        
         try {
-          const response = await fetch(`${this.baseUrl}/sandra/assistant`, {
+          const requestBody = {
+            transcription: transcription || message,
+            messages: conversationHistory,
+            generateAudio: false // El widget maneja el audio por separado
+          };
+          
+          const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              transcription: transcription || message,
-              messages: conversationHistory,
-              generateAudio: false // El widget maneja el audio por separado
-            })
+            body: JSON.stringify(requestBody)
+          });
+
+          console.log('📥 [SandraGateway] Respuesta assistant recibida:', { 
+            status: response.status, 
+            statusText: response.statusText,
+            ok: response.ok,
+            url: response.url 
           });
 
           if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(`Assistant API Error: ${response.status} - ${errorText}`);
+            console.error('❌ [SandraGateway] Error en respuesta assistant:', {
+              status: response.status,
+              statusText: response.statusText,
+              body: errorText.substring(0, 200)
+            });
+            throw new Error(`Assistant API Error: ${response.status} ${response.statusText} - ${errorText.substring(0, 100)}`);
           }
 
           const data = await response.json();
+          console.log('✅ [SandraGateway] Datos assistant parseados:', { 
+            hasReply: !!(data.reply || data.text),
+            replyLength: (data.reply || data.text || '').length,
+            hasAction: !!data.action,
+            hasParams: !!data.params,
+            model: data.model || data.usedModel || 'unknown'
+          });
+          
+          const reply = data.reply || data.text || '';
+          if (!reply) {
+            console.warn('⚠️ [SandraGateway] Respuesta assistant sin reply/text:', data);
+          }
+          
           return {
-            reply: data.reply || data.text || '',
+            reply: reply,
             action: data.action || null,
             params: data.params || null,
             transcription: data.transcription || message,
             audio: data.audio || null
           };
         } catch (error) {
-          console.error('❌ [SandraGateway] Error en sendMessageWithTools:', error);
+          console.error('❌ [SandraGateway] Error completo en sendMessageWithTools:', {
+            message: error.message,
+            stack: error.stack,
+            url,
+            baseUrl: this.baseUrl
+          });
           throw error;
         }
       }
@@ -1878,7 +1952,18 @@
             }
           } catch (error) {
             this.showTyping(false);
-            this.addMessage("Lo siento, tuve un problema de conexión. Inténtalo de nuevo.", 'bot');
+            // Mostrar error detallado en consola y mensaje amigable al usuario
+            console.error('❌ [Widget] Error completo en sendMessage:', {
+              error: error.message,
+              stack: error.stack,
+              useFunctionCalling: this.useFunctionCalling
+            });
+            
+            let errorMessage = "Lo siento, tuve un problema de conexión. Inténtalo de nuevo.";
+            if (error.message && error.message.includes('status')) {
+              errorMessage = `Error de conexión (${error.message.substring(0, 50)}). Por favor, verifica tu conexión e inténtalo de nuevo.`;
+            }
+            this.addMessage(errorMessage, 'bot');
           }
         };
 
