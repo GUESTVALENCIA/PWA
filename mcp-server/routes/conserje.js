@@ -54,19 +54,8 @@ module.exports = (services) => {
   // Flujo completo de voz (STT -> LLM -> TTS)
   router.post('/voice-flow', async (req, res) => {
     try {
-      const { audio, timezone, action, sessionId } = req.body;
-
-      // Manejo de reserva de canal (sin audio requerido)
-      if (action === 'reserve_channel') {
-        console.log('📞 [VOICE-FLOW] Reservando canal de voz para sesión:', sessionId);
-        return res.json({
-          success: true,
-          action: 'channel_reserved',
-          sessionId: sessionId,
-          timestamp: new Date().toISOString()
-        });
-      }
-
+      const { audio, timezone } = req.body;
+      
       if (!audio) {
         return res.status(400).json({ error: 'Audio requerido' });
       }
