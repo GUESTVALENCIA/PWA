@@ -12,6 +12,10 @@
   },
   "rewrites": [
     {
+      "source": "/api/config",
+      "destination": "/api/config"
+    },
+    {
       "source": "/api/sandra/:path*",
       "destination": "/api/api-gateway"
     },

@@ -1449,6 +1449,33 @@
 
   <!-- Sistema Galaxy - Widget Flotante -->
   <script>
+    // Cargar configuración MCP desde API antes de inicializar el widget
+    (async function loadMcpConfig() {
+      try {
+        // Solo cargar en producción (no localhost)
+        if (window.location.hostname !== 'localhost' && window.location.port !== '4040' && window.location.protocol !== 'file:') {
+          const response = await fetch('/api/config');
+          if (response.ok) {
+            const config = await response.json();
+            // Exponer configuración globalmente para el widget
+            window.MCP_SERVER_URL = config.MCP_SERVER_URL;
+            if (config.MCP_TOKEN) {
+              window.MCP_TOKEN = config.MCP_TOKEN;
+            }
+            console.log('✅ [MCP] Configuración cargada desde API:', {
+              MCP_SERVER_URL: config.MCP_SERVER_URL,
+              hasToken: !!config.MCP_TOKEN
+            });
+          } else {
+            console.warn('⚠️ [MCP] No se pudo cargar configuración desde API, usando valores por defecto');
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ [MCP] Error cargando configuración desde API:', error.message);
+        // Continuar con valores por defecto
+      }
+    })();
+
     // Sandra Gateway Client
     // Configuración automática para desarrollo local (servidores locales) y producción (servidor MCP)
     class SandraGateway {
