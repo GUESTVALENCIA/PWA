@@ -1516,14 +1516,19 @@
             var validatedMcpUrl = mcpServerUrl;
           }
           
-          // Convertir HTTP/HTTPS a WS/WSS y añadir puerto 4042
+          // Convertir HTTP/HTTPS a WS/WSS
           let wsProtocol = 'wss://';
           let mcpHost = validatedMcpUrl.replace(/^https?:\/\//, ''); // Remover http:// o https://
           mcpHost = mcpHost.replace(/\/$/, ''); // Remover trailing slash
           
-          // Si ya tiene puerto, mantenerlo; si no, añadir 4042
-          if (!mcpHost.includes(':')) {
+          // Render maneja WebSocket automáticamente - NO añadir puerto para Render
+          // Para otros servicios, añadir puerto si no lo tiene
+          const isRender = mcpHost.includes('onrender.com');
+          if (!isRender && !mcpHost.includes(':')) {
             mcpHost = `${mcpHost}:4042`;
+          } else if (isRender && mcpHost.includes(':')) {
+            // Si es Render y tiene puerto, removerlo (Render lo maneja)
+            mcpHost = mcpHost.split(':')[0];
           }
           
           // Construir URL WebSocket completa (con token si está disponible)
