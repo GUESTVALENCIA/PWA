@@ -9,7 +9,9 @@ export default function handler(req, res) {
 
   // Obtener variables de entorno
   const config = {
-    MCP_SERVER_URL: process.env.MCP_SERVER_URL || 'https://mcp.sandra-ia.com',
+    // URL del servidor MCP en Render (producción)
+    // Por defecto usa Render si no está configurada la variable
+    MCP_SERVER_URL: process.env.MCP_SERVER_URL || 'https://pwa-imbf.onrender.com',
     MCP_TOKEN: process.env.MCP_TOKEN || null, // No exponer si no está configurado
     // Añadir otras configuraciones necesarias aquí
   };

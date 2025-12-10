@@ -1504,13 +1504,13 @@
           this.baseUrl = '/api'; // REST API sigue yendo a Vercel functions
           
           // Obtener URL del servidor MCP desde variable de entorno o usar default
-          // CRÍTICO: En producción, SIEMPRE usar servidor MCP, nunca localhost
-          const mcpServerUrl = window.MCP_SERVER_URL || 'https://mcp.sandra-ia.com';
+          // CRÍTICO: En producción, SIEMPRE usar servidor MCP en Render, nunca localhost
+          const mcpServerUrl = window.MCP_SERVER_URL || 'https://pwa-imbf.onrender.com';
           
           // Validar que no sea localhost (seguridad adicional)
           if (mcpServerUrl.includes('localhost') || mcpServerUrl.includes('127.0.0.1')) {
-            console.error('❌ [MCP] ERROR: Intentando usar localhost en producción. Usando servidor MCP por defecto.');
-            const fallbackUrl = 'https://mcp.sandra-ia.com';
+            console.error('❌ [MCP] ERROR: Intentando usar localhost en producción. Usando servidor MCP en Render por defecto.');
+            const fallbackUrl = 'https://pwa-imbf.onrender.com';
             var validatedMcpUrl = fallbackUrl;
           } else {
             var validatedMcpUrl = mcpServerUrl;
