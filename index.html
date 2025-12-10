@@ -1450,25 +1450,49 @@
   <!-- Sistema Galaxy - Widget Flotante -->
   <script>
     // Sandra Gateway Client
+    // Configuración automática para desarrollo local (servidores locales) y producción (servidor MCP)
     class SandraGateway {
       constructor() {
         // Dynamic base URL detection (local vs production)
+        // - LOCAL: Usa servidores locales (ws://localhost:4041) con formato simple
+        // - PRODUCCIÓN: Usa servidor MCP oficial (wss://mcp-server:4042) con formato MCP (route, action, payload)
         if (window.location.hostname === 'localhost' || window.location.port === '4040') {
+          // DESARROLLO LOCAL: Usar servidores locales
           this.baseUrl = '/api';
           this.wsUrl = 'ws://localhost:4041';
+          this.useMCPFormat = false; // Formato simple para servidor local
         } else if (window.location.protocol === 'file:') {
           // Si se abre desde file://, usar localhost
           this.baseUrl = 'http://localhost:4040/api';
           this.wsUrl = 'ws://localhost:4041';
+          this.useMCPFormat = false; // Formato simple para servidor local
         } else {
-          // Producción: usar rutas relativas o configurar según el servidor MCP
-          this.baseUrl = '/api';
-          // Para producción, el WebSocket puede ser relativo o configurar según el servidor
-          // Por defecto, mantener localhost para desarrollo, pero permitir override
-          const hostname = window.location.hostname;
-          this.wsUrl = hostname === 'localhost' || hostname === '127.0.0.1' 
-            ? 'ws://localhost:4041' 
-            : `wss://${hostname}/ws`; // Ajustar según tu configuración de producción
+          // PRODUCCIÓN: Usar servidor MCP oficial
+          this.baseUrl = '/api'; // REST API sigue yendo a Vercel functions
+          
+          // Obtener URL del servidor MCP desde variable de entorno o usar default
+          const mcpServerUrl = window.MCP_SERVER_URL || 'https://mcp.sandra-ia.com';
+          
+          // Convertir HTTP/HTTPS a WS/WSS y añadir puerto 4042
+          let wsProtocol = 'wss://';
+          let mcpHost = mcpServerUrl.replace(/^https?:\/\//, ''); // Remover http:// o https://
+          mcpHost = mcpHost.replace(/\/$/, ''); // Remover trailing slash
+          
+          // Si ya tiene puerto, mantenerlo; si no, añadir 4042
+          if (!mcpHost.includes(':')) {
+            mcpHost = `${mcpHost}:4042`;
+          }
+          
+          // Construir URL WebSocket completa (con token si está disponible)
+          const mcpToken = window.MCP_TOKEN || '';
+          this.wsUrl = `${wsProtocol}${mcpHost}${mcpToken ? `?token=${mcpToken}` : ''}`;
+          this.useMCPFormat = true; // Usar formato MCP para producción
+          
+          console.log('🔌 [MCP] Configuración de producción:', {
+            mcpServerUrl,
+            wsUrl: this.wsUrl,
+            useMCPFormat: this.useMCPFormat
+          });
         }
       }
 
@@ -2458,10 +2482,25 @@
             console.log(`📤 [CLIENTE] Enviando audio a servidor: ${base64Audio.length} caracteres base64`);
             console.log(`📤 [CLIENTE] Audio blob: ${audioBlob.size} bytes, tipo: ${audioBlob.type}`);
             
-            ws.send(JSON.stringify({
-              type: 'audio',
-              audio: base64Audio
-            }));
+            // Enviar audio según formato (MCP en producción, simple en local)
+            if (this.gateway.useMCPFormat) {
+              // Formato MCP para producción
+              ws.send(JSON.stringify({
+                route: 'audio',
+                action: 'stt',
+                payload: {
+                  audio: base64Audio,
+                  format: 'webm',
+                  mimeType: 'audio/webm;codecs=opus'
+                }
+              }));
+            } else {
+              // Formato simple para servidor local
+              ws.send(JSON.stringify({
+                type: 'audio',
+                audio: base64Audio
+              }));
+            }
             
             console.log('✅ [CLIENTE] Audio enviado correctamente al servidor');
             
@@ -2590,10 +2629,25 @@
               
               // NOTIFICAR AL SERVIDOR QUE EL CLIENTE ESTÁ COMPLETAMENTE LISTO (después de micrófono)
               console.log('📢 Notificando al servidor que el cliente está completamente listo...');
-              ws.send(JSON.stringify({
-                type: 'ready',
-                message: 'Cliente completamente listo para recibir saludo'
-              }));
+              
+              // Enviar mensaje según formato (MCP en producción, simple en local)
+              if (this.gateway.useMCPFormat) {
+                // Formato MCP para producción
+                ws.send(JSON.stringify({
+                  route: 'conserje',
+                  action: 'message',
+                  payload: {
+                    type: 'ready',
+                    message: 'Cliente completamente listo para recibir saludo'
+                  }
+                }));
+              } else {
+                // Formato simple para servidor local
+                ws.send(JSON.stringify({
+                  type: 'ready',
+                  message: 'Cliente completamente listo para recibir saludo'
+                }));
+              }
               
               mediaRecorder.ondataavailable = (event) => {
                 if (event.data.size > 0) {
@@ -2719,7 +2773,38 @@
         
         ws.onmessage = (event) => {
           console.log('📥 Mensaje recibido del servidor:', event.data.substring(0, 100));
-          const data = JSON.parse(event.data);
+          const rawData = JSON.parse(event.data);
+          
+          // Detectar formato MCP o formato simple
+          let data;
+          if (rawData.route && rawData.action && rawData.payload) {
+            // Formato MCP: extraer datos del payload y mapear
+            console.log('📦 [MCP] Mensaje en formato MCP:', rawData.route, rawData.action);
+            data = rawData.payload;
+            
+            // Mapear formato MCP a formato interno
+            if (rawData.route === 'audio' && rawData.action === 'tts') {
+              data.type = 'audio';
+              // El audio viene en data.audio o data.payload.audio según implementación
+              if (!data.audio && rawData.payload) {
+                data.audio = rawData.payload.audio;
+                data.isWelcome = rawData.payload.isWelcome || false;
+              }
+            } else if (rawData.route === 'conserje' && rawData.action === 'message') {
+              if (data.text) {
+                data.type = 'text';
+              } else if (data.type === 'error') {
+                data.type = 'error';
+              } else if (data.type === 'timeout') {
+                data.type = 'timeout';
+              } else if (data.type === 'noSpeech') {
+                data.type = 'noSpeech';
+              }
+            }
+          } else {
+            // Formato simple (servidor local)
+            data = rawData;
+          }
           
           if (data.type === 'timeout') {
             console.log('⏱️ Llamada cerrada por inactividad');
@@ -2796,7 +2881,7 @@
             // NO ocultar controles - mantener visibles para que el usuario pueda colgar
             console.log('⚠️ Error del servidor, pero manteniendo controles visibles para permitir colgar');
           } else {
-            console.log('⚠️ Tipo de mensaje desconocido:', data.type);
+            console.log('⚠️ Tipo de mensaje desconocido:', data.type, data);
           }
         };
         
