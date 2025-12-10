@@ -374,13 +374,60 @@ export default async function handler(req, res) {
  * Handler alternativo para Gemini (si OpenAI no está disponible)
  */
 async function handleGeminiConversation(req, res, transcription, messages, conversation) {
-  // Implementación simplificada para Gemini (sin function calling avanzado)
-  // En producción, usaríamos la lógica existente de Gemini del api-gateway
-  
-  return res.status(501).json({
-    error: 'Gemini con function calling no implementado aún',
-    transcription,
-    reply: 'Lo siento, esta funcionalidad está en desarrollo.'
-  });
+  try {
+    if (!process.env.GEMINI_API_KEY) {
+      throw new Error('GEMINI_API_KEY no configurada');
+    }
+
+    // Construir prompt para Gemini
+    const systemPrompt = getSystemPrompt();
+    const userMessages = conversation.filter(m => m.role === 'user').map(m => m.content).join('\n');
+    const fullPrompt = `${systemPrompt}\n\nUsuario: ${userMessages}`;
+
+    const geminiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: fullPrompt }]
+          }]
+        })
+      }
+    );
+
+    if (!geminiResponse.ok) {
+      const errorText = await geminiResponse.text();
+      throw new Error(`Gemini API Error: ${geminiResponse.status} - ${errorText}`);
+    }
+
+    const geminiData = await geminiResponse.json();
+    
+    if (!geminiData?.candidates?.[0]?.content?.parts?.[0]?.text) {
+      throw new Error('Respuesta inválida de Gemini');
+    }
+
+    const reply = geminiData.candidates[0].content.parts[0].text;
+
+    // Nota: Gemini no soporta function calling nativo, así que retornamos respuesta directa
+    // En el futuro se podría implementar function calling con prompts estructurados
+
+    return res.status(200).json({
+      transcription: transcription,
+      reply: reply,
+      action: null, // Gemini no invoca funciones en esta implementación
+      params: null
+    });
+
+  } catch (error) {
+    console.error('❌ Error en handleGeminiConversation:', error);
+    return res.status(500).json({
+      error: 'Error procesando con Gemini',
+      message: error.message,
+      transcription: transcription,
+      reply: 'Lo siento, tuve un problema procesando tu solicitud. Por favor, intenta de nuevo.'
+    });
+  }
 }
 
