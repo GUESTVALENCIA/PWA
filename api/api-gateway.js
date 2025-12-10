@@ -464,7 +464,13 @@ const handler = async (req, res) => {
     endpoint = endpoint.replace(/^\/api\//, '').replace(/^\/|\/$/g, '');
     
     // Log for debugging
-    console.log('API Gateway - Request URL:', req.url, 'Endpoint:', endpoint);
+    console.log('🔍 [API Gateway] Request:', {
+      method: req.method,
+      url: req.url,
+      originalUrl: req.originalUrl,
+      endpoint: endpoint,
+      path: req.path
+    });
 
     // Parse body based on content type
     const contentType = req.headers['content-type'] || '';
@@ -499,17 +505,46 @@ const handler = async (req, res) => {
     if (req.method === 'POST') {
       switch (endpoint) {
         case 'sandra/chat':
+          console.log('✅ [API Gateway] Procesando /api/sandra/chat:', {
+            hasBody: !!parsedBody,
+            hasMessage: !!(parsedBody && parsedBody.message),
+            messageLength: parsedBody?.message?.length || 0,
+            role: parsedBody?.role || 'default'
+          });
+          
           if (!parsedBody || !parsedBody.message) {
+            console.error('❌ [API Gateway] Missing message in request body');
             res.setHeader('Access-Control-Allow-Origin', '*');
             return res.status(400).json({ error: 'Missing message in request body' });
           }
+          
           const chatBody = parsedBody;
-          const result = await orchestrator.generateResponse(chatBody.message, chatBody.role || 'hospitality');
-          res.setHeader('Access-Control-Allow-Origin', '*');
-          return res.status(200).json({ 
-            reply: result.text || result, 
-            model: result.model || 'unknown'
-          });
+          
+          try {
+            console.log('🔄 [API Gateway] Llamando orchestrator.generateResponse...');
+            const result = await orchestrator.generateResponse(chatBody.message, chatBody.role || 'hospitality');
+            console.log('✅ [API Gateway] Respuesta generada:', {
+              hasText: !!result.text,
+              textLength: result.text ? result.text.length : 0,
+              model: result.model || 'unknown'
+            });
+            
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            return res.status(200).json({ 
+              reply: result.text || result, 
+              model: result.model || 'unknown'
+            });
+          } catch (orchestratorError) {
+            console.error('❌ [API Gateway] Error en orchestrator:', {
+              message: orchestratorError.message,
+              stack: orchestratorError.stack
+            });
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            return res.status(500).json({ 
+              error: 'Error generating response',
+              details: orchestratorError.message
+            });
+          }
 
         case 'sandra/voice':
           if (!parsedBody || !parsedBody.text) {
