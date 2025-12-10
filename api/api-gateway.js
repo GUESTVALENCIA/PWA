@@ -13,10 +13,24 @@ REGLAS CONVERSACIONALES GLOBALES (Sandra IA 8.0 Pro):
 
 class AIOrchestrator {
   constructor() {
+    // Detectar si estamos en producción
+    const isProduction = process.env.VERCEL_ENV === 'production' || 
+                         process.env.NODE_ENV === 'production' ||
+                         (process.env.VERCEL_URL && !process.env.VERCEL_URL.includes('localhost'));
+
+    this.isProduction = isProduction;
+    
     this.providers = {
       openai: {
         url: 'https://api.openai.com/v1/chat/completions',
         model: 'gpt-4o'
+      },
+      groq: {
+        url: 'https://api.groq.com/openai/v1/chat/completions',
+        models: {
+          qwen: 'qwen/qwen-2.5-72b-instruct', // Qwen 2.5 via Groq
+          deepseek: 'deepseek/deepseek-r1' // DeepSeek R1 via Groq
+        }
       },
       gemini: {
         url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent',
@@ -36,19 +50,103 @@ class AIOrchestrator {
   async generateResponse(shortPrompt, context = 'hospitality') {
     const fullSystemPrompt = `${GLOBAL_CONVERSATION_RULES}\nRole: ${context}`;
 
-    try {
-      console.log("Attempting Gemini...");
-      return await this.callGemini(shortPrompt, fullSystemPrompt);
-    } catch (error) {
-      console.warn("Gemini Failed, falling back to OpenAI", error.message);
+    // ESTRATEGIA DE PRIORIDADES:
+    // PRODUCCIÓN: GPT-4o > Groq (Qwen/DeepSeek) > Gemini
+    // LOCAL: Gemini > GPT-4o > Groq
+
+    if (this.isProduction) {
+      // PRODUCCIÓN: Priorizar GPT-4o
       try {
+        console.log("🔵 [PRODUCCIÓN] Intentando GPT-4o...");
         return await this.callOpenAI(shortPrompt, fullSystemPrompt);
       } catch (openaiError) {
-        console.error("Both Gemini and OpenAI failed:", openaiError.message);
-        // Si ambos fallan, retornar mensaje de error amigable
-        throw new Error("Lo siento, tuve un problema de conexión. Por favor, intenta de nuevo en un momento.");
+        console.warn("⚠️ GPT-4o falló, intentando Groq (Qwen)...", openaiError.message);
+        try {
+          return await this.callGroq(shortPrompt, fullSystemPrompt, 'qwen');
+        } catch (groqError) {
+          console.warn("⚠️ Groq falló, intentando Groq (DeepSeek)...", groqError.message);
+          try {
+            return await this.callGroq(shortPrompt, fullSystemPrompt, 'deepseek');
+          } catch (deepseekError) {
+            console.warn("⚠️ DeepSeek falló, usando Gemini como último recurso...", deepseekError.message);
+            try {
+              return await this.callGemini(shortPrompt, fullSystemPrompt);
+            } catch (geminiError) {
+              console.error("❌ Todos los proveedores fallaron:", geminiError.message);
+              throw new Error("Lo siento, tuve un problema de conexión. Por favor, intenta de nuevo en un momento.");
+            }
+          }
+        }
+      }
+    } else {
+      // LOCAL: Priorizar Gemini
+      try {
+        console.log("🟢 [LOCAL] Intentando Gemini...");
+        return await this.callGemini(shortPrompt, fullSystemPrompt);
+      } catch (error) {
+        console.warn("⚠️ Gemini falló, intentando GPT-4o...", error.message);
+        try {
+          return await this.callOpenAI(shortPrompt, fullSystemPrompt);
+        } catch (openaiError) {
+          console.warn("⚠️ GPT-4o falló, intentando Groq (Qwen)...", openaiError.message);
+          try {
+            return await this.callGroq(shortPrompt, fullSystemPrompt, 'qwen');
+          } catch (groqError) {
+            console.error("❌ Todos los proveedores fallaron:", groqError.message);
+            throw new Error("Lo siento, tuve un problema de conexión. Por favor, intenta de nuevo en un momento.");
+          }
+        }
       }
     }
+  }
+
+  async callGroq(prompt, systemPrompt, modelType = 'qwen') {
+    if (!process.env.GROQ_API_KEY) throw new Error("Missing Groq API Key");
+
+    const model = modelType === 'deepseek' 
+      ? this.providers.groq.models.deepseek 
+      : this.providers.groq.models.qwen;
+
+    const response = await fetch(this.providers.groq.url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 1000
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Groq API Error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data || !data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
+      throw new Error(`Groq API: Unexpected response structure - no choices. Response: ${JSON.stringify(data)}`);
+    }
+    
+    const choice = data.choices[0];
+    if (!choice.message || !choice.message.content) {
+      throw new Error(`Groq API: Unexpected response structure - no message content. Response: ${JSON.stringify(data)}`);
+    }
+    
+    const content = choice.message.content;
+    if (typeof content !== 'string') {
+      throw new Error(`Groq API: Unexpected response structure - content not a string. Response: ${JSON.stringify(data)}`);
+    }
+
+    console.log(`✅ [Groq] Respuesta exitosa con ${modelType} (${model})`);
+    return content;
   }
 
   async callGemini(prompt, systemPrompt) {
