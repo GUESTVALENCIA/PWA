@@ -19,8 +19,8 @@ class AIOrchestrator {
         model: 'gpt-4o'
       },
       gemini: {
-        url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent',
-        model: 'gemini-2.0-flash-exp'
+        url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent',
+        model: 'gemini-2.5-flash-lite'
       },
       cartesia: {
         url: 'https://api.cartesia.ai/tts/bytes',

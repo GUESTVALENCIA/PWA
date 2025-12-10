@@ -384,8 +384,8 @@ async function handleGeminiConversation(req, res, transcription, messages, conve
     const userMessages = conversation.filter(m => m.role === 'user').map(m => m.content).join('\n');
     const fullPrompt = `${systemPrompt}\n\nUsuario: ${userMessages}`;
 
-    // Usar gemini-2.0-flash-exp (modelo comprobado que funciona)
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${process.env.GEMINI_API_KEY}`;
+    // Usar gemini-2.5-flash-lite (modelo comprobado que funciona)
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`;
     const geminiResponse = await fetch(geminiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
