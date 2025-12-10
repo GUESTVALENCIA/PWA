@@ -447,15 +447,37 @@ const handler = async (req, res) => {
 
   try {
     // Extract endpoint from URL
-    // Vercel routes: /api/sandra/chat -> endpoint: sandra/chat
-    // Handle both direct access and rewrites
-    let endpoint = req.url || '';
+    // Vercel routes: /api/sandra/chat -> rewrite to /api/api-gateway
+    // Necesitamos extraer el path original del rewrite
     
-    // For Vercel, also check the originalUrl if available
-    if (req.originalUrl) {
+    // En Vercel, cuando hay un rewrite, el path original puede estar en diferentes lugares
+    let endpoint = '';
+    
+    // Opción 1: Si el request viene directamente (sin rewrite), usar req.url
+    // Opción 2: Si viene de un rewrite, usar x-vercel-original-path o query params
+    // Opción 3: Usar el path de la URL original
+    
+    // Verificar si viene de rewrite (x-vercel-rewrite-path o similar)
+    const originalPath = req.headers['x-vercel-original-path'] || 
+                         req.headers['x-rewrite-url'] ||
+                         req.query.path ||
+                         req.originalUrl || 
+                         req.url;
+    
+    endpoint = originalPath;
+    
+    // Si viene de rewrite /api/sandra/:path* -> /api/api-gateway, necesitamos el path original
+    // Intentar extraer de query params o headers primero
+    if (req.query.path) {
+      endpoint = req.query.path;
+    } else if (req.headers['x-vercel-original-path']) {
+      endpoint = req.headers['x-vercel-original-path'];
+    } else if (req.originalUrl && req.originalUrl !== req.url) {
+      // originalUrl es diferente de url = hay rewrite
       endpoint = req.originalUrl;
-    } else if (req.url) {
-      endpoint = req.url;
+    } else {
+      // Sin rewrite, usar url directamente
+      endpoint = req.url || req.path || '';
     }
     
     // Remove query string
@@ -463,13 +485,40 @@ const handler = async (req, res) => {
     // Remove /api/ prefix if present
     endpoint = endpoint.replace(/^\/api\//, '').replace(/^\/|\/$/g, '');
     
+    // Si después de todo esto el endpoint es 'api-gateway', significa que vino de rewrite
+    // Necesitamos extraer el path original de otra manera
+    if (endpoint === 'api-gateway' || endpoint === '') {
+      // Si es rewrite, el path original debería estar en la URL original
+      // Intentar extraer de req.headers o usar un método diferente
+      const fullUrl = req.headers['x-forwarded-uri'] || 
+                      req.headers['x-vercel-original-uri'] ||
+                      (req.headers.referer ? new URL(req.headers.referer).pathname : '') ||
+                      '';
+      
+      if (fullUrl) {
+        endpoint = fullUrl.replace(/^\/api\//, '').replace(/^\/|\/$/g, '');
+      } else {
+        // Último recurso: asumir que si no hay endpoint, es sandra/chat (comportamiento por defecto)
+        // PERO esto es un hack - mejor lanzar error
+        console.warn('⚠️ [API Gateway] No se pudo determinar endpoint, usando req.url completo');
+        endpoint = (req.url || '').replace(/^\/api\//, '').replace(/^\/|\/$/g, '');
+      }
+    }
+    
     // Log for debugging
-    console.log('🔍 [API Gateway] Request:', {
+    console.log('🔍 [API Gateway] Request Debug:', {
       method: req.method,
       url: req.url,
       originalUrl: req.originalUrl,
-      endpoint: endpoint,
-      path: req.path
+      path: req.path,
+      headers: {
+        'x-vercel-original-path': req.headers['x-vercel-original-path'],
+        'x-rewrite-url': req.headers['x-rewrite-url'],
+        'x-forwarded-uri': req.headers['x-forwarded-uri'],
+        'referer': req.headers.referer
+      },
+      query: req.query,
+      finalEndpoint: endpoint
     });
 
     // Parse body based on content type

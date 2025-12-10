@@ -24,8 +24,20 @@
       "destination": "/api/sandra/assistant"
     },
     {
-      "source": "/api/sandra/:path*",
-      "destination": "/api/api-gateway"
+      "source": "/api/sandra/chat",
+      "destination": "/api/api-gateway?path=sandra/chat"
+    },
+    {
+      "source": "/api/sandra/assistant",
+      "destination": "/api/api-gateway?path=sandra/assistant"
+    },
+    {
+      "source": "/api/sandra/voice",
+      "destination": "/api/api-gateway?path=sandra/voice"
+    },
+    {
+      "source": "/api/sandra/transcribe",
+      "destination": "/api/api-gateway?path=sandra/transcribe"
     },
     {
       "source": "/api/:path*",
