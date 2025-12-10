@@ -46,13 +46,15 @@ class TranscriberService {
       audioBuffer = audioData;
     }
 
+    // Deepgram detecta automáticamente el formato, pero especificamos webm para mayor claridad
+    // ya que el widget graba en audio/webm;codecs=opus
     const response = await this.makeRequest(
       'api.deepgram.com',
-      `/v1/listen?model=${this.model}&language=${this.language}`,
+      `/v1/listen?model=${this.model}&language=${this.language}&punctuate=true&smart_format=true`,
       audioBuffer,
       {
         'Authorization': `Token ${this.apiKey}`,
-        'Content-Type': 'audio/wav'
+        'Content-Type': 'audio/webm'
       },
       'binary'
     );
