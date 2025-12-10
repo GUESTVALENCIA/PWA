@@ -308,6 +308,37 @@ async function handleVideoRoute(action, payload, services, ws) {
 async function handleConserjeRoute(action, payload, services, ws) {
   switch (action) {
     case 'message':
+      // Si el cliente está listo para recibir el saludo inicial
+      if (payload.type === 'ready' || payload.message?.includes('listo para recibir saludo')) {
+        console.log('👋 [MCP] Cliente listo, generando saludo inicial...');
+        
+        // Generar saludo contextual
+        const ambientation = await services.ambientation.getCurrentAmbientation(payload.timezone);
+        const welcomeText = `¡Hola! Soy Sandra, bienvenido a GuestsValencia. ¿En qué puedo ayudarte hoy?`;
+        
+        // Generar audio del saludo
+        const welcomeAudio = await services.cartesia.textToSpeech(welcomeText);
+        
+        console.log('✅ [MCP] Saludo inicial generado, enviando al cliente...');
+        
+        // Enviar saludo inicial directamente por WebSocket con isWelcome: true
+        ws.send(JSON.stringify({
+          route: 'audio',
+          action: 'tts',
+          payload: {
+            audio: welcomeAudio,
+            format: 'mp3',
+            text: welcomeText,
+            isWelcome: true,
+            ambientation
+          }
+        }));
+        
+        // No devolver respuesta adicional (ya se envió directamente)
+        return null;
+      }
+      
+      // Procesamiento normal de mensajes
       const response = await services.qwen.processMessage(payload.message, {
         context: payload.context,
         role: 'conserje',
