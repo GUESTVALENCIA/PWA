@@ -70,9 +70,14 @@ async function testChatConnection() {
       console.log('✅ Chat conectado correctamente');
       console.log(`   Estado: ${response.status}`);
       
+      // Detectar qué modelo se está usando
+      if (response.data && response.data.model) {
+        console.log(`   🤖 Modelo usado: ${response.data.model}`);
+      }
+      
       if (response.data && response.data.reply) {
         console.log(`   Respuesta: "${response.data.reply.substring(0, 100)}..."`);
-        return { success: true, response: response.data.reply };
+        return { success: true, response: response.data.reply, model: response.data.model };
       } else {
         console.log('⚠️  Respuesta recibida pero sin campo "reply"');
         console.log('   Data:', JSON.stringify(response.data).substring(0, 200));
@@ -111,6 +116,13 @@ async function testAssistantConnection() {
       console.log('✅ Assistant conectado correctamente');
       console.log(`   Estado: ${response.status}`);
       
+      // Detectar qué modelo se está usando
+      if (response.data && response.data.model) {
+        console.log(`   🤖 Modelo usado: ${response.data.model}`);
+      } else {
+        console.log(`   🤖 Modelo: Detectando...`);
+      }
+      
       if (response.data && response.data.reply) {
         console.log(`   Respuesta: "${response.data.reply.substring(0, 100)}..."`);
         
@@ -119,7 +131,7 @@ async function testAssistantConnection() {
           console.log(`   📋 Parámetros:`, JSON.stringify(response.data.params));
         }
         
-        return { success: true, response: response.data.reply, action: response.data.action };
+        return { success: true, response: response.data.reply, action: response.data.action, model: response.data.model };
       } else {
         console.log('⚠️  Respuesta recibida pero sin campo "reply"');
         console.log('   Data:', JSON.stringify(response.data).substring(0, 200));

@@ -58,19 +58,23 @@ class AIOrchestrator {
       // PRODUCCIÓN: Priorizar GPT-4o
       try {
         console.log("🔵 [PRODUCCIÓN] Intentando GPT-4o...");
-        return await this.callOpenAI(shortPrompt, fullSystemPrompt);
+        const response = await this.callOpenAI(shortPrompt, fullSystemPrompt);
+        return { text: response, model: 'gpt-4o' };
       } catch (openaiError) {
         console.warn("⚠️ GPT-4o falló, intentando Groq (Qwen)...", openaiError.message);
         try {
-          return await this.callGroq(shortPrompt, fullSystemPrompt, 'qwen');
+          const response = await this.callGroq(shortPrompt, fullSystemPrompt, 'qwen');
+          return { text: response, model: 'qwen/qwen-2.5-72b-instruct' };
         } catch (groqError) {
           console.warn("⚠️ Groq falló, intentando Groq (DeepSeek)...", groqError.message);
           try {
-            return await this.callGroq(shortPrompt, fullSystemPrompt, 'deepseek');
+            const response = await this.callGroq(shortPrompt, fullSystemPrompt, 'deepseek');
+            return { text: response, model: 'deepseek/deepseek-r1' };
           } catch (deepseekError) {
             console.warn("⚠️ DeepSeek falló, usando Gemini como último recurso...", deepseekError.message);
             try {
-              return await this.callGemini(shortPrompt, fullSystemPrompt);
+              const response = await this.callGemini(shortPrompt, fullSystemPrompt);
+              return { text: response, model: 'gemini-2.5-flash-lite' };
             } catch (geminiError) {
               console.error("❌ Todos los proveedores fallaron:", geminiError.message);
               throw new Error("Lo siento, tuve un problema de conexión. Por favor, intenta de nuevo en un momento.");
@@ -82,15 +86,18 @@ class AIOrchestrator {
       // LOCAL: Priorizar Gemini
       try {
         console.log("🟢 [LOCAL] Intentando Gemini...");
-        return await this.callGemini(shortPrompt, fullSystemPrompt);
+        const response = await this.callGemini(shortPrompt, fullSystemPrompt);
+        return { text: response, model: 'gemini-2.5-flash-lite' };
       } catch (error) {
         console.warn("⚠️ Gemini falló, intentando GPT-4o...", error.message);
         try {
-          return await this.callOpenAI(shortPrompt, fullSystemPrompt);
+          const response = await this.callOpenAI(shortPrompt, fullSystemPrompt);
+          return { text: response, model: 'gpt-4o' };
         } catch (openaiError) {
           console.warn("⚠️ GPT-4o falló, intentando Groq (Qwen)...", openaiError.message);
           try {
-            return await this.callGroq(shortPrompt, fullSystemPrompt, 'qwen');
+            const response = await this.callGroq(shortPrompt, fullSystemPrompt, 'qwen');
+            return { text: response, model: 'qwen/qwen-2.5-72b-instruct' };
           } catch (groqError) {
             console.error("❌ Todos los proveedores fallaron:", groqError.message);
             throw new Error("Lo siento, tuve un problema de conexión. Por favor, intenta de nuevo en un momento.");
@@ -472,9 +479,12 @@ const handler = async (req, res) => {
             return res.status(400).json({ error: 'Missing message in request body' });
           }
           const chatBody = parsedBody;
-          const reply = await orchestrator.generateResponse(chatBody.message, chatBody.role || 'hospitality');
+          const result = await orchestrator.generateResponse(chatBody.message, chatBody.role || 'hospitality');
           res.setHeader('Access-Control-Allow-Origin', '*');
-          return res.status(200).json({ reply });
+          return res.status(200).json({ 
+            reply: result.text || result, 
+            model: result.model || 'unknown'
+          });
 
         case 'sandra/voice':
           if (!parsedBody || !parsedBody.text) {
