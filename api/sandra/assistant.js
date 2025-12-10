@@ -202,6 +202,7 @@ export default async function handler(req, res) {
     let useGemini = false;
     let useGroq = false;
     let groqModel = 'qwen';
+    let usedModel = null; // Para trackear qué modelo se usó
     let apiUrl;
     let headers = { 'Content-Type': 'application/json' };
 
@@ -210,16 +211,19 @@ export default async function handler(req, res) {
       if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.length > 20) {
         apiUrl = 'https://api.openai.com/v1/chat/completions';
         headers['Authorization'] = `Bearer ${process.env.OPENAI_API_KEY}`;
+        usedModel = 'gpt-4o';
         console.log('🔵 [PRODUCCIÓN] Usando GPT-4o');
       } else if (process.env.GROQ_API_KEY) {
         // Intentar Groq (Qwen)
         useGroq = true;
         groqModel = 'qwen';
+        usedModel = 'qwen/qwen-2.5-72b-instruct';
         apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
         headers['Authorization'] = `Bearer ${process.env.GROQ_API_KEY}`;
         console.log('🟣 [PRODUCCIÓN] Usando Groq (Qwen)');
       } else if (process.env.GEMINI_API_KEY) {
         useGemini = true;
+        usedModel = 'gemini-2.5-flash-lite';
         return await handleGeminiConversation(req, res, finalTranscription, messages, conversation);
       } else {
         throw new Error('No hay API key válida configurada para producción');
@@ -228,14 +232,17 @@ export default async function handler(req, res) {
       // LOCAL: Priorizar Gemini
       if (process.env.GEMINI_API_KEY) {
         useGemini = true;
+        usedModel = 'gemini-2.5-flash-lite';
         return await handleGeminiConversation(req, res, finalTranscription, messages, conversation);
       } else if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.length > 20) {
         apiUrl = 'https://api.openai.com/v1/chat/completions';
         headers['Authorization'] = `Bearer ${process.env.OPENAI_API_KEY}`;
+        usedModel = 'gpt-4o';
         console.log('🟢 [LOCAL] Usando GPT-4o (fallback)');
       } else if (process.env.GROQ_API_KEY) {
         useGroq = true;
         groqModel = 'qwen';
+        usedModel = 'qwen/qwen-2.5-72b-instruct';
         apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
         headers['Authorization'] = `Bearer ${process.env.GROQ_API_KEY}`;
         console.log('🟢 [LOCAL] Usando Groq (Qwen) (fallback)');
@@ -280,6 +287,7 @@ export default async function handler(req, res) {
           console.warn('⚠️ OpenAI falló en producción, usando Groq (Qwen) como fallback');
           useGroq = true;
           groqModel = 'qwen';
+          usedModel = 'qwen/qwen-2.5-72b-instruct';
           apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
           headers['Authorization'] = `Bearer ${process.env.GROQ_API_KEY}`;
           model = 'qwen/qwen-2.5-72b-instruct';
@@ -298,10 +306,12 @@ export default async function handler(req, res) {
           
           if (!aiRes.ok && process.env.GEMINI_API_KEY) {
             console.warn('⚠️ Groq falló, usando Gemini como último recurso');
+            usedModel = 'gemini-2.5-flash-lite';
             return await handleGeminiConversation(req, res, finalTranscription, messages, conversation);
           }
         } else if (process.env.GEMINI_API_KEY && !useGemini) {
           console.warn('⚠️ Falló, usando Gemini como fallback');
+          usedModel = 'gemini-2.5-flash-lite';
           return await handleGeminiConversation(req, res, finalTranscription, messages, conversation);
         }
         
@@ -314,9 +324,22 @@ export default async function handler(req, res) {
       // Último fallback a Gemini si está disponible
       if (process.env.GEMINI_API_KEY && !useGemini && error.message.includes('API')) {
         console.warn('⚠️ Error con API, usando Gemini como último recurso:', error.message);
+        usedModel = 'gemini-2.5-flash-lite';
         return await handleGeminiConversation(req, res, finalTranscription, messages, conversation);
       }
       throw error;
+    }
+
+    // Actualizar usedModel basado en lo que realmente se usó
+    if (!usedModel) {
+      usedModel = model;
+      if (useGroq) {
+        usedModel = groqModel === 'deepseek' 
+          ? 'deepseek/deepseek-r1' 
+          : 'qwen/qwen-2.5-72b-instruct';
+      } else if (useGemini) {
+        usedModel = 'gemini-2.5-flash-lite';
+      }
     }
 
     const aiData = await aiRes.json();
