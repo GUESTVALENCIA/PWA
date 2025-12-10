@@ -2,33 +2,31 @@
 
 ## ⚠️ REGLAS CRÍTICAS - NO VIOLAR
 
-### 1. SALUDO INICIAL DE SANDRA - GRABADO, NO TTS
+### 1. SALUDO INICIAL DE SANDRA - GRABADO, NO TTS ✅ IMPLEMENTADO
 
 **🚨 CRÍTICO:** El saludo inicial de Sandra es un **archivo de audio GRABADO**, NO se genera en tiempo real con TTS (Text-to-Speech).
 
 - **NO** usar `cartesia.textToSpeech()` para el saludo inicial
 - **SÍ** usar un archivo de audio pre-grabado
-- El archivo debe estar en: `assets/audio/` o similar
-- Formato: MP3, WAV, o M4A
-- El servidor MCP debe servir este archivo directamente, NO generarlo
+- El archivo está en: `mcp-server/assets/audio/welcome.mp3`
+- Formato: MP3, 44.1kHz, Mono, ~50KB
+- El servidor MCP lee este archivo directamente desde disco
 
-**Ubicación esperada del archivo:**
-- `assets/audio/sandra-welcome.mp3`
-- O en el servidor MCP: `mcp-server/assets/audio/welcome.mp3`
+**Ubicación del archivo (IMPLEMENTADO):**
+- `mcp-server/assets/audio/welcome.mp3` ✅
+- Script de generación: `scripts/generar-audio-bienvenida.js`
 
-**Implementación correcta:**
+**Implementación actual (CORRECTA):**
 ```javascript
-// CORRECTO: Leer archivo grabado
-const fs = require('fs');
-const path = require('path');
+// En mcp-server/index.js, función handleConserjeRoute:
 const welcomeAudioPath = path.join(__dirname, 'assets/audio/welcome.mp3');
 const welcomeAudioBuffer = fs.readFileSync(welcomeAudioPath);
-const welcomeAudioBase64 = welcomeAudioBuffer.toString('base64');
+const welcomeAudio = welcomeAudioBuffer.toString('base64');
 ```
 
-**INCORRECTO:**
+**INCORRECTO (YA NO SE USA):**
 ```javascript
-// ❌ NO HACER ESTO PARA EL SALUDO INICIAL
+// ❌ ESTO YA NO SE HACE - FUE REEMPLAZADO
 const welcomeAudio = await services.cartesia.textToSpeech(welcomeText);
 ```
 
