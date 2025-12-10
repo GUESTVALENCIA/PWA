@@ -1455,11 +1455,20 @@
         // Dynamic base URL detection (local vs production)
         if (window.location.hostname === 'localhost' || window.location.port === '4040') {
           this.baseUrl = '/api';
+          this.wsUrl = 'ws://localhost:4041';
         } else if (window.location.protocol === 'file:') {
           // Si se abre desde file://, usar localhost
           this.baseUrl = 'http://localhost:4040/api';
+          this.wsUrl = 'ws://localhost:4041';
         } else {
+          // Producción: usar rutas relativas o configurar según el servidor MCP
           this.baseUrl = '/api';
+          // Para producción, el WebSocket puede ser relativo o configurar según el servidor
+          // Por defecto, mantener localhost para desarrollo, pero permitir override
+          const hostname = window.location.hostname;
+          this.wsUrl = hostname === 'localhost' || hostname === '127.0.0.1' 
+            ? 'ws://localhost:4041' 
+            : `wss://${hostname}/ws`; // Ajustar según tu configuración de producción
         }
       }
 
@@ -1629,7 +1638,8 @@
           // BLOQUEAR CHAT DURANTE LLAMADA CONVERSACIONAL
           if (this.activeCall || this.chatLocked) {
             console.log('⚠️ Chat bloqueado: hay una llamada conversacional activa');
-            this.addMessage('Estás en una llamada conversacional. Por favor, habla directamente o cuelga la llamada para usar el chat.', 'bot');
+            // No mostrar mensaje en chat durante llamada - solo bloquear silenciosamente
+            // El usuario ya sabe que está en llamada porque ve los controles
             return;
           }
           
@@ -1733,8 +1743,13 @@
                       this.addMessage('🎤 Transcribiendo...', 'user');
                       
                       try {
-                        // Llamar a la API para transcribir con Deepgram
-                        const response = await fetch('http://localhost:4040/api/sandra/transcribe', {
+                        // Llamar a la API para transcribir con Deepgram usando configuración dinámica
+                        const transcribeUrl = this.gateway.baseUrl.includes('localhost') 
+                          ? this.gateway.baseUrl 
+                          : (this.gateway.baseUrl.startsWith('http') 
+                              ? this.gateway.baseUrl 
+                              : `${window.location.protocol === 'https:' ? 'https' : 'http'}://${window.location.host}${this.gateway.baseUrl}`);
+                        const response = await fetch(`${transcribeUrl}/sandra/transcribe`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ audio: base64Audio })
@@ -1991,12 +2006,17 @@
           }, 500);
         }
         
+        // Desbloquear chat tras colgar
+        this.chatLocked = false;
+        
+        // Mostrar mensaje de finalización
         this.addMessage('Llamada finalizada. ¿En qué más puedo ayudarte?', 'bot');
-        this.chatLocked = false; // desbloquear chat tras colgar
-        // Reponer prompt de llamada/chat
+        
+        // Reponer prompt de llamada/chat después de un breve delay
         setTimeout(() => {
           this.showCallPrompt();
-        }, 200);
+          console.log('✅ Botón de llamada restaurado tras colgar');
+        }, 500);
       }
 
       toggleCallPause() {
@@ -2245,10 +2265,14 @@
         const videoSource = heroVideo.querySelector('source');
         
         // Mostrar barrita de control INMEDIATAMENTE (no esperar a WebSocket)
+        // CRÍTICO: Los controles deben permanecer visibles durante TODA la llamada
         const callControls = document.getElementById('sandra-call-controls');
         if (callControls) {
           callControls.classList.remove('hidden');
-          console.log('✅ Barrita de control mostrada');
+          callControls.style.display = 'flex'; // Forzar display flex para asegurar visibilidad
+          // Asegurar que nunca se oculten accidentalmente durante la llamada
+          callControls.setAttribute('data-call-active', 'true');
+          console.log('✅ Barrita de control mostrada y asegurada visible (persistente durante llamada)');
         }
         
         // Mostrar mensaje de "Conectando..."
@@ -2277,7 +2301,9 @@
       }
 
       startRealTimeCall() {
-        console.log('🔌 Iniciando conexión WebSocket a ws://localhost:4041...');
+        // Usar URL dinámica del gateway
+        const wsUrl = this.gateway.wsUrl;
+        console.log(`🔌 Iniciando conexión WebSocket a ${wsUrl}...`);
         console.log('📋 Estado actual del widget:', {
           isOpen: this.isOpen,
           activeCall: this.activeCall ? 'existe' : 'null'
@@ -2303,8 +2329,16 @@
           this.activeCall = null;
         }
         
-        // Conectar WebSocket
-        const ws = new WebSocket('ws://localhost:4041');
+        // Asegurar que los controles estén visibles ANTES de conectar
+        const callControls = document.getElementById('sandra-call-controls');
+        if (callControls) {
+          callControls.classList.remove('hidden');
+          callControls.style.display = 'flex'; // Forzar display flex
+          console.log('✅ [CLIENTE] Controles asegurados visibles antes de conectar WebSocket');
+        }
+        
+        // Conectar WebSocket usando URL dinámica
+        const ws = new WebSocket(wsUrl);
         console.log('🔌 WebSocket creado, estado inicial:', ws.readyState); // 0 = CONNECTING
         let mediaRecorder = null;
         let audioChunks = [];
@@ -2318,14 +2352,17 @@
         // Timeout de conexión (5 segundos)
         let connectionTimeout = setTimeout(() => {
           if (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.CLOSED) {
-            console.error('⏱️ Timeout: WebSocket no se conectó en 5 segundos');
+            console.error(`⏱️ Timeout: WebSocket no se conectó en 5 segundos a ${wsUrl}`);
             ws.close();
-            // Error crítico - permitir mostrar aunque haya llamada activa
+            // Error crítico - NO ocultar controles si hay llamada activa, el usuario debe poder colgar
             if (!this.activeCall) {
-              this.addMessage('Error: No se pudo conectar al servidor. Verifica que el servidor WebSocket esté corriendo en el puerto 4041.', 'bot');
+              this.addMessage(`Error: No se pudo conectar al servidor WebSocket en ${wsUrl}. Verifica la configuración del servidor.`, 'bot');
+              const callControls = document.getElementById('sandra-call-controls');
+              if (callControls) callControls.classList.add('hidden');
+            } else {
+              // Si hay llamada activa, mantener controles visibles para que el usuario pueda colgar
+              console.log('⚠️ Timeout de conexión durante llamada activa, manteniendo controles visibles');
             }
-            const callControls = document.getElementById('sandra-call-controls');
-            if (callControls) callControls.classList.add('hidden');
           }
         }, 5000);
         
@@ -2436,24 +2473,34 @@
         ws.onerror = (error) => {
           console.error('❌ Error de conexión WebSocket:', error);
           clearTimeout(connectionTimeout);
-          // Error crítico - permitir mostrar aunque haya llamada activa
+          // Error crítico - NO ocultar controles si hay llamada activa, solo mostrar mensaje
           if (!this.activeCall) {
-            this.addMessage('Error de conexión. Verifica que el servidor WebSocket esté corriendo en el puerto 4041.', 'bot');
+            this.addMessage(`Error de conexión WebSocket en ${wsUrl}. Verifica la configuración del servidor.`, 'bot');
+            const callControls = document.getElementById('sandra-call-controls');
+            if (callControls) callControls.classList.add('hidden');
+          } else {
+            // Si hay llamada activa, mantener controles visibles para que el usuario pueda colgar
+            console.log('⚠️ Error WebSocket durante llamada activa, manteniendo controles visibles');
           }
-          const callControls = document.getElementById('sandra-call-controls');
-          if (callControls) callControls.classList.add('hidden');
         };
         
         ws.onclose = (event) => {
           console.log('🔌 WebSocket cerrado:', event.code, event.reason);
           clearTimeout(connectionTimeout);
-          if (event.code !== 1000) { // 1000 = cierre normal
-            // Error crítico - permitir mostrar aunque haya llamada activa
-            if (!this.activeCall) {
-              this.addMessage('Conexión cerrada inesperadamente.', 'bot');
-            }
+          // Solo ocultar controles si el cierre fue normal (1000) o si no hay llamada activa
+          if (event.code === 1000) {
+            // Cierre normal - limpiar estado
+            this.activeCall = null;
             const callControls = document.getElementById('sandra-call-controls');
             if (callControls) callControls.classList.add('hidden');
+          } else if (!this.activeCall) {
+            // Error y no hay llamada activa - ocultar controles
+            this.addMessage('Conexión cerrada inesperadamente.', 'bot');
+            const callControls = document.getElementById('sandra-call-controls');
+            if (callControls) callControls.classList.add('hidden');
+          } else {
+            // Error pero hay llamada activa - mantener controles visibles
+            console.log('⚠️ WebSocket cerrado inesperadamente durante llamada, manteniendo controles visibles');
           }
         };
         
@@ -2466,9 +2513,14 @@
           ws.pickupTime = pickupTime;
           console.log('⏱️ [LATENCIA] Tiempo de descuelgue:', pickupTime);
           
-          // Mostrar botón de colgar (ya debería estar visible desde startVideoStream)
+          // Asegurar que los controles de llamada estén visibles (ya deberían estar desde startVideoStream)
+          // CRÍTICO: Los controles DEBEN permanecer visibles durante TODA la llamada
           const callControls = document.getElementById('sandra-call-controls');
-          if (callControls) callControls.classList.remove('hidden');
+          if (callControls) {
+            callControls.classList.remove('hidden');
+            callControls.style.display = 'flex'; // Forzar display flex para asegurar visibilidad
+            console.log('✅ [CLIENTE] Controles de llamada asegurados visibles tras conexión WebSocket');
+          }
           
           // DESHABILITAR COMPLETAMENTE EL CHAT DURANTE LLAMADA
           const chatInput = document.getElementById('sandra-input');
@@ -2628,8 +2680,9 @@
             .catch(err => {
               console.error('❌ Error accediendo al micrófono:', err);
               this.addMessage('No se pudo acceder al micrófono. Por favor, permite el acceso.', 'bot');
-              const callControls = document.getElementById('sandra-call-controls');
-              if (callControls) callControls.classList.add('hidden');
+              // NO ocultar controles - el usuario debe poder colgar la llamada
+              // Los controles permanecen visibles para permitir colgar
+              console.log('⚠️ Error de micrófono, pero manteniendo controles visibles para permitir colgar');
             });
         };
         
@@ -2647,6 +2700,11 @@
             if (stream) {
               stream.getTracks().forEach(track => track.stop());
             }
+            // Limpiar llamada activa y ocultar controles
+            this.activeCall = null;
+            this.chatLocked = false;
+            const callControls = document.getElementById('sandra-call-controls');
+            if (callControls) callControls.classList.add('hidden');
             ws.close();
             return;
           }
@@ -2702,9 +2760,10 @@
             // La llamada sigue activa, no se cierra ni se muestra en chat
           } else if (data.type === 'error') {
             console.error('❌ Error del servidor:', data.message);
-            this.addMessage('Error en la llamada: ' + data.message, 'bot');
-            const callControls = document.getElementById('sandra-call-controls');
-            if (callControls) callControls.classList.add('hidden');
+            // NO mostrar mensaje en chat durante llamada (bloqueado), solo log
+            console.log('❌ [CLIENTE] Error del servidor durante llamada:', data.message);
+            // NO ocultar controles - mantener visibles para que el usuario pueda colgar
+            console.log('⚠️ Error del servidor, pero manteniendo controles visibles para permitir colgar');
           } else {
             console.log('⚠️ Tipo de mensaje desconocido:', data.type);
           }
@@ -3027,18 +3086,24 @@
         
         audio.onended = () => {
           console.log('✅ [CLIENTE] Audio de Sandra finalizado completamente');
-          this.isSpeaking = false;
           
-          // CRÍTICO: NO limpiar currentAudio inmediatamente (evitar cortes al final)
-          // Aumentar delay para asegurar que el audio termine completamente
+          // Esperar un momento adicional para asegurar que el audio termine completamente
+          // Esto previene cortes al final del audio
           setTimeout(() => {
-            // Revocar Blob URL para liberar memoria
-            if (audio._blobUrl) {
-              URL.revokeObjectURL(audio._blobUrl);
-              audio._blobUrl = null;
-            }
-            this.currentAudio = null;
-          }, 800); // Aumentado a 800ms para evitar cortes al final
+            this.isSpeaking = false;
+            
+            // Revocar Blob URL para liberar memoria después de un delay adicional
+            setTimeout(() => {
+              if (audio._blobUrl) {
+                URL.revokeObjectURL(audio._blobUrl);
+                audio._blobUrl = null;
+              }
+              // Solo limpiar currentAudio si es el mismo audio que acabó de terminar
+              if (this.currentAudio === audio) {
+                this.currentAudio = null;
+              }
+            }, 300); // Delay adicional para asegurar limpieza completa
+          }, 500); // Esperar 500ms antes de marcar como "no hablando" para evitar cortes
           
           // Si es el saludo, iniciar grabación después de un delay
           if (audio._isWelcome) {
@@ -3091,9 +3156,10 @@
       addMessage(text, type) {
         // BLOQUEAR TODOS LOS MENSAJES DE TEXTO DURANTE LLAMADA CONVERSACIONAL
         // Solo permitir mensajes si NO hay llamada activa o si es un mensaje crítico del sistema
-        if ((this.activeCall || this.chatLocked) && type !== 'system') {
-          console.log('⚠️ Mensaje bloqueado durante llamada conversacional:', text);
-          return; // No mostrar ningún mensaje durante la llamada
+        // PERO permitir mensajes cuando la llamada termina (cuando activeCall es null)
+        if (this.activeCall && type !== 'system') {
+          console.log('⚠️ Mensaje bloqueado durante llamada conversacional:', text.substring(0, 50));
+          return; // No mostrar ningún mensaje durante la llamada activa
         }
         
         const messagesContainer = document.getElementById('sandra-messages');
