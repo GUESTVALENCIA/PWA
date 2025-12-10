@@ -228,10 +228,65 @@ async function handleAudioRoute(action, payload, services, ws) {
   switch (action) {
     case 'tts':
       const audio = await services.cartesia.textToSpeech(payload.text, payload.voiceId);
-      return { audio, format: 'mp3' };
+      return { 
+        payload: { 
+          audio, 
+          format: 'mp3',
+          isWelcome: payload.isWelcome || false
+        }
+      };
     case 'stt':
+      // 1. Transcribir audio del usuario
       const transcript = await services.transcriber.transcribe(payload.audio);
-      return { transcript };
+      console.log('🎤 [MCP] Audio transcrito:', transcript);
+      
+      if (!transcript || !transcript.trim()) {
+        // Si no hay transcripción, enviar mensaje de "no speech"
+        ws.send(JSON.stringify({
+          route: 'conserje',
+          action: 'message',
+          payload: {
+            type: 'noSpeech',
+            message: 'No he podido oírte bien. ¿Puedes repetirlo, por favor?'
+          }
+        }));
+        return null; // No enviar respuesta adicional
+      }
+      
+      // 2. Procesar con IA (Conserje) para obtener respuesta de texto
+      const aiResponse = await services.qwen.processMessage(transcript, {
+        context: payload.context || {},
+        role: 'conserje',
+        bridgeData: await services.bridgeData.getContext(),
+        ambientation: await services.ambientation.getCurrentAmbientation()
+      });
+      
+      console.log('🧠 [MCP] Respuesta de IA:', aiResponse);
+      
+      // 3. Generar audio de la respuesta (TTS)
+      const responseAudio = await services.cartesia.textToSpeech(aiResponse, payload.voiceId);
+      
+      console.log('🔊 [MCP] Audio generado, enviando respuesta...');
+      
+      // 4. Enviar audio de respuesta directamente por WebSocket
+      // Esto es crítico: el cliente espera recibir audio, no solo texto
+      ws.send(JSON.stringify({
+        route: 'audio',
+        action: 'tts',
+        payload: {
+          audio: responseAudio,
+          format: 'mp3',
+          text: aiResponse,
+          isWelcome: payload.isWelcome || false
+        }
+      }));
+      
+      // También devolver transcript para logs/debugging
+      return { 
+        transcript,
+        text: aiResponse,
+        audioSent: true
+      };
     default:
       return { error: 'Unknown action' };
   }
