@@ -15,8 +15,28 @@ class PublicAPIsIndexer {
 
   async loadIndex() {
     try {
+      // Crear directorio data si no existe
+      const dataDir = path.join(__dirname, '../data');
+      try {
+        await fs.mkdir(dataDir, { recursive: true });
+      } catch (e) {
+        // Directorio ya existe, continuar
+      }
+
+      // Crear archivo vacío si no existe
+      try {
+        await fs.access(this.indexPath);
+      } catch (e) {
+        // Archivo no existe, crear uno vacío
+        await fs.writeFile(this.indexPath, JSON.stringify({ apis: [], lastUpdated: new Date().toISOString(), version: "1.0.0" }, null, 2));
+        console.log('✅ Archivo public-apis-index.json creado');
+      }
+
       const data = await fs.readFile(this.indexPath, 'utf8');
-      const index = JSON.parse(data);
+      const indexData = JSON.parse(data);
+      
+      // Manejar tanto array como objeto con propiedad 'apis'
+      const index = Array.isArray(indexData) ? indexData : (indexData.apis || []);
       
       index.forEach(api => {
         this.apis.set(api.name.toLowerCase(), api);
@@ -34,6 +54,8 @@ class PublicAPIsIndexer {
       return true;
     } catch (error) {
       console.warn('⚠️  No se pudo cargar el índice de APIs:', error.message);
+      // Inicializar con estructura vacía para evitar errores
+      this.apis = new Map();
       return false;
     }
   }
