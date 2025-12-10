@@ -3062,47 +3062,51 @@
         };
         
         ws.onmessage = (event) => {
-          console.log('📥 Mensaje recibido del servidor:', event.data.substring(0, 100));
-          const rawData = JSON.parse(event.data);
-          
-          // Detectar formato MCP o formato simple
-          let data;
-          if (rawData.route && rawData.action && rawData.payload) {
-            // Formato MCP: extraer datos del payload y mapear
-            console.log('📦 [MCP] Mensaje en formato MCP:', rawData.route, rawData.action);
-            data = rawData.payload;
+          try {
+            console.log('📥 Mensaje recibido del servidor:', event.data.substring(0, 100));
+            const rawData = JSON.parse(event.data);
             
-            // Mapear formato MCP a formato interno
-            if (rawData.route === 'audio' && rawData.action === 'tts') {
-              data.type = 'audio';
-              // data ya ES rawData.payload, entonces data.audio ya debería estar disponible
-              // Solo verificar que esté presente
-              if (!data.audio) {
-                console.error('❌ [CLIENTE] ERROR: Audio no encontrado en payload:', {
-                  route: rawData.route,
-                  action: rawData.action,
-                  payloadKeys: Object.keys(data),
-                  payload: data
-                });
-              } else {
-                console.log('✅ [CLIENTE] Audio encontrado en payload, tamaño:', data.audio.length, 'caracteres');
-                console.log('✅ [CLIENTE] isWelcome flag:', data.isWelcome);
+            // Detectar formato MCP o formato simple
+            let data;
+            if (rawData.route && rawData.action && rawData.payload) {
+              // Formato MCP: extraer datos del payload y mapear
+              console.log('📦 [MCP] Mensaje en formato MCP:', rawData.route, rawData.action);
+              data = rawData.payload;
+              
+              // Mapear formato MCP a formato interno
+              if (rawData.route === 'audio' && rawData.action === 'tts') {
+                data.type = 'audio';
+                // Verificar que el audio esté presente
+                if (!data.audio) {
+                  console.error('❌ [CLIENTE] ERROR: Audio no encontrado en payload');
+                  return; // Salir si no hay audio
+                }
+                console.log('✅ [CLIENTE] Audio recibido, tamaño:', data.audio.length, 'caracteres');
+              } else if (rawData.route === 'conserje' && rawData.action === 'message') {
+                if (data.text) {
+                  data.type = 'text';
+                } else if (data.type === 'error') {
+                  data.type = 'error';
+                } else if (data.type === 'timeout') {
+                  data.type = 'timeout';
+                } else if (data.type === 'noSpeech') {
+                  data.type = 'noSpeech';
+                }
+              } else if (rawData.route === 'system') {
+                // Mensajes del sistema (conexión, etc.) - ignorar
+                console.log('📡 [MCP] Mensaje del sistema:', rawData.action);
+                return;
               }
-            } else if (rawData.route === 'conserje' && rawData.action === 'message') {
-              if (data.text) {
-                data.type = 'text';
-              } else if (data.type === 'error') {
-                data.type = 'error';
-              } else if (data.type === 'timeout') {
-                data.type = 'timeout';
-              } else if (data.type === 'noSpeech') {
-                data.type = 'noSpeech';
-              }
+            } else {
+              // Formato simple (servidor local)
+              data = rawData;
             }
-          } else {
-            // Formato simple (servidor local)
-            data = rawData;
-          }
+            
+            // Si data no tiene type, salir (evitar errores)
+            if (!data || !data.type) {
+              console.warn('⚠️ [CLIENTE] Mensaje sin tipo válido, ignorando:', data);
+              return;
+            }
           
           if (data.type === 'timeout') {
             console.log('⏱️ Llamada cerrada por inactividad');
