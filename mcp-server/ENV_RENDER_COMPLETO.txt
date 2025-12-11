@@ -1,0 +1,27 @@
+# ===== LLM APIs =====
+OPENAI_API_KEY=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
+GROQ_API_KEY=gsk_fcsnv8uhZC7BfzY29fuDWGdyb3FYXheXWxseCc9gcLl8RrQNYUs
+GEMINI_API_KEY=AIzaSyDUKR3tAPvCthWdlRA8w3qY0Saz018im0M
+
+# ===== Voice APIs =====
+CARTESIA_API_KEY=a34aec03-0f17-4fff-903f-d9458a8a92a6
+CARTESIA_VOICE_ID=2d5b0e6cf361460aa7fc47e3cee4b30c
+DEEPGRAM_API_KEY=30e9dbaec29dcde1b23a8bd9de31438c74f23522
+
+# ===== BrightData Proxy (CRÍTICO - API más importante para bookings/reservas) =====
+BRIGHTDATA_PROXY_URL=wss://brd-customer-hl_c4b3455e-zone-mcp_booking_airbnb:rsxgwjh411m4@brd.superproxy.io:9222
+BRIDGEDATA_API_KEY=brd-customer-hl_c4b3455e-zone-mcp_booking_airbnb:rsxgwjh411m4
+
+# ===== Base de Datos (Neon PostgreSQL) =====
+NEON_DB_URL=postgresql://neondb_owner:npg_G2baKCg4FlyN@ep-fragrant-meadow-ah27lbiy-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+DATABASE_URL=postgresql://neondb_owner:npg_G2baKCg4FlyN@ep-fragrant-meadow-ah27lbiy-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+
+# ===== Servidor =====
+MCP_PORT=4042
+MCP_HOST=0.0.0.0
+NODE_ENV=production
+ALLOWED_ORIGINS=*
+
+# ===== Seguridad =====
+SANDRA_TOKEN=sk-sandra-production-token
+REQUIRE_AUTH=false

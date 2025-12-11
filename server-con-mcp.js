@@ -1,5 +1,5 @@
-// Servidor Local para Sistema Galaxy
-// Adaptado del api-gateway.js original para Node.js local
+// Servidor Local para Sistema Galaxy + MCP ENDPOINTS
+// Actualizado por Opus para Sandra IA 8.0 Pro
 
 const http = require('http');
 const https = require('https');
@@ -184,7 +184,7 @@ class AIOrchestrator {
   }
 }
 
-// Global Orchestrator Instance (como en el sistema Galaxy original)
+// Global Orchestrator Instance
 const orchestrator = new AIOrchestrator();
 
 // Helper para leer el body del request
@@ -208,7 +208,7 @@ const server = http.createServer(async (req, res) => {
   const parsedUrl = url.parse(req.url, true);
   const pathname = parsedUrl.pathname;
 
-  // CORS Headers (como en el sistema Galaxy original)
+  // CORS Headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, mcp-secret');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -261,13 +261,20 @@ const server = http.createServer(async (req, res) => {
     
     switch (pathname) {
       case '/mcp/execute_command':
+        if (req.method !== 'POST') {
+          res.writeHead(405, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Method not allowed' }));
+          return;
+        }
+        
         if (!verifyMCPSecret(req)) {
           res.writeHead(401, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Invalid MCP secret' }));
           return;
         }
         
-        const { command } = parsedBody || {};
+        const { command } = parsedBody;
+        
         if (!command) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Command required' }));
@@ -275,15 +282,246 @@ const server = http.createServer(async (req, res) => {
         }
         
         console.log(`⚡ [MCP] Ejecutando comando: ${command}`);
+        
         exec(command, { timeout: 10000 }, (error, stdout, stderr) => {
+          if (error) {
+            console.error(`❌ [MCP] Error ejecutando comando:`, error);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              success: false,
+              error: error.message,
+              stderr: stderr
+            }));
+          } else {
+            console.log(`✅ [MCP] Comando ejecutado exitosamente`);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              success: true,
+              output: stdout,
+              stderr: stderr
+            }));
+          }
+        });
+        return;
+        
+      case '/mcp/read_file':
+        if (req.method !== 'POST') {
+          res.writeHead(405, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Method not allowed' }));
+          return;
+        }
+        
+        if (!verifyMCPSecret(req)) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid MCP secret' }));
+          return;
+        }
+        
+        try {
+          const { filePath } = parsedBody;
+          
+          if (!filePath) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'File path required' }));
+            return;
+          }
+          
+          console.log(`📄 [MCP] Leyendo archivo: ${filePath}`);
+          
+          const content = await fsPromises.readFile(filePath, 'utf-8');
+          
+          console.log(`✅ [MCP] Archivo leído: ${content.length} caracteres`);
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
-            success: !error,
-            output: stdout || '',
-            stderr: stderr || '',
-            error: error ? error.message : null
+            success: true,
+            content: content,
+            path: filePath,
+            size: content.length
           }));
-        });
+        } catch (error) {
+          console.error('❌ [MCP] Error leyendo archivo:', error);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: false,
+            error: error.message
+          }));
+        }
+        return;
+        
+      case '/mcp/write_file':
+        if (req.method !== 'POST') {
+          res.writeHead(405, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Method not allowed' }));
+          return;
+        }
+        
+        if (!verifyMCPSecret(req)) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid MCP secret' }));
+          return;
+        }
+        
+        try {
+          const { filePath, content } = parsedBody;
+          
+          if (!filePath || content === undefined) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'File path and content required' }));
+            return;
+          }
+          
+          console.log(`💾 [MCP] Escribiendo archivo: ${filePath}`);
+          
+          await fsPromises.mkdir(path.dirname(filePath), { recursive: true });
+          await fsPromises.writeFile(filePath, content, 'utf-8');
+          
+          console.log(`✅ [MCP] Archivo escrito exitosamente`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            path: filePath,
+            size: content.length
+          }));
+        } catch (error) {
+          console.error('❌ [MCP] Error escribiendo archivo:', error);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: false,
+            error: error.message
+          }));
+        }
+        return;
+        
+      case '/mcp/list_files':
+        if (req.method !== 'POST') {
+          res.writeHead(405, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Method not allowed' }));
+          return;
+        }
+        
+        if (!verifyMCPSecret(req)) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid MCP secret' }));
+          return;
+        }
+        
+        try {
+          const { dirPath = '.' } = parsedBody;
+          
+          console.log(`📂 [MCP] Listando directorio: ${dirPath}`);
+          
+          const items = await fsPromises.readdir(dirPath, { withFileTypes: true });
+          
+          const files = items.map(item => ({
+            name: item.name,
+            type: item.isDirectory() ? 'directory' : 'file',
+            path: path.join(dirPath, item.name)
+          }));
+          
+          console.log(`✅ [MCP] ${files.length} items encontrados`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            files: files,
+            count: files.length,
+            directory: dirPath
+          }));
+        } catch (error) {
+          console.error('❌ [MCP] Error listando directorio:', error);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: false,
+            error: error.message
+          }));
+        }
+        return;
+        
+      case '/mcp/execute_code':
+        if (req.method !== 'POST') {
+          res.writeHead(405, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Method not allowed' }));
+          return;
+        }
+        
+        if (!verifyMCPSecret(req)) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid MCP secret' }));
+          return;
+        }
+        
+        try {
+          const { language, code } = parsedBody;
+          
+          if (!language || !code) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Language and code required' }));
+            return;
+          }
+          
+          console.log(`💻 [MCP] Ejecutando código ${language}`);
+          
+          let command;
+          let tempFile;
+          
+          switch (language.toLowerCase()) {
+            case 'python':
+              tempFile = path.join(process.env.TEMP || '/tmp', `temp_${Date.now()}.py`);
+              await fsPromises.writeFile(tempFile, code);
+              command = `python3 ${tempFile}`;
+              break;
+              
+            case 'javascript':
+            case 'js':
+              tempFile = path.join(process.env.TEMP || '/tmp', `temp_${Date.now()}.js`);
+              await fsPromises.writeFile(tempFile, code);
+              command = `node ${tempFile}`;
+              break;
+              
+            case 'bash':
+            case 'sh':
+              command = code;
+              break;
+              
+            default:
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                success: false,
+                error: `Language ${language} not supported`
+              }));
+              return;
+          }
+          
+          exec(command, { timeout: 10000 }, async (error, stdout, stderr) => {
+            if (tempFile) {
+              try {
+                await fsPromises.unlink(tempFile);
+              } catch (e) {}
+            }
+            
+            if (error) {
+              console.error(`❌ [MCP] Error ejecutando código:`, error);
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                success: false,
+                error: error.message,
+                stderr: stderr
+              }));
+            } else {
+              console.log(`✅ [MCP] Código ejecutado exitosamente`);
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                success: true,
+                output: stdout,
+                stderr: stderr,
+                language: language
+              }));
+            }
+          });
+        } catch (error) {
+          console.error('❌ [MCP] Error:', error);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: error.message }));
+        }
         return;
         
       case '/mcp/status':
@@ -291,8 +529,18 @@ const server = http.createServer(async (req, res) => {
         res.end(JSON.stringify({
           status: 'active',
           version: '1.0.0',
-          endpoints: ['/mcp/execute_command', '/mcp/status'],
-          capabilities: { execute: true }
+          endpoints: [
+            '/mcp/execute_command',
+            '/mcp/read_file',
+            '/mcp/write_file',
+            '/mcp/list_files',
+            '/mcp/execute_code'
+          ],
+          capabilities: {
+            execute: true,
+            fileSystem: true,
+            code: true
+          }
         }));
         return;
         
@@ -303,15 +551,13 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // Si es una petición a /api, manejar como API
+  // Si es una petición a /api, manejar como API original
   if (pathname.startsWith('/api/')) {
     try {
-      // Extract endpoint from URL (como en el sistema Galaxy original)
       let endpoint = pathname;
       endpoint = endpoint.split('?')[0];
       endpoint = endpoint.replace(/^\/api\//, '').replace(/^\/|\/$/g, '');
 
-      // Parse body based on content type
       const contentType = req.headers['content-type'] || '';
       let parsedBody = null;
       let rawBody = null;
@@ -333,7 +579,6 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'POST') {
         switch (endpoint) {
           case 'sandra/transcribe':
-            // Endpoint para transcribir audio con Deepgram
             if (!parsedBody || !parsedBody.audio) {
               res.writeHead(400, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify({ error: 'Missing audio in request body' }));
@@ -359,7 +604,6 @@ const server = http.createServer(async (req, res) => {
             }
             
             const chatBody = parsedBody;
-            // Siempre usar rol "luxury" (Concierge) como solicitado
             const role = 'luxury';
             console.log('📨 Mensaje recibido:', chatBody.message);
             console.log('🎭 Rol:', role);
@@ -417,7 +661,6 @@ const server = http.createServer(async (req, res) => {
   let filePath = pathname === '/' ? '/index.html' : pathname;
   filePath = path.join(__dirname, filePath.replace(/^\//, ''));
 
-  // Seguridad: prevenir acceso fuera del directorio
   if (!filePath.startsWith(__dirname)) {
     res.writeHead(403);
     res.end('Forbidden');
@@ -448,8 +691,9 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
-const PORT = 4040;
-// Función para transcribir audio con Deepgram (reutilizable)
+const PORT = process.env.PORT || 4040;
+
+// Función para transcribir audio con Deepgram
 async function transcribeAudio(audioBase64) {
   return new Promise((resolve, reject) => {
     const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY;
@@ -506,10 +750,21 @@ async function transcribeAudio(audioBase64) {
 }
 
 server.listen(PORT, () => {
-  console.log(`🚀 Servidor Galaxy local corriendo en http://localhost:${PORT}`);
-  console.log(`📡 API disponible en http://localhost:${PORT}/api/sandra/chat`);
-  console.log(`🎤 Voice API disponible en http://localhost:${PORT}/api/sandra/voice`);
-  console.log(`🎙️ Transcribe API disponible en http://localhost:${PORT}/api/sandra/transcribe`);
-  console.log(`🌐 PWA disponible en http://localhost:${PORT}`);
-  console.log(`✨ Sistema Galaxy adaptado para Gemini`);
+  console.log(`🚀 Servidor Galaxy + MCP corriendo en puerto ${PORT}`);
+  console.log(`📡 API Chat: http://localhost:${PORT}/api/sandra/chat`);
+  console.log(`🎤 API Voice: http://localhost:${PORT}/api/sandra/voice`);
+  console.log(`🎙️ API Transcribe: http://localhost:${PORT}/api/sandra/transcribe`);
+  console.log('');
+  console.log('🤖 MCP ENDPOINTS ACTIVOS:');
+  console.log(`   ✅ POST /mcp/execute_command`);
+  console.log(`   ✅ POST /mcp/read_file`);
+  console.log(`   ✅ POST /mcp/write_file`);
+  console.log(`   ✅ POST /mcp/list_files`);
+  console.log(`   ✅ POST /mcp/execute_code`);
+  console.log(`   ✅ GET  /mcp/status`);
+  console.log('');
+  console.log(`🌐 PWA: http://localhost:${PORT}`);
+  console.log(`💓 Health: http://localhost:${PORT}/health`);
+  console.log('');
+  console.log('✨ Sandra IA 8.0 Pro - Ready to Execute!');
 });
