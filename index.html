@@ -47,7 +47,8 @@
     .hero-section{position:relative;min-height:100vh;display:flex;align-items:flex-end;justify-content:center;overflow:hidden;padding-bottom:10vh}
     .hero-video{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:-2}
     .hero-background-image{position:absolute;top:0;left:0;width:100%;height:100%;background-size:cover;background-position:center 35%;z-index:-3;transition:transform 0.3s ease}
-    .hero-overlay{display:none}
+    /* Subtítulos siempre visibles y con saltos de línea cuando se muestran */
+    #sandra-subtitles span{white-space:pre-line;display:inline-block;line-height:1.5}
     .property-card{transition:transform 0.3s,box-shadow 0.3s}.property-card:hover{transform:translateY(-5px);box-shadow:0 20px 40px rgba(0,0,0,0.1)}
     .btn-primary{background:linear-gradient(135deg,var(--accent),var(--primary));color:white;box-shadow:0 4px 15px rgba(59,130,246,0.3)}
     .btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 25px rgba(59,130,246,0.4);background:linear-gradient(135deg,var(--accent-light),var(--accent))}
@@ -301,9 +302,6 @@
                   <button id="btn-mute-toggle" class="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-all backdrop-blur-sm border border-white/20" title="Silenciar micrófono">
                     <svg id="mic-icon" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
                     <svg id="mic-muted-icon" class="w-5 h-5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" clip-rule="evenodd"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/></svg>
-                  </button>
-                  <button id="btn-pause-toggle" class="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-all backdrop-blur-sm border border-white/20">
-                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                   </button>
                   <button id="btn-call-toggle" class="w-14 h-14 rounded-full bg-green-500 hover:bg-green-600 flex items-center justify-center text-white shadow-2xl transition-all ring-4 ring-green-500/30">
                     <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M3 21l3-3m0 0V9a6 6 0 0112 0v9m-3-3l3 3m-3-3h6m-6 0V9a3 3 0 00-3-3H9a3 3 0 00-3 3v9"/></svg>
@@ -1281,6 +1279,22 @@
         navigate();
       });
 
+      function setSubtitles(message) {
+        const subtitles = document.getElementById('sandra-subtitles');
+        if (!subtitles) return;
+
+        const textSpan = subtitles.querySelector('span');
+        if (!textSpan) return;
+
+        if (message) {
+          subtitles.classList.remove('hidden');
+          textSpan.textContent = message;
+        } else {
+          subtitles.classList.add('hidden');
+          textSpan.textContent = '';
+        }
+      }
+
       // AI Search - connect with Sandra
       btnSearchAI.addEventListener('click', async (e) => {
         e.preventDefault();
@@ -1305,11 +1319,7 @@
       // AI Search Handler - connects with Sandra
       async function handleAISearch(destination, guests, nights) {
         // Show loading state
-        const subtitles = document.getElementById('sandra-subtitles');
-        if (subtitles) {
-          subtitles.classList.remove('hidden');
-          subtitles.querySelector('span').textContent = 'Procesando tu búsqueda...';
-        }
+        setSubtitles('Procesando tu búsqueda...');
 
         // Simulate Sandra processing
         // In production, this will connect to actual Sandra API
@@ -1321,9 +1331,7 @@
 
         // Simulate Sandra response
         setTimeout(() => {
-          if (subtitles) {
-            subtitles.querySelector('span').textContent = `Perfecto, encontré alojamientos para ${guests} personas por ${nights} noche${nights > 1 ? 's' : ''} en ${destination || 'Valencia'}. Te muestro las opciones...`;
-          }
+          setSubtitles(`Perfecto, encontré alojamientos para ${guests} personas por ${nights} noche${nights > 1 ? 's' : ''} en ${destination || 'Valencia'}. Te muestro las opciones...`);
 
           // Navigate to accommodations page after Sandra confirms
           setTimeout(() => {
@@ -1335,11 +1343,9 @@
               filterAccommodationsByDestination(destination);
             }
 
-            if (subtitles) {
-              setTimeout(() => {
-                subtitles.querySelector('span').textContent = 'Aquí tienes los alojamientos disponibles. ¿Cuál te interesa?';
-              }, 1000);
-            }
+            setTimeout(() => {
+              setSubtitles('Aquí tienes los alojamientos disponibles. ¿Cuál te interesa?');
+            }, 1000);
           }, 2000);
         }, 1500);
       }
@@ -1355,10 +1361,7 @@
         if (found) {
           location.hash = found.id;
           navigate();
-          const subtitles = document.getElementById('sandra-subtitles');
-          if (subtitles) {
-            subtitles.querySelector('span').textContent = `Perfecto, aquí está ${found.title}. ¿Te gustaría reservarlo?`;
-          }
+          setSubtitles(`Perfecto, aquí está ${found.title}. ¿Te gustaría reservarlo?`);
         } else {
           // If not found, show all accommodations
           location.hash = 'alojamientos';
