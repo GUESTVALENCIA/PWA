@@ -318,7 +318,7 @@ const server = http.createServer(async (req, res) => {
         const toolName = params?.name;
         const args = params?.arguments || {};
 
-        const result = await (async () => {
+        const safeToolCall = async () => {
           // Cloud tools only (no local filesystem / no exec here)
           if (toolName === 'cloud.github.readFile') {
             const { owner, repo, ref = 'main', path: filePath } = args || {};
@@ -362,20 +362,32 @@ const server = http.createServer(async (req, res) => {
               });
             }
 
-            // Raw content (public)
-            const rawUrl = new URL(`https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${filePath}`);
-            return await new Promise((resolve, reject) => {
-              https.get(rawUrl, { headers: { 'User-Agent': 'sandra-mcp-server' } }, (resp) => {
-                let data = '';
-                resp.on('data', (c) => (data += c));
-                resp.on('end', () => {
-                  if (resp.statusCode && resp.statusCode >= 400) {
-                    return reject(new Error(`Raw fetch error ${resp.statusCode}: ${data.substring(0, 200)}`));
-                  }
-                  resolve({ content: data });
-                });
-              }).on('error', reject);
-            });
+            // Raw content (public). Try README at repo root, then common subdir fallback.
+            const tryRaw = async (p) => {
+              const rawUrl = new URL(`https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${p}`);
+              return await new Promise((resolve, reject) => {
+                https.get(rawUrl, { headers: { 'User-Agent': 'sandra-mcp-server' } }, (resp) => {
+                  let data = '';
+                  resp.on('data', (c) => (data += c));
+                  resp.on('end', () => {
+                    if (resp.statusCode && resp.statusCode >= 400) {
+                      return reject(new Error(`Raw fetch error ${resp.statusCode}: ${data.substring(0, 200)}`));
+                    }
+                    resolve({ content: data, pathTried: p });
+                  });
+                }).on('error', reject);
+              });
+            };
+
+            try {
+              return await tryRaw(filePath);
+            } catch (e) {
+              // Fallback for repos that keep README under a subdir (e.g. PWA uses mcp-server/README.md)
+              if (String(filePath).toLowerCase() === 'readme.md') {
+                return await tryRaw('mcp-server/README.md');
+              }
+              throw e;
+            }
           }
 
           if (toolName === 'cloud.web.fetch') {
@@ -417,9 +429,15 @@ const server = http.createServer(async (req, res) => {
           }
 
           throw new Error(`Unknown tool: ${toolName}`);
-        })();
+        };
 
-        return reply({ content: [{ type: 'text', text: JSON.stringify(result) }] });
+        try {
+          const result = await safeToolCall();
+          return reply({ content: [{ type: 'text', text: JSON.stringify(result) }] });
+        } catch (e) {
+          // MCP-style: return 200 with an error payload, so clients can render a useful message.
+          return reply({ content: [{ type: 'text', text: JSON.stringify({ ok: false, error: e.message, tool: toolName }) }] });
+        }
       }
 
       return reply({ error: `Unknown method: ${method}` });
