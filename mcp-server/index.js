@@ -26,6 +26,7 @@ const videoRoutes = require('./routes/video');
 const conserjeRoutes = require('./routes/conserje');
 const syncRoutes = require('./routes/sync');
 const apisRoutes = require('./routes/apis');
+const mcpRoutes = require('./routes/mcp');
 
 // Import Services
 const QwenService = require('./services/qwen');
@@ -67,6 +68,9 @@ const services = {
   publicAPIs: new PublicAPIsService()
 };
 
+// Hacer servicios disponibles para rutas MCP
+app.locals.services = services;
+
 // Initialize all services
 async function initializeServices() {
   console.log('🔧 Inicializando servicios...');
@@ -89,6 +93,7 @@ app.use('/api/video', videoRoutes(services));
 app.use('/api/conserje', conserjeRoutes(services));
 app.use('/api/sync', syncRoutes(services));
 app.use('/api/apis', apisRoutes(services));
+app.use('/api', mcpRoutes);
 
 // Health Check
 app.get('/health', (req, res) => {

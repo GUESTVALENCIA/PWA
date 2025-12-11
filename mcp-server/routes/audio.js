@@ -5,8 +5,6 @@
 
 const express = require('express');
 const router = express.Router();
-const path = require('path');
-const fs = require('fs');
 
 module.exports = (services) => {
   // TTS - Text to Speech
@@ -55,54 +53,45 @@ module.exports = (services) => {
     }
   });
 
-  // Welcome message (saludo inicial de Sandra) - USA ARCHIVO PRE-GRABADO
+  // Welcome message (saludo inicial de Sandra)
   router.post('/welcome', async (req, res) => {
     try {
       const { timezone } = req.body;
-
+      const fs = require('fs');
+      const path = require('path');
+      
       // Obtener ambientación según hora
       const ambientation = await services.ambientation.getCurrentAmbientation(timezone);
-
-      // Texto del saludo (para referencia, el audio está pre-grabado)
-      const welcomeText = '¡Hola! Soy Sandra. Bienvenido a GuestsValencia. ¿En qué puedo ayudarte hoy?';
-
-      // CRÍTICO: Usar audio PRE-GRABADO en lugar de generar con TTS
+      
+      // CRÍTICO: Usar archivo pre-grabado, NO generar con TTS
       const welcomeAudioPath = path.join(__dirname, '../assets/audio/welcome.mp3');
-
+      const welcomeText = '¡Hola! Soy Sandra. Bienvenido a GuestsValencia. ¿En qué puedo ayudarte hoy?';
+      
       if (!fs.existsSync(welcomeAudioPath)) {
         console.error('❌ [AUDIO] Archivo de audio grabado no encontrado:', welcomeAudioPath);
-        // Fallback: generar con TTS si el archivo no existe
-        console.log('⚠️ [AUDIO] Generando audio con TTS como fallback...');
-        const audio = await services.cartesia.textToSpeech(welcomeText);
-        return res.json({
-          success: true,
-          audio,
-          text: welcomeText,
-          ambientation,
-          source: 'tts_fallback',
-          timestamp: new Date().toISOString()
-        });
+        throw new Error('Archivo de audio de bienvenida no encontrado');
       }
-
-      // Leer archivo pre-grabado y convertir a base64
-      const audioBuffer = fs.readFileSync(welcomeAudioPath);
-      const audio = audioBuffer.toString('base64');
-
-      console.log('✅ [AUDIO] Audio de bienvenida PRE-GRABADO cargado:', {
-        tamaño: `${(audioBuffer.length / 1024).toFixed(2)} KB`,
-        formato: 'MP3'
+      
+      // Leer archivo y convertir a base64
+      const welcomeAudioBuffer = fs.readFileSync(welcomeAudioPath);
+      const audio = welcomeAudioBuffer.toString('base64');
+      
+      console.log('✅ [AUDIO] Saludo grabado cargado:', {
+        tamaño: `${(welcomeAudioBuffer.length / 1024).toFixed(2)} KB`,
+        formato: 'MP3, 44.1kHz'
       });
-
+      
       res.json({
         success: true,
         audio,
         text: welcomeText,
+        format: 'mp3',
         ambientation,
-        source: 'pre_recorded',
+        isWelcome: true,
         timestamp: new Date().toISOString()
       });
     } catch (error) {
-      console.error('Error cargando saludo:', error);
+      console.error('❌ [AUDIO] Error cargando saludo grabado:', error);
       res.status(500).json({ error: error.message });
     }
   });

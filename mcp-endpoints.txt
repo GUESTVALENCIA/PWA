@@ -1,0 +1,110 @@
+  // Health check endpoint
+  if (pathname === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      services: {
+        chat: true,
+        voice: true,
+        vision: false,
+        commands: true,
+        scheduler: true,
+        mcp: true
+      }
+    }));
+    return;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // MCP ENDPOINTS - CAPACIDAD DE EJECUCIÓN PARA SANDRA
+  // ═══════════════════════════════════════════════════════════════════
+  
+  if (pathname.startsWith('/mcp/')) {
+    const contentType = req.headers['content-type'] || '';
+    let parsedBody = null;
+    
+    if (req.method === 'POST') {
+      const rawBody = await getRawBody(req);
+      if (contentType.includes('application/json')) {
+        try {
+          parsedBody = JSON.parse(rawBody.toString('utf8'));
+        } catch (error) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: `Invalid JSON: ${error.message}` }));
+          return;
+        }
+      }
+    }
+    
+    switch (pathname) {
+      case '/mcp/execute_command':
+        if (req.method !== 'POST') {
+          res.writeHead(405, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Method not allowed' }));
+          return;
+        }
+        
+        if (!verifyMCPSecret(req)) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid MCP secret' }));
+          return;
+        }
+        
+        const { command } = parsedBody || {};
+        
+        if (!command) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Command required' }));
+          return;
+        }
+        
+        console.log(`⚡ [MCP] Ejecutando comando: ${command}`);
+        
+        exec(command, { timeout: 10000 }, (error, stdout, stderr) => {
+          if (error) {
+            console.error(`❌ [MCP] Error ejecutando comando:`, error);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              success: false,
+              error: error.message,
+              stderr: stderr
+            }));
+          } else {
+            console.log(`✅ [MCP] Comando ejecutado exitosamente`);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              success: true,
+              output: stdout,
+              stderr: stderr
+            }));
+          }
+        });
+        return;
+        
+      case '/mcp/status':
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          status: 'active',
+          version: '1.0.0',
+          endpoints: [
+            '/mcp/execute_command',
+            '/mcp/read_file',
+            '/mcp/write_file',
+            '/mcp/list_files',
+            '/mcp/execute_code'
+          ],
+          capabilities: {
+            execute: true,
+            fileSystem: true,
+            code: true
+          }
+        }));
+        return;
+        
+      default:
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `MCP endpoint '${pathname}' not found` }));
+        return;
+    }
+  }
