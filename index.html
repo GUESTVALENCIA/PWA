@@ -91,6 +91,9 @@
   </nav>
 
   <main class="flex-1">
+    <!-- Fallback para el widget de Sandra: se reemplaza dinámicamente al inicializar -->
+    <div id="sandra-widget-root" class="hidden" aria-live="polite"></div>
+
     <!-- HOME -->
     <section id="home-page" class="page active">
       <header class="hero-section">
@@ -1746,12 +1749,6 @@
       }
 
       createWidgetUI() {
-        // Evitar duplicados
-        if (document.getElementById('sandra-widget-root')) {
-          console.warn('⚠️ Widget ya existe, no se creará duplicado');
-          return;
-        }
-        
         const widgetHTML = `
           <div id="sandra-widget-root" class="fixed bottom-4 right-4 z-50 font-sans" style="display: block !important; visibility: visible !important; opacity: 1 !important; z-index: 99999 !important; position: fixed !important; pointer-events: auto !important;">
             <button id="sandra-toggle-btn" class="w-14 h-14 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xl hover:scale-105 transition-transform flex items-center justify-center group overflow-hidden border-2 border-white/20">
@@ -1833,7 +1830,20 @@
             </div>
           </div>
         `;
-        document.body.insertAdjacentHTML('beforeend', widgetHTML);
+
+        const existingRoots = document.querySelectorAll('#sandra-widget-root');
+        if (existingRoots.length > 0) {
+          console.warn(`⚠️ Widget encontrado (${existingRoots.length}). Reconstruyendo para evitar restos ocultos...`);
+          existingRoots.forEach((root, index) => {
+            if (index === 0) {
+              root.outerHTML = widgetHTML;
+            } else {
+              root.remove();
+            }
+          });
+        } else {
+          document.body.insertAdjacentHTML('beforeend', widgetHTML);
+        }
       }
 
       bindEvents() {
