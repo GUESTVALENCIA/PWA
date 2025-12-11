@@ -46,37 +46,43 @@ router.post('/mcp', async (req, res) => {
         return res.json({
           tools: [
             {
-              name: 'execute_command',
-              description: 'Ejecuta comandos del sistema',
+              name: 'cloud.github.readFile',
+              description: 'Lee un archivo de un repositorio de GitHub',
               inputSchema: {
                 type: 'object',
                 properties: {
-                  command: { type: 'string', description: 'Comando a ejecutar' }
+                  owner: { type: 'string', description: 'Usuario/organización' },
+                  repo: { type: 'string', description: 'Nombre del repositorio' },
+                  ref: { type: 'string', description: 'Branch/tag/commit (default: main)' },
+                  path: { type: 'string', description: 'Ruta del archivo en el repo' }
                 },
-                required: ['command']
+                required: ['owner', 'repo', 'path']
               }
             },
             {
-              name: 'read_file',
-              description: 'Lee archivos del sistema',
+              name: 'cloud.web.fetch',
+              description: 'Hace una petición HTTP a una URL',
               inputSchema: {
                 type: 'object',
                 properties: {
-                  path: { type: 'string', description: 'Ruta del archivo' }
+                  url: { type: 'string', description: 'URL a obtener' },
+                  method: { type: 'string', description: 'Método HTTP (default: GET)' },
+                  headers: { type: 'object', description: 'Headers HTTP' },
+                  body: { type: 'object', description: 'Cuerpo de la petición' }
                 },
-                required: ['path']
+                required: ['url']
               }
             },
             {
-              name: 'write_file',
-              description: 'Escribe archivos en el sistema',
+              name: 'cloud.pwa.query',
+              description: 'Consulta un endpoint del PWA en Render',
               inputSchema: {
                 type: 'object',
                 properties: {
-                  path: { type: 'string', description: 'Ruta del archivo' },
-                  content: { type: 'string', description: 'Contenido a escribir' }
+                  endpoint: { type: 'string', description: 'Ruta del endpoint' },
+                  body: { type: 'object', description: 'Cuerpo de la petición' }
                 },
-                required: ['path', 'content']
+                required: ['endpoint']
               }
             },
             {
@@ -126,55 +132,134 @@ router.post('/mcp', async (req, res) => {
   }
 });
 
-// Helper para ejecutar herramientas
+// Helper para ejecutar herramientas - IMPLEMENTACIÓN REAL SIN STUBS
 async function executeTool(name, args, services) {
   switch (name) {
-    case 'execute_command':
-      // Ejecutar comando del sistema (requiere implementación segura)
-      return { output: 'Comando ejecutado', command: args.command };
+    case 'cloud.github.readFile':
+      // Leer archivo de GitHub usando GitHub API
+      const axios = require('axios');
+      const { owner, repo, ref = 'main', path: filePath } = args;
       
-    case 'read_file':
-      const fs = require('fs');
-      const path = require('path');
-      const filePath = path.resolve(args.path);
-      const content = fs.readFileSync(filePath, 'utf8');
-      return { content, path: filePath };
+      if (!owner || !repo || !filePath) {
+        throw new Error('owner, repo, and path required');
+      }
+
+      try {
+        const url = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${ref}`;
+        const response = await axios.get(url, {
+          headers: {
+            'Accept': 'application/vnd.github.v3.raw',
+            'User-Agent': 'Sandra-IA-8.0-Pro',
+            ...(process.env.GITHUB_TOKEN ? { 'Authorization': `Bearer ${process.env.GITHUB_TOKEN}` } : {})
+          },
+          timeout: 10000
+        });
+
+        // Si es base64, decodificar
+        if (response.data && response.data.content) {
+          const content = Buffer.from(response.data.content, 'base64').toString('utf-8');
+          return { content, path: filePath, owner, repo, ref };
+        }
+
+        return { content: response.data, path: filePath };
+      } catch (error) {
+        if (error.response && error.response.status === 404) {
+          throw new Error(`File not found: ${owner}/${repo}/${filePath} (ref: ${ref})`);
+        }
+        throw error;
+      }
       
-    case 'write_file':
-      const fs2 = require('fs');
-      const path2 = require('path');
-      const filePath2 = path2.resolve(args.path);
-      fs2.writeFileSync(filePath2, args.content, 'utf8');
-      return { success: true, path: filePath2 };
+    case 'cloud.web.fetch':
+      // Petición HTTP real
+      const axios2 = require('axios');
+      const { url, method = 'GET', headers = {}, body } = args;
+      
+      if (!url) {
+        throw new Error('url required');
+      }
+
+      try {
+        const response = await axios2({
+          url,
+          method,
+          headers,
+          data: body,
+          timeout: 10000,
+          validateStatus: () => true
+        });
+
+        return {
+          status: response.status,
+          statusText: response.statusText,
+          headers: response.headers,
+          data: response.data
+        };
+      } catch (error) {
+        throw new Error(`HTTP request failed: ${error.message}`);
+      }
+      
+    case 'cloud.pwa.query':
+      // Consultar endpoint del PWA
+      const axios3 = require('axios');
+      const { endpoint, body: queryBody } = args;
+      
+      if (!endpoint) {
+        throw new Error('endpoint required');
+      }
+
+      const baseUrl = process.env.MCP_SERVER_URL || 'https://pwa-imbf.onrender.com';
+      const fullUrl = `${baseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+
+      try {
+        const response = await axios3.post(fullUrl, queryBody || {}, {
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 10000
+        });
+
+        return response.data;
+      } catch (error) {
+        throw new Error(`PWA query failed: ${error.message}`);
+      }
       
     case 'search_web':
-      // Usar servicio de APIs públicas
+      // Usar servicio de APIs públicas (si está disponible)
       if (services?.publicAPIs) {
-        return await services.publicAPIs.search(args.query);
+        try {
+          return await services.publicAPIs.search(args.query);
+        } catch (error) {
+          console.error('Error en publicAPIs.search:', error);
+        }
       }
-      return { results: [] };
+      return { results: [], message: 'Public APIs service not available' };
       
     case 'call_api':
-      const https = require('https');
-      return new Promise((resolve, reject) => {
-        const url = new URL(args.url);
-        const options = {
-          hostname: url.hostname,
-          path: url.pathname + url.search,
-          method: args.method || 'GET',
-          headers: args.headers || {}
-        };
-        
-        const req = https.request(options, (res) => {
-          let body = '';
-          res.on('data', chunk => body += chunk);
-          res.on('end', () => resolve({ status: res.statusCode, body }));
+      // Llamada genérica a API
+      const axios4 = require('axios');
+      const { url: apiUrl, method: apiMethod = 'GET', headers: apiHeaders = {}, body: apiBody } = args;
+      
+      if (!apiUrl) {
+        throw new Error('url required');
+      }
+
+      try {
+        const response = await axios4({
+          url: apiUrl,
+          method: apiMethod,
+          headers: apiHeaders,
+          data: apiBody,
+          timeout: 10000,
+          validateStatus: () => true
         });
-        
-        req.on('error', reject);
-        if (args.body) req.write(JSON.stringify(args.body));
-        req.end();
-      });
+
+        return {
+          status: response.status,
+          statusText: response.statusText,
+          headers: response.headers,
+          body: response.data
+        };
+      } catch (error) {
+        throw new Error(`API call failed: ${error.message}`);
+      }
       
     default:
       throw new Error(`Unknown tool: ${name}`);

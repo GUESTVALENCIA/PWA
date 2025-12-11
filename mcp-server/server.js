@@ -242,6 +242,194 @@ const server = http.createServer(async (req, res) => {
   // MCP ENDPOINTS - CAPACIDAD DE EJECUCIÓN PARA SANDRA
   // ═══════════════════════════════════════════════════════════════════
   
+  // MCP Protocol (para Cloud tools) - compat con CloudApiClient (POST /api/mcp)
+  // Nota: este servidor (server.js) es el entrypoint real en Render hoy, así que
+  // exponemos aquí /api/mcp para evitar 404 y asegurar uso del servidor MCP.
+  if (pathname === '/api/mcp') {
+    try {
+      if (req.method !== 'POST') {
+        res.writeHead(405, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Method not allowed' }));
+        return;
+      }
+
+      const rawBody = await getRawBody(req);
+      let body = {};
+      try {
+        body = JSON.parse(rawBody.toString('utf8') || '{}');
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON' }));
+        return;
+      }
+
+      const { method, params } = body;
+
+      // Respuesta MCP estándar (content array)
+      const reply = (obj) => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(obj));
+      };
+
+      if (method === 'initialize') {
+        return reply({
+          protocolVersion: '2024-11-05',
+          capabilities: { tools: {}, resources: {}, prompts: {} },
+          serverInfo: { name: 'sandra-mcp-server', version: '2.0.0' }
+        });
+      }
+
+      if (method === 'tools/list') {
+        return reply({
+          tools: [
+            {
+              name: 'cloud.github.readFile',
+              description: 'Lee un archivo de un repositorio de GitHub (cloud)',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  owner: { type: 'string' },
+                  repo: { type: 'string' },
+                  ref: { type: 'string' },
+                  path: { type: 'string' }
+                },
+                required: ['owner', 'repo', 'path']
+              }
+            },
+            {
+              name: 'cloud.web.fetch',
+              description: 'Hace una petición HTTP a una URL (cloud)',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  url: { type: 'string' },
+                  method: { type: 'string' },
+                  headers: { type: 'object' },
+                  body: { type: ['object', 'string'] }
+                },
+                required: ['url']
+              }
+            }
+          ]
+        });
+      }
+
+      if (method === 'tools/call') {
+        const toolName = params?.name;
+        const args = params?.arguments || {};
+
+        const result = await (async () => {
+          // Cloud tools only (no local filesystem / no exec here)
+          if (toolName === 'cloud.github.readFile') {
+            const { owner, repo, ref = 'main', path: filePath } = args || {};
+            if (!owner || !repo || !filePath) throw new Error('owner, repo, path required');
+
+            // Use raw URL for public repos (fast). If GITHUB_TOKEN exists, use GitHub API.
+            const token = process.env.GITHUB_TOKEN;
+            if (token) {
+              // GitHub API (with token)
+              return await new Promise((resolve, reject) => {
+                const apiUrl = new URL(`https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${ref}`);
+                const opts = {
+                  method: 'GET',
+                  headers: {
+                    'User-Agent': 'sandra-mcp-server',
+                    'Accept': 'application/vnd.github.v3+json',
+                    'Authorization': `Bearer ${token}`
+                  }
+                };
+                const r = https.request(apiUrl, opts, (resp) => {
+                  let data = '';
+                  resp.on('data', (c) => (data += c));
+                  resp.on('end', () => {
+                    if (resp.statusCode && resp.statusCode >= 400) {
+                      return reject(new Error(`GitHub API error ${resp.statusCode}: ${data.substring(0, 200)}`));
+                    }
+                    try {
+                      const json = JSON.parse(data);
+                      if (json && json.content) {
+                        const content = Buffer.from(json.content, 'base64').toString('utf8');
+                        return resolve({ content });
+                      }
+                      return resolve({ content: data });
+                    } catch (e) {
+                      return resolve({ content: data });
+                    }
+                  });
+                });
+                r.on('error', reject);
+                r.end();
+              });
+            }
+
+            // Raw content (public)
+            const rawUrl = new URL(`https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${filePath}`);
+            return await new Promise((resolve, reject) => {
+              https.get(rawUrl, { headers: { 'User-Agent': 'sandra-mcp-server' } }, (resp) => {
+                let data = '';
+                resp.on('data', (c) => (data += c));
+                resp.on('end', () => {
+                  if (resp.statusCode && resp.statusCode >= 400) {
+                    return reject(new Error(`Raw fetch error ${resp.statusCode}: ${data.substring(0, 200)}`));
+                  }
+                  resolve({ content: data });
+                });
+              }).on('error', reject);
+            });
+          }
+
+          if (toolName === 'cloud.web.fetch') {
+            const { url: targetUrl, method: httpMethod = 'GET', headers = {}, body: reqBody } = args || {};
+            if (!targetUrl) throw new Error('url required');
+            const u = new URL(targetUrl);
+            const lib = u.protocol === 'http:' ? http : https;
+
+            return await new Promise((resolve, reject) => {
+              const options = {
+                hostname: u.hostname,
+                port: u.port || (u.protocol === 'http:' ? 80 : 443),
+                path: u.pathname + u.search,
+                method: httpMethod,
+                headers: {
+                  'User-Agent': 'sandra-mcp-server',
+                  ...headers
+                }
+              };
+
+              const r = lib.request(options, (resp) => {
+                let data = '';
+                resp.on('data', (c) => (data += c));
+                resp.on('end', () => {
+                  resolve({
+                    status: resp.statusCode,
+                    statusText: resp.statusMessage,
+                    body: data
+                  });
+                });
+              });
+              r.on('error', reject);
+              if (reqBody) {
+                const payload = typeof reqBody === 'string' ? reqBody : JSON.stringify(reqBody);
+                r.write(payload);
+              }
+              r.end();
+            });
+          }
+
+          throw new Error(`Unknown tool: ${toolName}`);
+        })();
+
+        return reply({ content: [{ type: 'text', text: JSON.stringify(result) }] });
+      }
+
+      return reply({ error: `Unknown method: ${method}` });
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
   if (pathname.startsWith('/mcp/')) {
     const contentType = req.headers['content-type'] || '';
     let parsedBody = null;
@@ -363,9 +551,30 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           status: 'active',
-          version: '1.0.0',
-          endpoints: ['/mcp/execute_command', '/mcp/read_file', '/mcp/list_files', '/mcp/status'],
-          capabilities: { execute: true, fileSystem: true }
+          version: '2.0.0',
+          endpoints: [
+            '/mcp/execute_command',
+            '/mcp/read_file',
+            '/mcp/list_files',
+            '/mcp/status'
+          ],
+          capabilities: {
+            execute: true,
+            fileSystem: true,
+            cloud: {
+              github: true,
+              web: true,
+              pwa: true
+            }
+          },
+          tools: {
+            local: [],
+            cloud: [
+              'cloud.github.readFile',
+              'cloud.web.fetch',
+              'cloud.pwa.query'
+            ]
+          }
         }));
         return;
         
