@@ -448,7 +448,8 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
-const PORT = 4040;
+// Render usa PORT de variables de entorno, local usa 4040
+const PORT = process.env.PORT || 4040;
 // Función para transcribir audio con Deepgram (reutilizable)
 async function transcribeAudio(audioBase64) {
   return new Promise((resolve, reject) => {
