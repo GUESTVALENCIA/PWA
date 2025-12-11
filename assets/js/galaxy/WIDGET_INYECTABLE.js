@@ -166,6 +166,27 @@
           </svg>
           <span style="position: absolute; top: -0.25rem; right: -0.25rem; width: 0.75rem; height: 0.75rem; background-color: #4ade80; border-radius: 9999px; animation: pulse 2s cubic-bezier(0.4,0,0.6,1) infinite;"></span>
         </div>
+
+        <button id="sandra-chat-toggle" aria-label="Abrir chat con Sandra" style="margin-top: 0.5rem; width: 4rem; height: 2.75rem; border-radius: 9999px; background: #0ea5e9; color: white; font-weight: 700; box-shadow: 0 10px 15px -3px rgba(14,165,233,0.3); cursor: pointer; border: none; display: flex; align-items: center; justify-content: center; gap: 0.35rem; font-size: 0.9rem;">💬 Chat</button>
+
+        <div id="sandra-chat-panel" style="display: none; width: 320px; max-height: 70vh; background: white; border-radius: 1rem; box-shadow: 0 20px 40px rgba(0,0,0,0.2); padding: 1rem; position: absolute; bottom: 4.5rem; right: 0; z-index: 100000; border: 1px solid rgba(148, 163, 184, 0.4);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <div style="font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 0.5rem;">
+              <span style="width: 10px; height: 10px; background: #22c55e; border-radius: 9999px; display: inline-block;"></span>
+              Sandra · Chat de texto
+            </div>
+            <button id="sandra-chat-close" aria-label="Cerrar chat" style="background: transparent; border: none; font-size: 1.1rem; cursor: pointer; color: #64748b;">✕</button>
+          </div>
+
+          <div id="sandra-chat-messages" style="overflow-y: auto; max-height: 45vh; padding-right: 0.25rem; display: flex; flex-direction: column; gap: 0.75rem; font-size: 0.95rem; color: #0f172a;">
+            <div style="align-self: flex-start; background: #f8fafc; padding: 0.75rem 0.9rem; border-radius: 0.9rem; border: 1px solid rgba(148, 163, 184, 0.35); max-width: 90%;">¡Hola! Soy Sandra. Cuéntame en qué puedo ayudarte.</div>
+          </div>
+
+          <form id="sandra-chat-form" style="margin-top: 0.75rem; display: flex; gap: 0.5rem; align-items: center;">
+            <input id="sandra-chat-input" type="text" name="message" autocomplete="off" placeholder="Escribe tu mensaje" style="flex: 1; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.6); padding: 0.65rem 0.85rem; outline: none; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);" />
+            <button type="submit" style="background: linear-gradient(to right, #2563eb, #9333ea); color: white; font-weight: 700; padding: 0.65rem 0.9rem; border-radius: 0.75rem; border: none; cursor: pointer; box-shadow: 0 10px 15px -3px rgba(79,70,229,0.25);">Enviar</button>
+          </form>
+        </div>
       `;
       
       // Agregar animación pulse si no existe
@@ -179,8 +200,32 @@
 
     attachEventListeners() {
       const button = document.getElementById('sandra-widget-button');
+      const chatToggle = document.getElementById('sandra-chat-toggle');
+      const chatClose = document.getElementById('sandra-chat-close');
+      const chatForm = document.getElementById('sandra-chat-form');
+      const chatInput = document.getElementById('sandra-chat-input');
+
       if (button) {
         button.addEventListener('click', () => this.startCall());
+      }
+
+      if (chatToggle) {
+        chatToggle.addEventListener('click', () => this.toggleChat(true));
+      }
+
+      if (chatClose) {
+        chatClose.addEventListener('click', () => this.toggleChat(false));
+      }
+
+      if (chatForm) {
+        chatForm.addEventListener('submit', (event) => {
+          event.preventDefault();
+          const value = chatInput ? chatInput.value.trim() : '';
+          if (value) {
+            this.sendTextMessage(value);
+            chatInput.value = '';
+          }
+        });
       }
     }
 
@@ -686,6 +731,103 @@
           </svg>
           <span style="position: absolute; top: -0.25rem; right: -0.25rem; width: 0.75rem; height: 0.75rem; background-color: #4ade80; border-radius: 9999px; animation: pulse 2s cubic-bezier(0.4,0,0.6,1) infinite;"></span>
         `;
+      }
+    }
+
+    toggleChat(forceOpen = null) {
+      const panel = document.getElementById('sandra-chat-panel');
+      const toggle = document.getElementById('sandra-chat-toggle');
+      if (!panel) return;
+
+      const shouldOpen = forceOpen !== null ? forceOpen : panel.style.display === 'none';
+      panel.style.display = shouldOpen ? 'block' : 'none';
+
+      if (toggle) {
+        toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+      }
+
+      if (shouldOpen) {
+        panel.scrollTop = panel.scrollHeight;
+      }
+    }
+
+    appendChatMessage(sender, text) {
+      const container = document.getElementById('sandra-chat-messages');
+      if (!container) return;
+
+      const bubble = document.createElement('div');
+      bubble.style.maxWidth = '90%';
+      bubble.style.padding = '0.7rem 0.9rem';
+      bubble.style.borderRadius = '0.9rem';
+      bubble.style.border = '1px solid rgba(148, 163, 184, 0.35)';
+      bubble.style.whiteSpace = 'pre-line';
+      bubble.textContent = text;
+
+      if (sender === 'user') {
+        bubble.style.alignSelf = 'flex-end';
+        bubble.style.background = '#e0f2fe';
+        bubble.style.borderColor = 'rgba(59, 130, 246, 0.35)';
+      } else {
+        bubble.style.alignSelf = 'flex-start';
+        bubble.style.background = '#f8fafc';
+      }
+
+      container.appendChild(bubble);
+      container.scrollTop = container.scrollHeight;
+      return bubble;
+    }
+
+    async sendTextMessage(message) {
+      if (this.isSendingText) return;
+
+      this.chatHistory = this.chatHistory || [];
+      this.chatHistory.push({ sender: 'user', text: message });
+      this.appendChatMessage('user', message);
+
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+
+      let typingBubble = null;
+
+      try {
+        this.isSendingText = true;
+        typingBubble = this.appendChatMessage('sandra', 'Sandra está escribiendo...');
+
+        const response = await fetch(`${baseUrl}/api/sandra/assistant`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            transcription: message,
+            messages: this.chatHistory
+          })
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Error ${response.status}: ${errorText}`);
+        }
+
+        const data = await response.json();
+        const reply = data.reply || data.response || 'He recibido tu mensaje. Voy a revisarlo.';
+
+        if (typingBubble && typingBubble.parentNode) {
+          typingBubble.parentNode.removeChild(typingBubble);
+        }
+
+        this.chatHistory.push({ sender: 'assistant', text: reply });
+        this.appendChatMessage('sandra', reply);
+
+        if (data.audio) {
+          const audio = new Audio(`data:audio/mp3;base64,${data.audio}`);
+          audio.play().catch(() => {});
+        }
+      } catch (error) {
+        console.error('❌ [CHAT] Error enviando mensaje de texto:', error);
+        if (typingBubble && typingBubble.parentNode) {
+          typingBubble.parentNode.removeChild(typingBubble);
+        }
+        this.appendChatMessage('sandra', 'No pude enviar tu mensaje ahora. Intenta de nuevo en unos segundos.');
+      } finally {
+        this.isSendingText = false;
       }
     }
 

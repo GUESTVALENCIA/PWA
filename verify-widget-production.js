@@ -5,8 +5,8 @@
 
 const https = require('https');
 
-const PRODUCTION_URL = 'https://guestsvalencia.es';
-const WIDGET_PATH = '/assets/js/sandra-widget.js';
+const PRODUCTION_URL = process.env.PRODUCTION_URL || 'https://pwa-chi-six.vercel.app';
+const WIDGET_PATH = '/assets/js/galaxy/WIDGET_INYECTABLE.js';
 
 function checkFile(url, path) {
   return new Promise((resolve, reject) => {
@@ -38,17 +38,17 @@ function checkHTML(url) {
       let html = '';
       res.on('data', (chunk) => html += chunk);
       res.on('end', () => {
-        const hasWidgetScript = html.includes('sandra-widget.js');
+        const hasWidgetScript = html.includes('WIDGET_INYECTABLE.js');
         const hasSandraWidget = html.includes('SandraWidget') || html.includes('sandra-widget-button');
         const hasWIDGET_ENABLED = html.includes('WIDGET_ENABLED');
         
         // Buscar referencias exactas
-        const scriptPattern = /sandra-widget\.js/g;
+        const scriptPattern = /WIDGET_INYECTABLE\.js/g;
         const scriptMatches = html.match(scriptPattern);
         const scriptCount = scriptMatches ? scriptMatches.length : 0;
         
         // Buscar la línea exacta donde se carga el script
-        const scriptLineMatch = html.match(/sandraScript\.src\s*=\s*['"]\/assets\/js\/sandra-widget\.js['"]/);
+        const scriptLineMatch = html.match(/WIDGET_URL\s*=\s*['"]\/assets\/js\/galaxy\/WIDGET_INYECTABLE\.js['"]/);
         
         resolve({
           statusCode: res.statusCode,
@@ -57,8 +57,8 @@ function checkHTML(url) {
           hasWIDGET_ENABLED,
           scriptCount,
           hasExactScriptLoad: !!scriptLineMatch,
-          htmlSnippet: html.includes('sandra-widget.js') ? 
-            html.substring(html.indexOf('sandra-widget.js') - 100, html.indexOf('sandra-widget.js') + 150) : 
+          htmlSnippet: html.includes('WIDGET_INYECTABLE.js') ?
+            html.substring(html.indexOf('WIDGET_INYECTABLE.js') - 100, html.indexOf('WIDGET_INYECTABLE.js') + 150) :
             'No encontrado',
           htmlSize: html.length
         });
