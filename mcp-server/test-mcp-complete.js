@@ -5,7 +5,8 @@
 
 const http = require('http');
 
-const MCP_BASE_URL = process.env.MCP_BASE_URL || 'http://localhost:4042';
+// Usar Render en producción, localhost solo para desarrollo local explícito
+const MCP_BASE_URL = process.env.MCP_BASE_URL || 'https://pwa-imbf.onrender.com';
 const MCP_TOKEN = process.env.SANDRA_TOKEN || '';
 
 // Colores para console

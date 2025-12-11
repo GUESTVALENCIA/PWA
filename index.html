@@ -1457,7 +1457,7 @@
   <script>
     (() => {
       const WIDGET_SCRIPT_ID = 'galaxy-widget-loader';
-      const WIDGET_URL = '/assets/js/galaxy/WIDGET_INYECTABLE.js';
+      const WIDGET_URL = '/WIDGET_INYECTABLE.js';
       const WIDGET_ROOT_ID = 'sandra-widget-root';
 
       const ensureWidgetRoot = () => {
@@ -1468,51 +1468,570 @@
           existing.slice(1).forEach(node => node.remove());
         }
 
-        let root = existing[0];
-        if (!root) {
-          root = document.createElement('div');
-          root.id = WIDGET_ROOT_ID;
-          root.setAttribute('aria-live', 'polite');
-          document.body.appendChild(root);
-        }
+    // Sandra Widget
+    class SandraWidget {
+      constructor() {
+        this.gateway = new SandraGateway();
+        this.isOpen = false;
+        this.isRecording = false;
+        this.isMicrophoneMuted = false;
+        this.isSpeaking = false;
+        this.audioQueue = [];
+        this.currentAudio = null;
+        this.useFunctionCalling = true; // Activar Sandra-Live function calling
+        this.conversationHistory = []; // Historial para function calling
+        this.activeCall = null;
+        this.chatLocked = false; // bloquea chat durante llamada de voz
+        this.ringtoneInterval = null;
+        this.lastNoSpeechTime = null;
+        this.init();
+      }
 
-        const styles = {
-          display: 'block',
-          visibility: 'visible',
-          opacity: '1',
-          position: 'fixed',
-          bottom: '1rem',
-          right: '1rem',
-          'z-index': '99999',
-          'pointer-events': 'auto'
+      init() {
+        this.initSessionState(); // Inicializar estado de sesión (Sandra-Live)
+        this.createWidgetUI();
+        this.ensureVisibility();
+        this.bindEvents();
+      }
+
+      /**
+       * Inicializar estado de sesión (Sandra-Live)
+       */
+      initSessionState() {
+        // Cargar sessionState si está disponible
+        if (typeof window !== 'undefined' && window.sessionState) {
+          window.sessionState = window.sessionState;
+          // Conectar con el widget
+          if (window.sessionState.addAction) {
+            const originalAddAction = window.sessionState.addAction;
+            window.sessionState.addAction = (actionType, data) => {
+              originalAddAction(actionType, data);
+              console.log('📋 [Widget] Acción registrada:', actionType, data);
+            };
+          }
+        }
+      }
+
+      ensureVisibility() {
+        const widgetRoot = document.getElementById('sandra-widget-root');
+        if (widgetRoot) {
+          // Forzar visibilidad con estilos !important (como widget inyectable)
+          widgetRoot.style.setProperty('display', 'block', 'important');
+          widgetRoot.style.setProperty('visibility', 'visible', 'important');
+          widgetRoot.style.setProperty('opacity', '1', 'important');
+          widgetRoot.style.setProperty('z-index', '99999', 'important');
+          widgetRoot.style.setProperty('position', 'fixed', 'important');
+          widgetRoot.style.setProperty('bottom', '1rem', 'important');
+          widgetRoot.style.setProperty('right', '1rem', 'important');
+          widgetRoot.style.setProperty('pointer-events', 'auto', 'important');
+          
+          const toggleBtn = document.getElementById('sandra-toggle-btn');
+          if (toggleBtn) {
+            toggleBtn.style.setProperty('display', 'flex', 'important');
+            toggleBtn.style.setProperty('visibility', 'visible', 'important');
+            toggleBtn.style.setProperty('opacity', '1', 'important');
+          }
+          
+          console.log('✅ Widget visibility asegurada con estilos !important');
+        }
+      }
+
+      createWidgetUI() {
+        const widgetHTML = `
+          <div id="sandra-widget-root" class="fixed bottom-4 right-4 z-50 font-sans" style="display: block !important; visibility: visible !important; opacity: 1 !important; z-index: 99999 !important; position: fixed !important; pointer-events: auto !important;">
+            <button id="sandra-toggle-btn" class="w-14 h-14 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xl hover:scale-105 transition-transform flex items-center justify-center group overflow-hidden border-2 border-white/20">
+              <span class="text-2xl group-hover:hidden">💬</span>
+              <img src="assets/images/sandra-avatar.png" onerror="this.style.display='none'" class="hidden group-hover:block w-full h-full object-cover rounded-full">
+              <span class="absolute top-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
+            </button>
+
+            <div id="sandra-chat-window" class="hidden absolute bottom-16 right-0 w-[320px] h-[450px] bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 transform origin-bottom-right transition-all duration-300 scale-95 opacity-0">
+              <div class="p-3 bg-gradient-to-r from-[#0F172A] to-[#1E293B] text-white flex justify-between items-center">
+                <div class="flex items-center gap-2 flex-1">
+                  <div class="relative">
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-400 to-purple-500 flex items-center justify-center text-sm font-bold">S</div>
+                    <div class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 border-2 border-[#0F172A] rounded-full animate-pulse"></div>
+                  </div>
+                  <div>
+                    <h3 class="font-bold text-xs">Sandra IA</h3>
+                    <p class="text-[10px] text-blue-200">Asistente Virtual 24/7</p>
+                  </div>
+                </div>
+                <button id="sandra-close-btn" class="text-white/60 hover:text-white transition-colors text-lg leading-none">✕</button>
+              </div>
+
+
+              <div id="sandra-messages" class="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50 scroll-smooth">
+                <div class="flex gap-2">
+                  <div class="w-6 h-6 rounded-full bg-gradient-to-tr from-blue-400 to-purple-500 flex-shrink-0 flex items-center justify-center text-[10px] text-white font-bold">S</div>
+                  <div class="bg-white p-2.5 rounded-xl rounded-tl-none shadow-sm border border-slate-100 text-xs text-slate-700 max-w-[85%]">
+                    <p>¡Hola! Soy Sandra. Bienvenido a GuestsValencia. ¿En qué puedo ayudarte hoy?</p>
+                  </div>
+                </div>
+                <!-- Botón de llamada conversacional (se muestra después del primer mensaje) -->
+                <div id="sandra-call-prompt" class="flex gap-2 mt-2">
+                  <div class="w-6 h-6 rounded-full bg-gradient-to-tr from-blue-400 to-purple-500 flex-shrink-0 flex items-center justify-center text-[10px] text-white font-bold">S</div>
+                  <div class="bg-white p-2.5 rounded-xl rounded-tl-none shadow-sm border border-slate-100 text-xs text-slate-700 max-w-[85%]">
+                    <p class="mb-2">¿Prefieres una llamada de voz conversacional para entendernos mejor?</p>
+                    <div class="flex gap-2 mt-2">
+                      <button id="sandra-accept-call" class="px-3 py-1.5 bg-green-600 text-white text-[10px] rounded-lg hover:bg-green-700 transition-colors font-semibold">
+                        ✓ Aceptar llamada
+                      </button>
+                      <button id="sandra-decline-call" class="px-3 py-1.5 bg-slate-200 text-slate-700 text-[10px] rounded-lg hover:bg-slate-300 transition-colors">
+                        Continuar por chat
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div id="sandra-typing" class="hidden px-3 py-1.5 text-[10px] text-slate-400 italic">
+                Sandra está escribiendo...
+              </div>
+
+              <div class="p-3 bg-white border-t border-slate-100">
+                <!-- Barrita flotante de control de llamada (solo visible durante llamada) -->
+                <div id="sandra-call-controls" class="hidden mb-2 flex justify-center items-center gap-2 bg-slate-50 rounded-full px-3 py-2 shadow-sm border border-slate-200">
+                  <!-- Botón Colgar (rojo) -->
+                  <button id="sandra-hangup-btn" class="p-2 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors shadow-sm" title="Colgar llamada">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12a9 9 0 1018 0 9 9 0 00-18 0z" /></svg>
+                  </button>
+                  <!-- Botón Silenciar micrófono -->
+                  <button id="sandra-mute-btn" class="p-2 rounded-full bg-slate-400 text-white hover:bg-slate-500 transition-colors shadow-sm" title="Silenciar micrófono">
+                    <svg id="sandra-mute-icon" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                    <svg id="sandra-unmute-icon" class="w-4 h-4 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" /></svg>
+                  </button>
+                </div>
+                <div class="relative flex items-center gap-1.5">
+                  <input type="text" id="sandra-input" placeholder="Escribe tu mensaje..." class="flex-1 bg-slate-100 border-0 rounded-full px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all">
+                  <button id="sandra-mic-btn" class="p-2 rounded-full bg-slate-100 text-slate-600 hover:bg-blue-100 hover:text-blue-600 transition-colors">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                  </button>
+                  <button id="sandra-send-btn" class="p-2 rounded-full bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-blue-500/30 transition-all">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                  </button>
+                </div>
+                <div class="text-[9px] text-center text-slate-400 mt-1">
+                  Powered by Gemini & GPT-4o
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+
+        const existingRoots = document.querySelectorAll('#sandra-widget-root');
+        if (existingRoots.length > 0) {
+          console.warn(`⚠️ Widget encontrado (${existingRoots.length}). Reconstruyendo para evitar restos ocultos...`);
+          existingRoots.forEach((root, index) => {
+            if (index === 0) {
+              root.outerHTML = widgetHTML;
+            } else {
+              root.remove();
+            }
+          });
+        } else {
+          document.body.insertAdjacentHTML('beforeend', widgetHTML);
+        }
+      }
+
+      bindEvents() {
+        const toggleBtn = document.getElementById('sandra-toggle-btn');
+        const closeBtn = document.getElementById('sandra-close-btn');
+        const chatWindow = document.getElementById('sandra-chat-window');
+        const sendBtn = document.getElementById('sandra-send-btn');
+        const input = document.getElementById('sandra-input');
+
+        const toggleChat = () => {
+          this.isOpen = !this.isOpen;
+          if (this.isOpen) {
+            chatWindow.classList.remove('hidden');
+            setTimeout(() => {
+              chatWindow.classList.remove('scale-95', 'opacity-0');
+              chatWindow.classList.add('scale-100', 'opacity-100');
+              input.focus();
+            }, 10);
+          } else {
+            chatWindow.classList.remove('scale-100', 'opacity-100');
+            chatWindow.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => chatWindow.classList.add('hidden'), 300);
+          }
         };
 
         Object.entries(styles).forEach(([prop, value]) => {
           root.style.setProperty(prop, value, 'important');
         });
 
-        return root;
-      };
+        // === BOTÓN DE MICRÓFONO (DICTADO) ===
+        const micBtn = document.getElementById('sandra-mic-btn');
+        let isRecording = false;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let recordingStream = null;
+        let recordingStartTime = null;
+        const MAX_RECORDING_TIME = 20 * 60 * 1000; // 20 minutos
+        const CHUNK_DURATION = 30 * 1000; // 30 segundos
+        
+        if (micBtn) {
+          // VERIFICACIÓN DE SEGURIDAD: Asegurar que el botón esté habilitado si no hay llamada activa
+          if (!this.activeCall) {
+            micBtn.disabled = false;
+            micBtn.style.opacity = '1';
+          }
+          
+          micBtn.addEventListener('click', async () => {
+            // VERIFICACIÓN DE SEGURIDAD: Resetear estado si no hay llamada activa
+            if (!this.activeCall && (micBtn.disabled || micBtn.style.opacity === '0.5')) {
+              micBtn.disabled = false;
+              micBtn.style.opacity = '1';
+            }
+            
+            if (!isRecording) {
+              // Iniciar grabación
+              try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                recordingStream = stream;
+                recordingStartTime = Date.now();
+                
+                mediaRecorder = new MediaRecorder(stream, {
+                  mimeType: 'audio/webm;codecs=opus'
+                });
+                
+                audioChunks = [];
+                
+                mediaRecorder.ondataavailable = (event) => {
+                  if (event.data.size > 0) {
+                    audioChunks.push(event.data);
+                  }
+                };
+                
+                mediaRecorder.onstop = async () => {
+                  // Procesar chunk de 30 segundos
+                  if (audioChunks.length > 0) {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    audioChunks = [];
+                    
+                    // Convertir a base64 y transcribir
+                    const reader = new FileReader();
+                    reader.onloadend = async () => {
+                      const base64Audio = reader.result.split(',')[1];
+                      
+                      // Mostrar indicador de transcripción
+                      this.showTyping(true);
+                      this.addMessage('🎤 Transcribiendo...', 'user');
+                      
+                      try {
+                        // Llamar a la API para transcribir con Deepgram usando configuración dinámica
+                        const transcribeUrl = this.gateway.baseUrl.includes('localhost') 
+                          ? this.gateway.baseUrl 
+                          : (this.gateway.baseUrl.startsWith('http') 
+                              ? this.gateway.baseUrl 
+                              : `${window.location.protocol === 'https:' ? 'https' : 'http'}://${window.location.host}${this.gateway.baseUrl}`);
+                        const response = await fetch(`${transcribeUrl}/sandra/transcribe`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ audio: base64Audio })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.transcript && data.transcript.trim()) {
+                          // Eliminar el mensaje de "Transcribiendo..."
+                          const messagesContainer = document.getElementById('sandra-messages');
+                          const lastMessage = messagesContainer.lastElementChild;
+                          if (lastMessage && lastMessage.textContent.includes('Transcribiendo')) {
+                            lastMessage.remove();
+                          }
+                          
+                          // Agregar texto transcrito al input y enviar
+                          input.value = data.transcript;
+                          sendMessage();
+                        } else {
+                          this.showTyping(false);
+                          this.addMessage('No se pudo transcribir el audio. Intenta de nuevo.', 'bot');
+                        }
+                      } catch (error) {
+                        console.error('Error transcribiendo:', error);
+                        this.showTyping(false);
+                        this.addMessage('Error al transcribir. Intenta de nuevo.', 'bot');
+                      }
+                    };
+                    reader.readAsDataURL(audioBlob);
+                  }
+                  
+                  // Si aún estamos grabando y no hemos alcanzado el límite, continuar
+                  const elapsed = Date.now() - recordingStartTime;
+                  if (isRecording && elapsed < MAX_RECORDING_TIME) {
+                    setTimeout(() => {
+                      if (isRecording && mediaRecorder && mediaRecorder.state === 'inactive') {
+                        mediaRecorder.start(CHUNK_DURATION);
+                      }
+                    }, 500);
+                  }
+                };
+                
+                // Iniciar grabación con chunks de 30 segundos
+                mediaRecorder.start(CHUNK_DURATION);
+                isRecording = true;
+                
+                // Actualizar UI
+                micBtn.classList.add('bg-red-500', 'text-white');
+                micBtn.classList.remove('bg-slate-100', 'text-slate-600');
+                micBtn.innerHTML = '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>';
+                
+                this.addMessage('🎤 Grabando... (máximo 20 minutos)', 'bot');
+                
+              } catch (error) {
+                console.error('Error accediendo al micrófono:', error);
+                this.addMessage('No se pudo acceder al micrófono. Por favor, permite el acceso.', 'bot');
+              }
+            } else {
+              // Detener grabación
+              isRecording = false;
+              if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+              }
+              if (recordingStream) {
+                recordingStream.getTracks().forEach(track => track.stop());
+                recordingStream = null;
+              }
+              
+              // Actualizar UI
+              micBtn.classList.remove('bg-red-500', 'text-white');
+              micBtn.classList.add('bg-slate-100', 'text-slate-600');
+              micBtn.innerHTML = '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>';
+              
+              this.addMessage('⏹️ Grabación detenida', 'bot');
+            }
+          });
+        }
+
+        // === LLAMADA CONVERSACIONAL ===
+        const acceptCallBtn = document.getElementById('sandra-accept-call');
+        const declineCallBtn = document.getElementById('sandra-decline-call');
+        const callPrompt = document.getElementById('sandra-call-prompt');
+
+        if (acceptCallBtn) {
+          acceptCallBtn.addEventListener('click', () => {
+            this.startConversationalCall();
+            if (callPrompt) callPrompt.style.display = 'none';
+            // Mostrar barrita de control
+            const callControls = document.getElementById('sandra-call-controls');
+            if (callControls) callControls.classList.remove('hidden');
+          });
+        }
+
+        if (declineCallBtn) {
+          declineCallBtn.addEventListener('click', () => {
+            if (callPrompt) callPrompt.style.display = 'none';
+            this.stopRingtone();
+          });
+        }
+
+        // === BARRA DE CONTROL DE LLAMADA ===
+        const hangupBtn = document.getElementById('sandra-hangup-btn');
+        const muteBtn = document.getElementById('sandra-mute-btn');
+        const callControls = document.getElementById('sandra-call-controls');
+        
+        if (hangupBtn) {
+          hangupBtn.addEventListener('click', () => {
+            this.endConversationalCall();
+            if (callControls) callControls.classList.add('hidden');
+          });
+        }
+        
+        // Botón Silenciar micrófono
+        if (muteBtn) {
+          muteBtn.addEventListener('click', () => {
+            this.toggleMicrophoneMute();
+          });
+        }
+
+        // === LÓGICA DE LIMPIEZA DE CHAT (48 horas) ===
+        this.initChatCleanup();
+      }
+
+      /**
+       * Manejar acción de herramienta invocada por la IA (Sandra-Live)
+       * @param {string} actionName - Nombre de la acción
+       * @param {object} params - Parámetros de la acción
+       * @returns {Promise<object>} Resultado de la ejecución
+       */
+      async handleToolAction(actionName, params) {
+        console.log('🔧 [Widget] Ejecutando acción:', actionName, params);
 
       const loadMcpConfig = async () => {
         try {
           const isLocal = window.location.hostname === 'localhost' || window.location.port === '4040' || window.location.protocol === 'file:';
           if (isLocal) return;
 
-          const response = await fetch('/api/config');
-          if (!response.ok) return;
+          // Ejecutar herramienta
+          const result = window.callFunctions.invokeTool(actionName, params);
 
-          const config = await response.json();
-          if (config?.MCP_SERVER_URL) {
-            window.MCP_SERVER_URL = config.MCP_SERVER_URL;
-          }
-          if (config?.MCP_TOKEN) {
-            window.MCP_TOKEN = config.MCP_TOKEN;
+          // Mostrar feedback visual si es necesario
+          if (result.success) {
+            console.log('✅ [Widget] Acción ejecutada exitosamente:', result.message);
+          } else {
+            console.error('❌ [Widget] Error ejecutando acción:', result.message);
           }
 
-          console.log('✅ [Galaxy] Configuración MCP aplicada para el widget', {
-            MCP_SERVER_URL: window.MCP_SERVER_URL,
-            hasToken: Boolean(window.MCP_TOKEN)
+          return result;
+        } catch (error) {
+          console.error('❌ [Widget] Error manejando acción:', error);
+          return {
+            success: false,
+            message: `Error ejecutando ${actionName}: ${error.message}`
+          };
+        }
+      }
+
+      initChatCleanup() {
+        const CHAT_EXPIRY_HOURS = 48; // 48 horas
+        const lastCleanup = localStorage.getItem('sandra-chat-last-cleanup');
+        const now = Date.now();
+        
+        // Si no hay registro o han pasado más de 48 horas, limpiar chat
+        if (!lastCleanup || (now - parseInt(lastCleanup)) > (CHAT_EXPIRY_HOURS * 60 * 60 * 1000)) {
+          this.clearChatHistory();
+          localStorage.setItem('sandra-chat-last-cleanup', now.toString());
+        }
+      }
+
+      clearChatHistory() {
+        const messagesContainer = document.getElementById('sandra-messages');
+        if (messagesContainer) {
+          // Mantener solo el mensaje inicial de bienvenida
+          const welcomeMessage = messagesContainer.querySelector('.flex.gap-2:first-child');
+          messagesContainer.innerHTML = '';
+          if (welcomeMessage) {
+            messagesContainer.appendChild(welcomeMessage);
+          }
+        }
+        // Limpiar historial de conversación (Sandra-Live)
+        this.conversationHistory = [];
+      }
+
+      showCallPrompt() {
+        const callPrompt = document.getElementById('sandra-call-prompt');
+        if (callPrompt) {
+          callPrompt.style.display = 'flex';
+          // Scroll suave sin mover todo el chat hacia arriba
+          setTimeout(() => {
+            callPrompt.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+          }, 100);
+        }
+      }
+
+      startConversationalCall() {
+        console.log('Iniciando llamada conversacional...');
+        this.chatLocked = true; // bloquear chat al iniciar llamada
+        // Reproducir ringtone (3 rings largos, se descuelga automáticamente en el tercero)
+        this.playRingtone();
+        // El ringtone ahora maneja el descolgar automáticamente después del tercer ring
+      }
+
+      endConversationalCall() {
+        console.log('Finalizando llamada conversacional...');
+        this.playHangupSound();
+        this.stopRingtone();
+        
+        // Cerrar WebSocket si está activo
+        if (this.activeCall) {
+          // Limpiar timer de grabación si existe
+          if (this.activeCall.recordingTimer) {
+            clearInterval(this.activeCall.recordingTimer);
+          }
+          // Detener MediaRecorder si existe
+          if (this.activeCall.mediaRecorder && this.activeCall.mediaRecorder.state !== 'inactive') {
+            this.activeCall.mediaRecorder.stop();
+          }
+          // Detener stream si existe - CRÍTICO: Detener tracks para cerrar micrófono
+          if (this.activeCall.stream) {
+            this.activeCall.stream.getTracks().forEach(track => {
+              track.stop(); // Detener completamente el track
+            });
+          }
+          // Cerrar WebSocket
+          if (this.activeCall.close) {
+            this.activeCall.close();
+          }
+          this.activeCall = null;
+        }
+        
+        // REHABILITAR CHAT DESPUÉS DE LLAMADA
+        const chatInput = document.getElementById('sandra-input');
+        const chatSendBtn = document.getElementById('sandra-send-btn');
+        const chatMicBtn = document.getElementById('sandra-mic-btn');
+        if (chatInput) {
+          chatInput.disabled = false;
+          chatInput.style.opacity = '1';
+          chatInput.placeholder = 'Escribe tu mensaje...';
+        }
+        if (chatSendBtn) {
+          chatSendBtn.disabled = false;
+          chatSendBtn.style.opacity = '1';
+        }
+        if (chatMicBtn) {
+          chatMicBtn.disabled = false;
+          chatMicBtn.style.opacity = '1';
+        }
+        
+        // Ocultar barrita de control
+        const callControls = document.getElementById('sandra-call-controls');
+        if (callControls) callControls.classList.add('hidden');
+        
+        // Detener y limpiar audio actual si existe
+        if (this.currentAudio) {
+          this.currentAudio.pause();
+          // Revocar Blob URL si existe
+          if (this.currentAudio._blobUrl) {
+            URL.revokeObjectURL(this.currentAudio._blobUrl);
+            this.currentAudio._blobUrl = null;
+          }
+          this.currentAudio = null;
+        }
+        
+        // Resetear estados de pausa y mute
+        this.isMicrophoneMuted = false;
+        
+        // Volver hero a imagen estática
+        const heroImage = document.getElementById('hero-background-image');
+        const heroVideo = document.getElementById('hero-video');
+        if (heroImage && heroVideo) {
+          heroVideo.style.transition = 'opacity 0.5s ease-out';
+          heroVideo.style.opacity = '0';
+          setTimeout(() => {
+            heroVideo.style.display = 'none';
+            heroImage.style.display = 'block';
+            heroImage.style.opacity = '0';
+            heroImage.style.transition = 'opacity 0.5s ease-in';
+            setTimeout(() => {
+              heroImage.style.opacity = '1';
+            }, 100);
+          }, 500);
+        }
+        
+        // Desbloquear chat tras colgar
+        this.chatLocked = false;
+        
+        // Mostrar mensaje de finalización
+        this.addMessage('Llamada finalizada. ¿En qué más puedo ayudarte?', 'bot');
+        
+        // Reponer prompt de llamada/chat después de un breve delay
+        setTimeout(() => {
+          this.showCallPrompt();
+          console.log('✅ Botón de llamada restaurado tras colgar');
+        }, 500);
+      }
+
+      toggleMicrophoneMute() {
+        this.isMicrophoneMuted = !this.isMicrophoneMuted;
+        const muteBtn = document.getElementById('sandra-mute-btn');
+        const muteIcon = document.getElementById('sandra-mute-icon');
+        const unmuteIcon = document.getElementById('sandra-unmute-icon');
+        
+        if (this.activeCall && this.activeCall.stream) {
+          this.activeCall.stream.getAudioTracks().forEach(track => {
+            track.enabled = !this.isMicrophoneMuted;
           });
         } catch (error) {
           console.warn('⚠️ [Galaxy] No se pudo obtener la configuración MCP remota:', error.message);
