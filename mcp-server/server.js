@@ -286,13 +286,86 @@ const server = http.createServer(async (req, res) => {
         });
         return;
         
+      case '/mcp/read_file':
+        if (!verifyMCPSecret(req)) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid MCP secret' }));
+          return;
+        }
+        
+        try {
+          const { filePath } = parsedBody || {};
+          if (!filePath) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'File path required' }));
+            return;
+          }
+          
+          console.log(`📄 [MCP] Leyendo archivo: ${filePath}`);
+          const content = await fsPromises.readFile(filePath, 'utf-8');
+          
+          console.log(`✅ [MCP] Archivo leído: ${content.length} caracteres`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            content: content,
+            path: filePath,
+            size: content.length
+          }));
+        } catch (error) {
+          console.error(`❌ [MCP] Error leyendo archivo:`, error);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: false,
+            error: error.message
+          }));
+        }
+        return;
+        
+      case '/mcp/list_files':
+        if (!verifyMCPSecret(req)) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid MCP secret' }));
+          return;
+        }
+        
+        try {
+          const { dirPath = '.' } = parsedBody || {};
+          
+          console.log(`📂 [MCP] Listando directorio: ${dirPath}`);
+          const items = await fsPromises.readdir(dirPath, { withFileTypes: true });
+          
+          const files = items.map(item => ({
+            name: item.name,
+            type: item.isDirectory() ? 'directory' : 'file',
+            path: path.join(dirPath, item.name)
+          }));
+          
+          console.log(`✅ [MCP] ${files.length} items encontrados`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            files: files,
+            count: files.length,
+            directory: dirPath
+          }));
+        } catch (error) {
+          console.error(`❌ [MCP] Error listando directorio:`, error);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: false,
+            error: error.message
+          }));
+        }
+        return;
+        
       case '/mcp/status':
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           status: 'active',
           version: '1.0.0',
-          endpoints: ['/mcp/execute_command', '/mcp/status'],
-          capabilities: { execute: true }
+          endpoints: ['/mcp/execute_command', '/mcp/read_file', '/mcp/list_files', '/mcp/status'],
+          capabilities: { execute: true, fileSystem: true }
         }));
         return;
         
