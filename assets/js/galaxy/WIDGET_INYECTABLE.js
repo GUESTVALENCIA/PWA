@@ -46,6 +46,7 @@
       this.mediaRecorder = null;
       this.stream = null;
       this.isSpeaking = false;
+      this.awaitingResponse = false;
       this.sessionId = null;
       this.callStartTime = null;
       this.inactivityTimer = null;
@@ -53,6 +54,21 @@
       this.audioSource = null;
       this.currentVideo = null;
       this.currentImage = null;
+
+      this.scriptOrigin = this.getScriptOrigin();
+      this.greetingPlayed = false;
+
+      this.audioQueue = [];
+      this.audioPlaybackTimer = null;
+      this.isAudioPlaybackRunning = false;
+      this.currentAudio = null;
+      this.audioJitterMs = 300;
+
+      this.recordingSliceMs = 5500;
+      this.minRecordedBytes = 6000;
+      this.recordingStopTimeout = null;
+      this.recordedChunks = [];
+      this.responseWatchdogTimeout = null;
       
       if (this.isEnabled) {
         this.init();
@@ -79,6 +95,59 @@
       }
       
       return 'https://mcp.sandra-ia.com';
+    }
+
+    getScriptOrigin() {
+      try {
+        const directSrc = document.currentScript && document.currentScript.src;
+        const scriptSrc = directSrc || Array.from(document.scripts || [])
+          .map(s => s && s.src)
+          .filter(Boolean)
+          .find(src => src.includes('WIDGET_INYECTABLE')) || '';
+
+        if (scriptSrc) return new URL(scriptSrc).origin;
+      } catch (_) {
+        // ignore
+      }
+
+      return (window.location && window.location.origin) ? window.location.origin : '';
+    }
+
+    getGreetingAudioUrl() {
+      return `${this.scriptOrigin}/assets/audio/welcome.mp3`;
+    }
+
+    async warmup() {
+      try {
+        await fetch(`${this.mcpServerUrl}/health`, { cache: 'no-store' });
+      } catch (_) {
+        // ignore warmup failures
+      }
+    }
+
+    async playGreetingOnce() {
+      if (this.greetingPlayed) return;
+      this.greetingPlayed = true;
+
+      try {
+        await this.playAudioUrl(this.getGreetingAudioUrl());
+      } catch (error) {
+        console.warn('⚠️ [CALLFLOW] No se pudo reproducir saludo local, usando fallback remoto:', error);
+        try {
+          await this.playWelcomeMessage();
+        } catch (_) {
+          // ignore
+        }
+      }
+    }
+
+    blobToBase64(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve((reader.result || '').toString().split(',')[1] || '');
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
     }
 
     init() {
@@ -194,16 +263,19 @@
       this.sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
       try {
+        const warmupPromise = this.warmup();
+        const greetingPromise = this.playGreetingOnce();
+
         await this.transitionToVideo();
         this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         console.log('✅ [CALLFLOW] Micrófono accedido');
 
         await this.connectWebSocketWithTimeout();
         await this.reserveVoiceChannel();
-        await this.playWelcomeMessage();
-        this.startTranscription();
+        await Promise.allSettled([warmupPromise, greetingPromise]);
 
         this.isCallActive = true;
+        this.startTranscription();
         this.updateUI('active');
         this.startInactivityTimer();
 
@@ -338,7 +410,7 @@
         const data = await response.json();
         
         if (data.audio) {
-          await this.playAudioSync(data.audio);
+          this.enqueueAudio(data.audio, 'mp3', { text: data.text, isWelcome: true });
           console.log('✅ [CALLFLOW] Mensaje de bienvenida reproducido');
         }
 
@@ -358,6 +430,7 @@
     async playAudioSync(audioBase64) {
       return new Promise((resolve, reject) => {
         const audio = new Audio(`data:audio/mp3;base64,${audioBase64}`);
+        this.currentAudio = audio;
         this.isSpeaking = true;
         
         if (this.currentVideo) {
@@ -365,18 +438,135 @@
         }
 
         audio.onended = () => {
+          this.currentAudio = null;
           this.isSpeaking = false;
           console.log('✅ [CALLFLOW] Audio sincronizado completado');
           resolve();
         };
         
         audio.onerror = (error) => {
+          this.currentAudio = null;
           this.isSpeaking = false;
           reject(error);
         };
 
         audio.play().catch(reject);
       });
+    }
+
+    playAudioUrl(url) {
+      return new Promise((resolve, reject) => {
+        const audio = new Audio(url);
+        this.currentAudio = audio;
+        this.isSpeaking = true;
+
+        const cleanup = () => {
+          if (this.currentAudio === audio) this.currentAudio = null;
+          this.isSpeaking = false;
+        };
+
+        audio.onended = () => {
+          cleanup();
+          resolve();
+        };
+
+        audio.onerror = (error) => {
+          cleanup();
+          reject(error);
+        };
+
+        const start = () => audio.play().then(() => {}).catch((err) => {
+          cleanup();
+          reject(err);
+        });
+
+        if (audio.readyState >= 3) {
+          start();
+        } else {
+          audio.addEventListener('canplaythrough', start, { once: true });
+          audio.load();
+        }
+      });
+    }
+
+    playAudioBase64(audioBase64, format = 'mp3') {
+      return new Promise((resolve, reject) => {
+        const audio = new Audio(`data:audio/${format};base64,${audioBase64}`);
+        this.currentAudio = audio;
+        this.isSpeaking = true;
+
+        const cleanup = () => {
+          if (this.currentAudio === audio) this.currentAudio = null;
+          this.isSpeaking = false;
+        };
+
+        audio.onended = () => {
+          cleanup();
+          resolve();
+        };
+
+        audio.onerror = (error) => {
+          cleanup();
+          reject(error);
+        };
+
+        audio.play().catch((err) => {
+          cleanup();
+          reject(err);
+        });
+      });
+    }
+
+    enqueueAudio(audioBase64, format = 'mp3', meta = {}) {
+      this.audioQueue.push({ audioBase64, format, meta });
+
+      if (this.responseWatchdogTimeout) {
+        clearTimeout(this.responseWatchdogTimeout);
+        this.responseWatchdogTimeout = null;
+      }
+
+      if (this.isAudioPlaybackRunning) return;
+      if (this.audioPlaybackTimer) return;
+
+      this.audioPlaybackTimer = setTimeout(() => {
+        this.audioPlaybackTimer = null;
+        this.drainAudioQueue();
+      }, this.audioJitterMs);
+    }
+
+    async drainAudioQueue() {
+      if (this.isAudioPlaybackRunning) return;
+      this.isAudioPlaybackRunning = true;
+
+      try {
+        while (this.isCallActive && this.audioQueue.length > 0) {
+          const item = this.audioQueue.shift();
+          await this.playAudioBase64(item.audioBase64, item.format);
+
+          if (item.meta && item.meta.text) {
+            this.logInteraction('sandra', item.meta.text);
+          }
+        }
+      } finally {
+        this.isAudioPlaybackRunning = false;
+        this.awaitingResponse = false;
+
+        if (this.isCallActive) {
+          this.startNewRecording();
+        }
+      }
+    }
+
+    startResponseWatchdog() {
+      if (this.responseWatchdogTimeout) clearTimeout(this.responseWatchdogTimeout);
+      this.responseWatchdogTimeout = setTimeout(() => {
+        if (!this.isCallActive) return;
+        if (!this.awaitingResponse) return;
+
+        console.warn('[CALLFLOW] Timeout esperando respuesta, reanudando escucha');
+        this.awaitingResponse = false;
+        this.startNewRecording();
+      }, 15000);
     }
 
     startTranscription() {
@@ -391,39 +581,56 @@
         mimeType: 'audio/webm;codecs=opus'
       });
 
-      const audioChunks = [];
+      this.recordedChunks = [];
 
       this.mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
-          audioChunks.push(event.data);
+          this.recordedChunks.push(event.data);
         }
       };
 
       this.mediaRecorder.onstop = async () => {
-        if (!this.isSpeaking && audioChunks.length > 0) {
+        const chunks = this.recordedChunks;
+        this.recordedChunks = [];
+
+        if (!this.isCallActive) return;
+        if (this.isSpeaking || this.awaitingResponse) return;
+
+        if (chunks.length > 0) {
           this.resetInactivityTimer();
-          
-          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-          await this.sendAudioForProcessing(audioBlob);
+
+          const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+          if (audioBlob.size >= this.minRecordedBytes) {
+            this.awaitingResponse = true;
+            await this.sendAudioForProcessing(audioBlob);
+            this.startResponseWatchdog();
+            return;
+          }
         }
 
-        if (this.isCallActive && !this.isSpeaking) {
-          setTimeout(() => {
-            if (this.mediaRecorder && this.mediaRecorder.state === 'inactive') {
-              this.startNewRecording();
-            }
-          }, 100);
-        }
+        this.startNewRecording();
       };
 
       this.startNewRecording();
     }
 
     startNewRecording() {
-      if (!this.mediaRecorder || this.isSpeaking) return;
+      if (!this.isCallActive) return;
+      if (!this.mediaRecorder || this.isSpeaking || this.awaitingResponse) return;
 
       try {
         this.mediaRecorder.start();
+
+        if (this.recordingStopTimeout) clearTimeout(this.recordingStopTimeout);
+        this.recordingStopTimeout = setTimeout(() => {
+          try {
+            if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+              this.mediaRecorder.stop();
+            }
+          } catch (_) {
+            // ignore
+          }
+        }, this.recordingSliceMs);
         console.log('🎙️ [CALLFLOW] Grabación iniciada');
       } catch (error) {
         console.error('Error iniciando grabación:', error);
@@ -432,6 +639,46 @@
 
     async sendAudioForProcessing(audioBlob) {
       try {
+        const base64Audio = await this.blobToBase64(audioBlob);
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          this.ws.send(JSON.stringify({
+            route: 'audio',
+            action: 'stt',
+            payload: {
+              audio: base64Audio,
+              context: { sessionId: this.sessionId, timezone }
+            }
+          }));
+          return;
+        }
+
+        const response = await fetch(`${this.mcpServerUrl}/api/conserje/voice-flow`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            audio: base64Audio,
+            sessionId: this.sessionId,
+            timezone
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.flow && data.flow.transcript) {
+          this.logInteraction('user', data.flow.transcript);
+        }
+
+        if (data.flow && data.flow.audio) {
+          this.enqueueAudio(data.flow.audio, 'mp3', { text: data.flow.response });
+          return;
+        }
+
+        this.awaitingResponse = false;
+        this.startNewRecording();
+        return;
+
         const reader = new FileReader();
         reader.onloadend = async () => {
           const base64Audio = reader.result.split(',')[1];
@@ -487,7 +734,30 @@
     handleWebSocketMessage(data) {
       console.log('📩 [CALLFLOW] Mensaje WebSocket recibido:', data);
 
+      if (data.route === 'audio') {
+        if (data.action === 'tts' && data.payload && data.payload.audio) {
+          this.enqueueAudio(data.payload.audio, data.payload.format || 'mp3', { text: data.payload.text });
+          return;
+        }
+
+        if (data.action === 'stt') {
+          if (data.transcript) this.logInteraction('user', data.transcript);
+          return;
+        }
+      }
+
       if (data.route === 'conserje') {
+        if (data.action === 'message' && data.payload && data.payload.type === 'noSpeech' && data.payload.message) {
+          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({
+              route: 'audio',
+              action: 'tts',
+              payload: { text: data.payload.message }
+            }));
+          }
+          return;
+        }
+
         if (data.response) {
           this.handleTextResponse(data.response);
         }
@@ -533,6 +803,29 @@
 
       this.isCallActive = false;
       this.clearInactivityTimer();
+
+      if (this.audioPlaybackTimer) {
+        clearTimeout(this.audioPlaybackTimer);
+        this.audioPlaybackTimer = null;
+      }
+      this.audioQueue = [];
+      this.isAudioPlaybackRunning = false;
+      this.awaitingResponse = false;
+
+      if (this.responseWatchdogTimeout) {
+        clearTimeout(this.responseWatchdogTimeout);
+        this.responseWatchdogTimeout = null;
+      }
+
+      if (this.recordingStopTimeout) {
+        clearTimeout(this.recordingStopTimeout);
+        this.recordingStopTimeout = null;
+      }
+
+      if (this.currentAudio) {
+        try { this.currentAudio.pause(); } catch (_) {}
+        this.currentAudio = null;
+      }
 
       if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
         this.mediaRecorder.stop();
@@ -760,4 +1053,3 @@
   window.SandraWidget = SandraWidget;
 
 })(); // IIFE para evitar conflictos de scope
-
