@@ -47,7 +47,7 @@ class AIOrchestrator {
 
   async generateResponse(shortPrompt, context = 'luxury') {
     const fullSystemPrompt = `${GLOBAL_CONVERSATION_RULES}\nRole: ${context}`;
-    
+
     try {
       console.log("🔄 Attempting Gemini...");
       return await this.callGemini(shortPrompt, fullSystemPrompt);
@@ -241,7 +241,7 @@ const server = http.createServer(async (req, res) => {
   // ═══════════════════════════════════════════════════════════════════
   // MCP ENDPOINTS - CAPACIDAD DE EJECUCIÓN PARA SANDRA
   // ═══════════════════════════════════════════════════════════════════
-  
+
   // MCP Protocol (para Cloud tools) - compat con CloudApiClient (POST /api/mcp)
   // Nota: este servidor (server.js) es el entrypoint real en Render hoy, así que
   // exponemos aquí /api/mcp para evitar 404 y asegurar uso del servidor MCP.
@@ -451,7 +451,7 @@ const server = http.createServer(async (req, res) => {
   if (pathname.startsWith('/mcp/')) {
     const contentType = req.headers['content-type'] || '';
     let parsedBody = null;
-    
+
     if (req.method === 'POST') {
       const rawBody = await getRawBody(req);
       if (contentType.includes('application/json')) {
@@ -464,7 +464,7 @@ const server = http.createServer(async (req, res) => {
         }
       }
     }
-    
+
     switch (pathname) {
       case '/mcp/execute_command':
         if (!verifyMCPSecret(req)) {
@@ -472,14 +472,14 @@ const server = http.createServer(async (req, res) => {
           res.end(JSON.stringify({ error: 'Invalid MCP secret' }));
           return;
         }
-        
+
         const { command } = parsedBody || {};
         if (!command) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Command required' }));
           return;
         }
-        
+
         console.log(`⚡ [MCP] Ejecutando comando: ${command}`);
         exec(command, { timeout: 10000 }, (error, stdout, stderr) => {
           res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -491,14 +491,14 @@ const server = http.createServer(async (req, res) => {
           }));
         });
         return;
-        
+
       case '/mcp/read_file':
         if (!verifyMCPSecret(req)) {
           res.writeHead(401, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Invalid MCP secret' }));
           return;
         }
-        
+
         try {
           const { filePath } = parsedBody || {};
           if (!filePath) {
@@ -506,10 +506,10 @@ const server = http.createServer(async (req, res) => {
             res.end(JSON.stringify({ error: 'File path required' }));
             return;
           }
-          
+
           console.log(`📄 [MCP] Leyendo archivo: ${filePath}`);
           const content = await fsPromises.readFile(filePath, 'utf-8');
-          
+
           console.log(`✅ [MCP] Archivo leído: ${content.length} caracteres`);
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
@@ -527,26 +527,26 @@ const server = http.createServer(async (req, res) => {
           }));
         }
         return;
-        
+
       case '/mcp/list_files':
         if (!verifyMCPSecret(req)) {
           res.writeHead(401, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Invalid MCP secret' }));
           return;
         }
-        
+
         try {
           const { dirPath = '.' } = parsedBody || {};
-          
+
           console.log(`📂 [MCP] Listando directorio: ${dirPath}`);
           const items = await fsPromises.readdir(dirPath, { withFileTypes: true });
-          
+
           const files = items.map(item => ({
             name: item.name,
             type: item.isDirectory() ? 'directory' : 'file',
             path: path.join(dirPath, item.name)
           }));
-          
+
           console.log(`✅ [MCP] ${files.length} items encontrados`);
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
@@ -564,7 +564,7 @@ const server = http.createServer(async (req, res) => {
           }));
         }
         return;
-        
+
       case '/mcp/status':
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
@@ -595,7 +595,7 @@ const server = http.createServer(async (req, res) => {
           }
         }));
         return;
-        
+
       default:
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: `MCP endpoint '${pathname}' not found` }));
@@ -618,7 +618,7 @@ const server = http.createServer(async (req, res) => {
 
       if (req.method === 'POST') {
         rawBody = await getRawBody(req);
-        
+
         if (contentType.includes('application/json')) {
           try {
             parsedBody = JSON.parse(rawBody.toString('utf8'));
@@ -639,7 +639,7 @@ const server = http.createServer(async (req, res) => {
               res.end(JSON.stringify({ error: 'Missing audio in request body' }));
               return;
             }
-            
+
             try {
               const transcript = await transcribeAudio(parsedBody.audio);
               res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -650,20 +650,20 @@ const server = http.createServer(async (req, res) => {
               res.end(JSON.stringify({ error: error.message }));
             }
             return;
-            
+
           case 'sandra/chat':
             if (!parsedBody || !parsedBody.message) {
               res.writeHead(400, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify({ error: 'Missing message in request body' }));
               return;
             }
-            
+
             const chatBody = parsedBody;
             // Siempre usar rol "luxury" (Concierge) como solicitado
             const role = 'luxury';
             console.log('📨 Mensaje recibido:', chatBody.message);
             console.log('🎭 Rol:', role);
-            
+
             try {
               const reply = await orchestrator.generateResponse(chatBody.message, role);
               console.log('✅ Respuesta generada:', reply.substring(0, 50) + '...');
@@ -682,7 +682,7 @@ const server = http.createServer(async (req, res) => {
               res.end(JSON.stringify({ error: 'Missing text in request body' }));
               return;
             }
-            
+
             const voiceBody = parsedBody;
             try {
               const audioBase64 = await orchestrator.generateVoice(voiceBody.text, voiceBody.voiceId);
@@ -690,6 +690,68 @@ const server = http.createServer(async (req, res) => {
               res.end(JSON.stringify({ audioContent: audioBase64 }));
             } catch (error) {
               console.error('❌ Error en voice:', error);
+              res.writeHead(500, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: error.message }));
+            }
+            return;
+
+          // ═══════════════════════════════════════════════════════════════════
+          // QWEN PURO - Sin limitaciones, con capacidades MCP
+          // ═══════════════════════════════════════════════════════════════════
+          case 'qwen/chat':
+            if (!parsedBody || !parsedBody.message) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'Missing message in request body' }));
+              return;
+            }
+
+            try {
+              // Cargar QwenPure dinámicamente
+              const QwenPure = require('./services/qwen-pure.js');
+              const qwen = new QwenPure({
+                groqApiKey: process.env.GROQ_API_KEY,
+                mcpServerUrl: process.env.MCP_SERVER_URL || 'https://pwa-imbf.onrender.com',
+                mcpSecret: process.env.MCP_SECRET_KEY || 'sandra_mcp_ultra_secure_2025'
+              });
+
+              const qwenBody = parsedBody;
+              console.log('🔮 [QWEN PURO] Mensaje:', qwenBody.message);
+              console.log('🔮 [QWEN PURO] Modelo:', qwenBody.model || 'qwen-main');
+
+              const result = await qwen.chat(qwenBody.message, {
+                model: qwenBody.model || 'qwen-main',
+                temperature: qwenBody.temperature || 0.7,
+                enableMCP: qwenBody.enableMCP !== false,
+                history: qwenBody.history || []
+              });
+
+              console.log('✅ [QWEN PURO] Respuesta generada');
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                reply: result.text,
+                model: result.model,
+                modelId: result.modelId,
+                toolCalls: result.toolCalls,
+                toolResults: result.toolResults,
+                usage: result.usage
+              }));
+            } catch (error) {
+              console.error('❌ [QWEN PURO] Error:', error);
+              res.writeHead(500, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: error.message }));
+            }
+            return;
+
+          case 'qwen/models':
+            // Listar modelos QWEN disponibles
+            try {
+              const QwenPure = require('./services/qwen-pure.js');
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                models: QwenPure.QWEN_MODELS,
+                tools: QwenPure.MCP_TOOLS.map(t => t.function.name)
+              }));
+            } catch (error) {
               res.writeHead(500, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify({ error: error.message }));
             }
@@ -754,19 +816,19 @@ const PORT = process.env.PORT || 4040;
 async function transcribeAudio(audioBase64) {
   return new Promise((resolve, reject) => {
     const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY;
-    
+
     if (!DEEPGRAM_API_KEY) {
       reject(new Error('Deepgram API Key no configurada'));
       return;
     }
-    
+
     const audioBuffer = Buffer.from(audioBase64, 'base64');
-    
+
     if (audioBuffer.length === 0) {
       reject(new Error('Audio buffer vacío'));
       return;
     }
-    
+
     const options = {
       hostname: 'api.deepgram.com',
       path: '/v1/listen?model=nova-2&language=es&punctuate=true&smart_format=true',
@@ -777,7 +839,7 @@ async function transcribeAudio(audioBase64) {
         'Content-Length': audioBuffer.length
       }
     };
-    
+
     const req = https.request(options, (res) => {
       let data = '';
       res.on('data', (chunk) => { data += chunk; });
@@ -799,7 +861,7 @@ async function transcribeAudio(audioBase64) {
         }
       });
     });
-    
+
     req.on('error', reject);
     req.write(audioBuffer);
     req.end();

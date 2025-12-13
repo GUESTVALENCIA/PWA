@@ -109,6 +109,41 @@ function getToolDefinitions() {
         },
         required: []
       }
+    },
+    // ===== HERRAMIENTAS MCP =====
+    {
+      name: 'fetchUrl',
+      description: 'Obtiene el contenido de cualquier URL pública (páginas web, archivos de GitHub, APIs). Usa cuando el usuario pida leer contenido de una URL.',
+      parameters: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: 'URL completa del recurso a obtener' }
+        },
+        required: ['url']
+      }
+    },
+    {
+      name: 'readGitHubFile',
+      description: 'Lee el contenido de un archivo específico en un repositorio de GitHub. Ideal para README, código, configuraciones.',
+      parameters: {
+        type: 'object',
+        properties: {
+          owner: { type: 'string', description: 'Propietario del repositorio (ej: GUESTVALENCIA)' },
+          repo: { type: 'string', description: 'Nombre del repositorio (ej: PWA)' },
+          path: { type: 'string', description: 'Ruta del archivo (ej: README.md)' },
+          branch: { type: 'string', description: 'Rama (por defecto main)', default: 'main' }
+        },
+        required: ['owner', 'repo', 'path']
+      }
+    },
+    {
+      name: 'getMCPStatus',
+      description: 'Verifica el estado del servidor MCP.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: []
+      }
     }
   ];
 }
@@ -194,10 +229,10 @@ export default async function handler(req, res) {
     // 4. Determinar endpoint y headers según prioridad de producción
     // PRODUCCIÓN: GPT-4o > Groq (Qwen/DeepSeek) > Gemini
     // LOCAL: Gemini > GPT-4o > Groq
-    
-    const isProduction = process.env.VERCEL_ENV === 'production' || 
-                         process.env.NODE_ENV === 'production' ||
-                         (process.env.VERCEL_URL && !process.env.VERCEL_URL.includes('localhost'));
+
+    const isProduction = process.env.VERCEL_ENV === 'production' ||
+      process.env.NODE_ENV === 'production' ||
+      (process.env.VERCEL_URL && !process.env.VERCEL_URL.includes('localhost'));
 
     let useGemini = false;
     let useGroq = false;
@@ -281,7 +316,7 @@ export default async function handler(req, res) {
       // Manejo de errores con fallbacks
       if (!aiRes.ok) {
         const errorText = await aiRes.text();
-        
+
         // Si estamos en producción y falló, intentar fallbacks
         if (isProduction && !useGroq && process.env.GROQ_API_KEY) {
           console.warn('⚠️ OpenAI falló en producción');
@@ -297,7 +332,7 @@ export default async function handler(req, res) {
           apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
           headers['Authorization'] = `Bearer ${process.env.GROQ_API_KEY}`;
           model = 'qwen/qwen-2.5-72b-instruct';
-          
+
           // Reintentar con Groq
           aiRes = await fetch(apiUrl, {
             method: 'POST',
@@ -309,7 +344,7 @@ export default async function handler(req, res) {
               function_call: 'auto'
             })
           });
-          
+
           if (!aiRes.ok && process.env.GEMINI_API_KEY) {
             const groqErrorText = await aiRes.text();
             console.warn('⚠️ Groq (Qwen) falló');
@@ -327,7 +362,7 @@ export default async function handler(req, res) {
           usedModel = 'gemini-2.5-flash-lite';
           return await handleGeminiConversation(req, res, finalTranscription, messages, conversation);
         }
-        
+
         if (!aiRes.ok) {
           const finalErrorText = await aiRes.text();
           throw new Error(`AI API Error: ${aiRes.status} - ${finalErrorText}`);
@@ -347,8 +382,8 @@ export default async function handler(req, res) {
     if (!usedModel) {
       usedModel = model;
       if (useGroq) {
-        usedModel = groqModel === 'deepseek' 
-          ? 'deepseek/deepseek-r1' 
+        usedModel = groqModel === 'deepseek'
+          ? 'deepseek/deepseek-r1'
           : 'qwen/qwen-2.5-72b-instruct';
       } else if (useGemini) {
         usedModel = 'gemini-2.5-flash-lite';
@@ -508,7 +543,7 @@ async function handleGeminiConversation(req, res, transcription, messages, conve
     }
 
     const geminiData = await geminiResponse.json();
-    
+
     if (!geminiData?.candidates?.[0]?.content?.parts?.[0]?.text) {
       throw new Error('Respuesta inválida de Gemini');
     }
