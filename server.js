@@ -18,6 +18,23 @@ const CARTESIA_API_KEY = process.env.CARTESIA_API_KEY;
 const CARTESIA_VOICE_ID = process.env.CARTESIA_VOICE_ID;
 const MCP_SECRET_KEY = process.env.MCP_SECRET_KEY || 'sandra_mcp_ultra_secure_2025';
 
+// Función auxiliar para copiar directorios recursivamente
+async function copyDirRecursive(source, destination) {
+  await fsPromises.mkdir(destination, { recursive: true });
+  const items = await fsPromises.readdir(source, { withFileTypes: true });
+
+  for (const item of items) {
+    const srcPath = path.join(source, item.name);
+    const destPath = path.join(destination, item.name);
+
+    if (item.isDirectory()) {
+      await copyDirRecursive(srcPath, destPath);
+    } else {
+      await fsPromises.copyFile(srcPath, destPath);
+    }
+  }
+}
+
 // Reglas conversacionales (del sistema Galaxy original)
 const GLOBAL_CONVERSATION_RULES = `
 REGLAS CONVERSACIONALES GLOBALES (Sandra IA 8.0 Pro):
@@ -286,16 +303,182 @@ const server = http.createServer(async (req, res) => {
         });
         return;
         
+      case '/mcp/read_file':
+        if (!verifyMCPSecret(req)) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid MCP secret' }));
+          return;
+        }
+
+        try {
+          const { filePath } = parsedBody || {};
+          if (!filePath) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'File path required' }));
+            return;
+          }
+
+          console.log(`📄 [MCP] Leyendo archivo: ${filePath}`);
+          const content = await fsPromises.readFile(filePath, 'utf-8');
+
+          console.log(`✅ [MCP] Archivo leído: ${content.length} caracteres`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            content: content,
+            path: filePath,
+            size: content.length
+          }));
+        } catch (error) {
+          console.error(`❌ [MCP] Error leyendo archivo:`, error.message);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: false,
+            error: error.message
+          }));
+        }
+        return;
+
+      case '/mcp/write_file':
+        if (!verifyMCPSecret(req)) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid MCP secret' }));
+          return;
+        }
+
+        try {
+          const { filePath: writePath, content: writeContent } = parsedBody || {};
+          if (!writePath || writeContent === undefined) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'File path and content required' }));
+            return;
+          }
+
+          console.log(`📝 [MCP] Escribiendo archivo: ${writePath}`);
+
+          // Crear directorio padre si no existe
+          const dirPath = path.dirname(writePath);
+          await fsPromises.mkdir(dirPath, { recursive: true });
+
+          await fsPromises.writeFile(writePath, writeContent, 'utf-8');
+
+          console.log(`✅ [MCP] Archivo escrito: ${writeContent.length} caracteres`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            path: writePath,
+            size: writeContent.length
+          }));
+        } catch (error) {
+          console.error(`❌ [MCP] Error escribiendo archivo:`, error.message);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: false,
+            error: error.message
+          }));
+        }
+        return;
+
+      case '/mcp/list_files':
+        if (!verifyMCPSecret(req)) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid MCP secret' }));
+          return;
+        }
+
+        try {
+          const { dirPath = '.' } = parsedBody || {};
+
+          console.log(`📂 [MCP] Listando directorio: ${dirPath}`);
+          const items = await fsPromises.readdir(dirPath, { withFileTypes: true });
+
+          const files = items.map(item => ({
+            name: item.name,
+            type: item.isDirectory() ? 'directory' : 'file',
+            path: path.join(dirPath, item.name)
+          }));
+
+          console.log(`✅ [MCP] ${files.length} items encontrados`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            files: files,
+            count: files.length,
+            directory: dirPath
+          }));
+        } catch (error) {
+          console.error(`❌ [MCP] Error listando directorio:`, error.message);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: false,
+            error: error.message
+          }));
+        }
+        return;
+
+      case '/mcp/copy_path':
+        if (!verifyMCPSecret(req)) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid MCP secret' }));
+          return;
+        }
+
+        try {
+          const { source, destination } = parsedBody || {};
+          if (!source || !destination) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Source and destination paths required' }));
+            return;
+          }
+
+          console.log(`📋 [MCP] Copiando: ${source} -> ${destination}`);
+
+          // Crear directorio padre si no existe
+          const destDir = path.dirname(destination);
+          await fsPromises.mkdir(destDir, { recursive: true });
+
+          // Verificar si es directorio o archivo
+          const stats = await fsPromises.stat(source);
+
+          if (stats.isDirectory()) {
+            // Copiar directorio recursivamente
+            await copyDirRecursive(source, destination);
+          } else {
+            // Copiar archivo
+            await fsPromises.copyFile(source, destination);
+          }
+
+          console.log(`✅ [MCP] Copiado exitosamente`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            source: source,
+            destination: destination
+          }));
+        } catch (error) {
+          console.error(`❌ [MCP] Error copiando:`, error.message);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: false,
+            error: error.message
+          }));
+        }
+        return;
+
       case '/mcp/status':
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           status: 'active',
-          version: '1.0.0',
-          endpoints: ['/mcp/execute_command', '/mcp/status'],
-          capabilities: { execute: true }
+          version: '2.0.0',
+          endpoints: ['/mcp/execute_command', '/mcp/read_file', '/mcp/write_file', '/mcp/list_files', '/mcp/copy_path', '/mcp/status'],
+          capabilities: {
+            execute: true,
+            fileSystem: true,
+            copy: true
+          }
         }));
         return;
-        
+
       default:
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: `MCP endpoint '${pathname}' not found` }));
