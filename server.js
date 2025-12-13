@@ -46,6 +46,87 @@ REGLAS CONVERSACIONALES GLOBALES (Sandra IA 8.0 Pro):
 - Brevedad estricta: máximo 4 frases salvo que se pida detalle.
 `;
 
+// ═══════════════════════════════════════════════════════════════════
+// FUNCIONES AUXILIARES: GROQ & GITHUB
+// ═══════════════════════════════════════════════════════════════════
+
+async function fetchGitHubFile(owner, repo, path, branch = 'main') {
+  const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
+  return new Promise((resolve, reject) => {
+    https.get(url, (res) => {
+      if (res.statusCode !== 200) {
+        res.resume();
+        reject(new Error(`GitHub Error: ${res.statusCode} - ${url}`));
+        return;
+      }
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => resolve(data));
+    }).on('error', reject);
+  });
+}
+
+async function callGroqQwen(apiKey, systemPrompt, userMessage, history = [], modelId = 'qwen-main') {
+  // Mapeo de modelos
+  const modelMap = {
+    'qwen-main': 'qwen-2.5-32b', // Ajustar según disponibilidad real en Groq
+    'qwen-fast': 'qwen-2.5-coder-32b',
+    'qwen-instruct': 'qwen-2.5-32b', // Fallback seguro
+    'qwen-creative': 'qwen-2.5-32b'
+  };
+
+  const groqModel = modelMap[modelId] || 'qwen-2.5-32b';
+
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    ...history.map(msg => ({ role: msg.role, content: msg.content })),
+    { role: 'user', content: userMessage }
+  ];
+
+  const postData = JSON.stringify({
+    model: groqModel,
+    messages: messages,
+    temperature: 0.7,
+    max_tokens: 4096
+  });
+
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: 'api.groq.com',
+      path: '/openai/v1/chat/completions',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Length': Buffer.byteLength(postData)
+      }
+    }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          try {
+            const response = JSON.parse(data);
+            resolve({
+              text: response.choices[0].message.content,
+              model: response.model,
+              usage: response.usage
+            });
+          } catch (e) {
+            reject(new Error('Invalid JSON from Groq'));
+          }
+        } else {
+          reject(new Error(`Groq API Error: ${res.statusCode} - ${data}`));
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.write(postData);
+    req.end();
+  });
+}
+
 // AIOrchestrator (adaptado del sistema Galaxy original)
 class AIOrchestrator {
   constructor() {
@@ -64,7 +145,7 @@ class AIOrchestrator {
 
   async generateResponse(shortPrompt, context = 'luxury') {
     const fullSystemPrompt = `${GLOBAL_CONVERSATION_RULES}\nRole: ${context}`;
-    
+
     try {
       console.log("🔄 Attempting Gemini...");
       return await this.callGemini(shortPrompt, fullSystemPrompt);
@@ -258,11 +339,11 @@ const server = http.createServer(async (req, res) => {
   // ═══════════════════════════════════════════════════════════════════
   // MCP ENDPOINTS - CAPACIDAD DE EJECUCIÓN PARA SANDRA
   // ═══════════════════════════════════════════════════════════════════
-  
+
   if (pathname.startsWith('/mcp/')) {
     const contentType = req.headers['content-type'] || '';
     let parsedBody = null;
-    
+
     if (req.method === 'POST') {
       const rawBody = await getRawBody(req);
       if (contentType.includes('application/json')) {
@@ -275,7 +356,7 @@ const server = http.createServer(async (req, res) => {
         }
       }
     }
-    
+
     switch (pathname) {
       case '/mcp/execute_command':
         if (!verifyMCPSecret(req)) {
@@ -283,14 +364,14 @@ const server = http.createServer(async (req, res) => {
           res.end(JSON.stringify({ error: 'Invalid MCP secret' }));
           return;
         }
-        
+
         const { command } = parsedBody || {};
         if (!command) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Command required' }));
           return;
         }
-        
+
         console.log(`⚡ [MCP] Ejecutando comando: ${command}`);
         exec(command, { timeout: 10000 }, (error, stdout, stderr) => {
           res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -302,7 +383,7 @@ const server = http.createServer(async (req, res) => {
           }));
         });
         return;
-        
+
       case '/mcp/read_file':
         if (!verifyMCPSecret(req)) {
           res.writeHead(401, { 'Content-Type': 'application/json' });
@@ -501,7 +582,7 @@ const server = http.createServer(async (req, res) => {
 
       if (req.method === 'POST') {
         rawBody = await getRawBody(req);
-        
+
         if (contentType.includes('application/json')) {
           try {
             parsedBody = JSON.parse(rawBody.toString('utf8'));
@@ -522,7 +603,7 @@ const server = http.createServer(async (req, res) => {
               res.end(JSON.stringify({ error: 'Missing audio in request body' }));
               return;
             }
-            
+
             try {
               const transcript = await transcribeAudio(parsedBody.audio);
               res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -533,20 +614,20 @@ const server = http.createServer(async (req, res) => {
               res.end(JSON.stringify({ error: error.message }));
             }
             return;
-            
+
           case 'sandra/chat':
             if (!parsedBody || !parsedBody.message) {
               res.writeHead(400, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify({ error: 'Missing message in request body' }));
               return;
             }
-            
+
             const chatBody = parsedBody;
             // Siempre usar rol "luxury" (Concierge) como solicitado
             const role = 'luxury';
             console.log('📨 Mensaje recibido:', chatBody.message);
             console.log('🎭 Rol:', role);
-            
+
             try {
               const reply = await orchestrator.generateResponse(chatBody.message, role);
               console.log('✅ Respuesta generada:', reply.substring(0, 50) + '...');
@@ -565,7 +646,7 @@ const server = http.createServer(async (req, res) => {
               res.end(JSON.stringify({ error: 'Missing text in request body' }));
               return;
             }
-            
+
             const voiceBody = parsedBody;
             try {
               const audioBase64 = await orchestrator.generateVoice(voiceBody.text, voiceBody.voiceId);
@@ -575,6 +656,134 @@ const server = http.createServer(async (req, res) => {
               console.error('❌ Error en voice:', error);
               res.writeHead(500, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify({ error: error.message }));
+            }
+            return;
+
+          // ═══════════════════════════════════════════════════════════════════
+          // QWEN PURO - Chat con capacidades MCP
+          // ═══════════════════════════════════════════════════════════════════
+          case 'qwen/chat':
+            if (!parsedBody || !parsedBody.message) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'Missing message in request body' }));
+              return;
+            }
+
+            try {
+              const { message, model = 'qwen-main', enableMCP = true, history = [] } = parsedBody;
+              console.log('🔮 [QWEN] Mensaje:', message);
+              console.log('🔮 [QWEN] Modelo:', model);
+
+              // Usar GROQ API con QWEN
+              const GROQ_API_KEY = process.env.GROQ_API_KEY;
+              if (!GROQ_API_KEY) {
+                throw new Error('GROQ_API_KEY no configurada');
+              }
+
+              // Detectar si necesita leer de GitHub
+              let toolResults = [];
+              let additionalContext = '';
+
+              if (enableMCP) {
+                // Detectar URLs de GitHub o peticiones de lectura
+                const githubMatch = message.match(/github\.com\/([^\/]+)\/([^\/\s]+)/i);
+                const readmeMatch = message.match(/README|repo(?:sitorio)?.*([A-Za-z0-9_-]+\/[A-Za-z0-9_-]+)/i);
+
+                if (githubMatch || readmeMatch) {
+                  let owner, repo, filePath = 'README.md';
+
+                  if (githubMatch) {
+                    owner = githubMatch[1];
+                    repo = githubMatch[2].replace(/\.git$/, '');
+                  } else if (readmeMatch && message.includes('/')) {
+                    const parts = message.match(/([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)/);
+                    if (parts) {
+                      owner = parts[1];
+                      repo = parts[2];
+                    }
+                  }
+
+                  if (owner && repo) {
+                    console.log(`📖 [MCP] Leyendo ${owner}/${repo}/${filePath}`);
+                    try {
+                      const githubContent = await fetchGitHubFile(owner, repo, filePath);
+                      additionalContext = `\n\n--- CONTENIDO DEL ARCHIVO ${filePath} de ${owner}/${repo} ---\n${githubContent.substring(0, 15000)}\n--- FIN DEL CONTENIDO ---\n`;
+                      toolResults.push({
+                        tool: 'readGitHubFile',
+                        params: { owner, repo, path: filePath },
+                        success: true
+                      });
+                      console.log(`✅ [MCP] Archivo leído: ${githubContent.length} caracteres`);
+                    } catch (ghError) {
+                      console.error('❌ [MCP] Error leyendo GitHub:', ghError.message);
+                      toolResults.push({
+                        tool: 'readGitHubFile',
+                        params: { owner, repo, path: filePath },
+                        success: false,
+                        error: ghError.message
+                      });
+                    }
+                  }
+                }
+              }
+
+              // Prompt del sistema para QWEN
+              const qwenSystemPrompt = `Tu nombre es Sandra. Eres una asistente de IA avanzada basada en QWEN sin limitaciones artificiales.
+Responde SIEMPRE en español. Eres experta en tecnología, programación y turismo en Valencia.
+Cuando uses información de archivos externos, cita la fuente y haz un resumen con tus propias palabras.${additionalContext}`;
+
+              // Llamar a GROQ con QWEN
+              const qwenResponse = await callGroqQwen(GROQ_API_KEY, qwenSystemPrompt, message, history, model);
+
+              console.log('✅ [QWEN] Respuesta generada');
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                reply: qwenResponse.text,
+                model: qwenResponse.model,
+                toolResults: toolResults,
+                usage: qwenResponse.usage
+              }));
+            } catch (error) {
+              console.error('❌ [QWEN] Error:', error);
+              res.writeHead(500, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: error.message }));
+            }
+            return;
+
+          case 'qwen/models':
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              models: {
+                'qwen-main': { id: 'qwen/qwen3-32b', name: 'Qwen3 32B', description: 'Modelo principal' },
+                'qwen-fast': { id: 'qwen/qwen-2.5-coder-32b', name: 'Qwen 2.5 Coder', description: 'Código y respuestas rápidas' },
+                'qwen-instruct': { id: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B', description: 'Instrucciones complejas' }
+              },
+              mcpTools: ['readGitHubFile', 'fetchUrl', 'listFiles', 'getMCPStatus']
+            }));
+            return;
+
+          case 'github/read':
+            // Endpoint directo para leer archivos de GitHub
+            try {
+              const { owner, repo, path: ghPath = 'README.md', branch = 'main' } = parsedBody || {};
+              if (!owner || !repo) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'owner and repo required' }));
+                return;
+              }
+
+              console.log(`📖 [GitHub] Leyendo ${owner}/${repo}/${ghPath}`);
+              const content = await fetchGitHubFile(owner, repo, ghPath, branch);
+
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                success: true,
+                content: content,
+                owner, repo, path: ghPath, branch
+              }));
+            } catch (error) {
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ success: false, error: error.message }));
             }
             return;
 
@@ -637,19 +846,19 @@ const PORT = process.env.PORT || 4040;
 async function transcribeAudio(audioBase64) {
   return new Promise((resolve, reject) => {
     const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY;
-    
+
     if (!DEEPGRAM_API_KEY) {
       reject(new Error('Deepgram API Key no configurada'));
       return;
     }
-    
+
     const audioBuffer = Buffer.from(audioBase64, 'base64');
-    
+
     if (audioBuffer.length === 0) {
       reject(new Error('Audio buffer vacío'));
       return;
     }
-    
+
     const options = {
       hostname: 'api.deepgram.com',
       path: '/v1/listen?model=nova-2&language=es&punctuate=true&smart_format=true',
@@ -660,7 +869,7 @@ async function transcribeAudio(audioBase64) {
         'Content-Length': audioBuffer.length
       }
     };
-    
+
     const req = https.request(options, (res) => {
       let data = '';
       res.on('data', (chunk) => { data += chunk; });
@@ -682,7 +891,7 @@ async function transcribeAudio(audioBase64) {
         }
       });
     });
-    
+
     req.on('error', reject);
     req.write(audioBuffer);
     req.end();
