@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "websocket": "node server-websocket.js"
+    "websocket": "node server-websocket.js",
+    "test": "cross-env NODE_ENV=test jest"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -20,5 +21,10 @@
   },
   "engines": {
     "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "cross-env": "^10.1.0",
+    "jest": "^30.2.0",
+    "supertest": "^7.1.4"
   }
 }
