@@ -25,11 +25,11 @@
     },
     {
       "source": "/api/sandra/:path*",
-      "destination": "/api/api-gateway"
+      "destination": "/api/api-gateway?endpoint=sandra/:path*"
     },
     {
       "source": "/api/:path*",
-      "destination": "/api/api-gateway"
+      "destination": "/api/api-gateway?endpoint=:path*"
     },
     {
       "source": "/((?!assets|api|icons|media|manifest\\.webmanifest|service-worker\\.js|sw\\.js|favicon\\.svg).*)",

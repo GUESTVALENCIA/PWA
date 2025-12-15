@@ -460,6 +460,7 @@ const handler = async (req, res) => {
     // Verificar si viene de rewrite (x-vercel-rewrite-path o similar)
     const originalPath = req.headers['x-vercel-original-path'] || 
                          req.headers['x-rewrite-url'] ||
+                         req.query.endpoint ||
                          req.query.path ||
                          req.originalUrl || 
                          req.url;
@@ -468,7 +469,9 @@ const handler = async (req, res) => {
     
     // Si viene de rewrite /api/sandra/:path* -> /api/api-gateway, necesitamos el path original
     // Intentar extraer de query params o headers primero
-    if (req.query.path) {
+    if (req.query.endpoint) {
+      endpoint = req.query.endpoint;
+    } else if (req.query.path) {
       endpoint = req.query.path;
     } else if (req.headers['x-vercel-original-path']) {
       endpoint = req.headers['x-vercel-original-path'];
