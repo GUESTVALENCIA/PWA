@@ -30,10 +30,6 @@ class DeepgramService {
     const json = await response.json();
     const transcript = json.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
 
-    if (!transcript) {
-        throw new Error('Could not transcribe audio');
-    }
-
     return transcript;
   }
 }

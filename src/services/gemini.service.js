@@ -34,12 +34,6 @@ class GeminiService {
         throw error;
     }
   }
-
-  // Used for WebSocket/Streaming scenarios (simplified for now)
-  async generateContentStream(messages) {
-      // Implementation depends on specific requirements, keeping it basic for now
-      // This is a placeholder for the logic in server-websocket.js
-  }
 }
 
 module.exports = new GeminiService();

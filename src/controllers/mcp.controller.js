@@ -22,7 +22,6 @@ class McpController {
             const result = await mcpService.readFile(filePath);
             res.json(result);
         } catch (error) {
-             // Handle ENOENT etc if needed specifically or let global handler do it
             next(error);
         }
     }

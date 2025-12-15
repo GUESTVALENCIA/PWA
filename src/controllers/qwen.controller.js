@@ -16,7 +16,7 @@ class QwenController {
             if (enableMCP) {
                 // Simplified MCP detection logic
                 const githubMatch = message.match(/github\.com\/([^\/]+)\/([^\/\s]+)/i);
-                // simplified regex for demo
+
                  if (githubMatch) {
                     const owner = githubMatch[1];
                     const repo = githubMatch[2].replace(/\.git$/, '');

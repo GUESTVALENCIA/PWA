@@ -33,7 +33,7 @@ const handleRequest = async (url, options = {}) => {
       return await response.json();
     }
 
-    // Fallback to text or buffer if needed, but for now returning text
+    // Fallback to text
     return await response.text();
   } catch (error) {
     throw error;

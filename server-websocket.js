@@ -2,6 +2,7 @@
 // Runs on port 4041 to avoid interference with HTTP server
 
 const WebSocket = require('ws');
+const levenshtein = require('fast-levenshtein');
 const config = require('./src/config/config');
 const geminiService = require('./src/services/gemini.service');
 const cartesiaService = require('./src/services/cartesia.service');
@@ -31,12 +32,36 @@ preGenerateWelcomeAudio();
 
 console.log(`🔌 WebSocket Server started on port ${config.wsPort}`);
 
+// Utility to check if text is likely an echo
+function isEcho(input, lastResponse) {
+    if (!input || !lastResponse) return false;
+
+    // Normalize texts
+    const normalize = (s) => s.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "").trim();
+    const cleanInput = normalize(input);
+    const cleanLast = normalize(lastResponse);
+
+    // 1. Direct inclusion (e.g., STT caught part of the sentence)
+    if (cleanLast.includes(cleanInput) && cleanInput.length > 10) return true;
+
+    // 2. Levenshtein Distance (Fuzzy match)
+    // If input is > 80% similar to last response
+    const distance = levenshtein.get(cleanInput, cleanLast);
+    const maxLength = Math.max(cleanInput.length, cleanLast.length);
+    const similarity = 1 - (distance / maxLength);
+
+    return similarity > 0.8;
+}
+
 wss.on('connection', async (ws) => {
   console.log('✅ Client connected for conversational call');
   
   let conversationHistory = [];
   let inactivityTimer = null;
   let lastActivityTime = Date.now();
+  let lastBotResponse = ""; // Store last response for echo cancellation
+  let isProcessing = false; // Simple lock to prevent race conditions/loops
+
   const INACTIVITY_TIMEOUT = 300000; // 5 minutes
   
   const resetInactivityTimer = () => {
@@ -86,6 +111,7 @@ wss.on('connection', async (ws) => {
       });
       
       ws.send(messageToSend);
+      lastBotResponse = WELCOME_MESSAGE; // Initial echo context
       conversationHistory.push({ role: 'assistant', content: WELCOME_MESSAGE });
       console.log('✅ [SERVER] Welcome sent');
     } catch (error) {
@@ -113,7 +139,14 @@ wss.on('connection', async (ws) => {
       }
       
       if (data.type === 'audio') {
+
+        if (isProcessing) {
+             console.log('⏳ [SERVER] Busy processing previous request, skipping audio frame...');
+             return;
+        }
+
         console.log('🎤 Audio received, processing...');
+        isProcessing = true; // Lock
         
         try {
           if (!data.audio) {
@@ -121,6 +154,7 @@ wss.on('connection', async (ws) => {
               type: 'noSpeech',
               message: 'No audio received.'
             }));
+            isProcessing = false;
             return;
           }
           
@@ -131,7 +165,6 @@ wss.on('connection', async (ws) => {
              if (config.apiKeys.deepgram) {
                  userText = await deepgramService.transcribeAudio(data.audio);
              } else {
-                 // Fallback logic or other STT could go here
                  throw new Error('No STT service configured');
              }
           } catch(sttError) {
@@ -140,22 +173,34 @@ wss.on('connection', async (ws) => {
                   type: 'noSpeech',
                   message: 'Could not understand audio.'
                 }));
+               isProcessing = false;
                return;
           }
 
           if (userText && userText.trim()) {
-              console.log('👤 User:', userText);
+              console.log('👤 User STT:', userText);
+
+              // 🛡️ ECHO CANCELLATION CHECK
+              if (isEcho(userText, lastBotResponse)) {
+                  console.log('🔁 [ECHO DETECTED] Ignoring input similar to last response.');
+                  ws.send(JSON.stringify({ type: 'echoIgnored' }));
+                  isProcessing = false;
+                  return;
+              }
+
               conversationHistory.push({ role: 'user', content: userText });
               
               // LLM
               const systemPrompt = `${config.globalConversationRules}\nRole: luxury`;
               let responseText = '';
               try {
+                  // Primary: Gemini
                   responseText = await geminiService.generateContent(userText, systemPrompt);
               } catch (llmError) {
-                  console.error('LLM Error:', llmError);
-                  // Fallback to Groq if needed
+                  console.error('LLM Gemini Error:', llmError);
+                  // Fallback: Groq
                   if (config.apiKeys.groq) {
+                       console.log('🔄 Failing over to Groq...');
                        const groqResp = await groqService.callGroqQwen(systemPrompt, userText, conversationHistory);
                        responseText = groqResp.text;
                   } else {
@@ -165,6 +210,7 @@ wss.on('connection', async (ws) => {
 
               if (responseText) {
                   console.log('🤖 Sandra:', responseText);
+                  lastBotResponse = responseText; // Update echo context
                   conversationHistory.push({ role: 'assistant', content: responseText });
 
                   // TTS
@@ -175,14 +221,20 @@ wss.on('connection', async (ws) => {
                       audio: audioBase64
                   }));
               }
+          } else {
+              // Empty transcript handling
+              console.log('⚠️ Empty transcript received');
+              ws.send(JSON.stringify({ type: 'noSpeech' }));
           }
-          
+
         } catch (error) {
           console.error('❌ Error processing audio:', error);
           ws.send(JSON.stringify({
             type: 'error',
             message: 'Error processing audio: ' + error.message
           }));
+        } finally {
+            isProcessing = false; // Unlock
         }
         
       } else if (data.type === 'text') {
@@ -192,6 +244,7 @@ wss.on('connection', async (ws) => {
         const systemPrompt = `${config.globalConversationRules}\nRole: luxury`;
         const response = await geminiService.generateContent(userMessage, systemPrompt);
 
+        lastBotResponse = response;
         conversationHistory.push({ role: 'assistant', content: response });
         
         const audioBase64 = await cartesiaService.generateVoice(response);
