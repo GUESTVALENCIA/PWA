@@ -300,14 +300,14 @@ class AIOrchestrator {
     return Buffer.from(arrayBuffer).toString('base64');
   }
 
-  async transcribeAudio(audioBuffer) {
+  async transcribeAudio(audioBuffer, contentType = 'application/octet-stream') {
     if (!process.env.DEEPGRAM_API_KEY) throw new Error("Missing Deepgram Key");
 
     const response = await fetch(this.providers.deepgram.url, {
       method: "POST",
       headers: {
         "Authorization": `Token ${process.env.DEEPGRAM_API_KEY}`,
-        "Content-Type": "audio/wav"
+        "Content-Type": contentType || 'application/octet-stream'
       },
       body: audioBuffer
     });
@@ -608,6 +608,8 @@ const handler = async (req, res) => {
         case 'sandra/transcribe':
           // Handle binary audio data - supports multipart/form-data, raw binary, and JSON
           let audioData;
+          const normalizeAudioContentType = (value) => String(value || '').split(';')[0].trim();
+          let audioContentType = '';
 
           try {
             if (contentType.includes('multipart/form-data')) {
@@ -655,7 +657,13 @@ const handler = async (req, res) => {
               return res.status(400).json({ error: 'Audio data is empty' });
             }
 
-            const transcript = await orchestrator.transcribeAudio(audioData);
+            if (parsedBody && typeof parsedBody === 'object' && parsedBody.mimeType) {
+              audioContentType = normalizeAudioContentType(parsedBody.mimeType);
+            } else if (contentType && contentType.toLowerCase().includes('audio/')) {
+              audioContentType = normalizeAudioContentType(contentType);
+            }
+
+            const transcript = await orchestrator.transcribeAudio(audioData, audioContentType || 'application/octet-stream');
             res.setHeader('Access-Control-Allow-Origin', '*');
             return res.status(200).json({ text: transcript });
           } catch (parseError) {

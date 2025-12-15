@@ -1453,8 +1453,8 @@
     });
   </script>
 
-  <!-- Sistema Galaxy - Widget Flotante -->
-  <script>
+  <!-- Sistema Galaxy - Widget (legacy inline desactivado: bloque corrupto) -->
+  <script type="text/plain" data-disabled="true">
     (() => {
       const WIDGET_SCRIPT_ID = 'galaxy-widget-loader';
       const WIDGET_URL = '/assets/js/galaxy/WIDGET_INYECTABLE.js';
@@ -2083,6 +2083,25 @@
       }
     })();
   </script>
+
+  <!-- Sandra Widget (loader limpio) -->
+  <script>
+    (function () {
+      const storageKey = 'MCP_SERVER_URL';
+      try {
+        const url = new URL(window.location.href);
+        const fromQuery = url.searchParams.get('mcp');
+        const fromStorage = localStorage.getItem(storageKey);
+        const next = String(fromQuery || fromStorage || '').trim();
+        if (!next) return;
+        window.MCP_SERVER_URL = next;
+        localStorage.setItem(storageKey, next);
+      } catch (_) {
+        // ignore
+      }
+    })();
+  </script>
+  <script src="/assets/js/galaxy/WIDGET_INYECTABLE.js" defer></script>
 
 </body>
 </html>
