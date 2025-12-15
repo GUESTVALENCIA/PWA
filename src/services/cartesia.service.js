@@ -1,5 +1,4 @@
 const config = require('../config/config');
-const { handleRequest } = require('../utils/apiClient');
 
 class CartesiaService {
   constructor() {

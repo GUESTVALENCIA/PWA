@@ -10,12 +10,12 @@ const app = express();
 
 // Security Middleware
 app.use(helmet({
-    contentSecurityPolicy: false, // Disabling CSP for simplicity in this migration, should be configured properly for prod
+    contentSecurityPolicy: false,
 }));
 
 // CORS
 app.use(cors({
-  origin: '*', // Configure this properly for production
+  origin: '*',
   allowedHeaders: ['Content-Type', 'Authorization', 'mcp-secret'],
   methods: ['GET', 'POST', 'OPTIONS']
 }));
@@ -24,7 +24,7 @@ app.use(cors({
 app.use(morgan('dev'));
 
 // Body Parser
-app.use(express.json({ limit: '50mb' })); // Increased limit for audio/file uploads
+app.use(express.json({ limit: '50mb' }));
 
 // Health Check
 app.get('/health', (req, res) => {
@@ -44,20 +44,6 @@ app.get('/health', (req, res) => {
 
 // API Routes
 app.use('/api', apiRoutes);
-// Legacy MCP routes were at /mcp/..., mapping them to match new structure or keeping them?
-// The original server had /mcp/ at root. Let's support both or redirect.
-// Supporting root /mcp/ for compatibility with existing clients
-const mcpController = require('./controllers/mcp.controller');
-const authMiddleware = require('./middleware/auth.middleware');
-const mcpRouter = express.Router();
-mcpRouter.post('/execute_command', authMiddleware, mcpController.executeCommand);
-mcpRouter.post('/read_file', authMiddleware, mcpController.readFile);
-mcpRouter.post('/write_file', authMiddleware, mcpController.writeFile);
-mcpRouter.post('/list_files', authMiddleware, mcpController.listFiles);
-mcpRouter.post('/copy_path', authMiddleware, mcpController.copyPath);
-mcpRouter.get('/status', mcpController.status);
-app.use('/mcp', mcpRouter);
-
 
 // Static Files
 app.use(express.static(path.join(__dirname, '..')));
