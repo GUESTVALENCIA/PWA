@@ -45,8 +45,31 @@ app.get('/health', (req, res) => {
 // API Routes
 app.use('/api', apiRoutes);
 
-// Static Files
-app.use(express.static(path.join(__dirname, '..')));
+// --- STRICT ISOLATION STATIC SERVING ---
+// Only serve specific directories/files. DO NOT serve root (..).
+app.use('/assets', express.static(path.join(__dirname, '../assets')));
+
+// Serve index.html for root path only
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '../index.html'));
+});
+
+// Serve manifest.json if it exists (often needed for PWA)
+app.get('/manifest.json', (req, res) => {
+    res.sendFile(path.join(__dirname, '../manifest.json'), (err) => {
+        if (err) res.status(404).end();
+    });
+});
+
+// Strict 404 Handler for undefined routes
+// This prevents falling back to index.html or exposing other files
+app.use((req, res, next) => {
+  res.status(404).json({
+    status: 'error',
+    message: 'Route not found',
+    path: req.originalUrl
+  });
+});
 
 // Error Handler
 app.use(errorHandler);
