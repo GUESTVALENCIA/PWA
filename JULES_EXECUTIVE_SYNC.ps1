@@ -52,7 +52,7 @@ Write-Host "`n🛡️ [2/4] Verificando aislamiento de rutas..." -ForegroundColo
 $requiredPaths = @("src", "mcp-server", "assets")
 foreach ($path in $requiredPaths) {
     if (-not (Test-Path $path)) {
-        Write-Error "CRITICAL: Falta la carpeta '$path'. La estructura del proyecto está comprometida."
+        Write-Error "CRITICAL: Falta la carpeta $path. La estructura del proyecto está comprometida."
     }
 }
 

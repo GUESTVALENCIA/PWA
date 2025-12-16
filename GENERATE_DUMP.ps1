@@ -6,7 +6,7 @@
 
 .DESCRIPTION
     Ejecuta el script de Node.js para volcar todo el contexto del repositorio
-    en un solo archivo 'REPOSITORY_DUMP.txt' listo para Google AI Studio.
+    en un solo archivo REPOSITORY_DUMP.txt listo para Google AI Studio.
 #>
 
 $ErrorActionPreference = "Stop"
@@ -24,7 +24,7 @@ try {
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "`n✨ PROCESO COMPLETADO." -ForegroundColor Green
-        Write-Host "   El archivo 'REPOSITORY_DUMP.txt' está listo en la raíz."
+        Write-Host "   El archivo REPOSITORY_DUMP.txt está listo en la raíz."
     } else {
         Write-Error "❌ Hubo un error durante la ejecución del script Node.js."
     }
