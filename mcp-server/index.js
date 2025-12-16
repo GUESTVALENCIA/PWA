@@ -126,8 +126,21 @@ app.get('/api/status', authMiddleware, (req, res) => {
   });
 });
 
-// Serve Static Files (PWA) from repository root
-app.use(express.static(path.join(__dirname, '../')));
+// Serve Static Files (PWA) - STRICT ISOLATION
+// Do not serve the entire root. Only specific assets and index.html if needed here.
+// However, since this is the MCP server (backend), it might be better to NOT serve frontend at all unless required.
+// If this server doubles as the PWA host on Render, we must be strict.
+
+app.use('/assets', express.static(path.join(__dirname, '../assets')));
+
+app.get('/', (req, res) => {
+  const index = path.join(__dirname, '../index.html');
+  if (fs.existsSync(index)) {
+    res.sendFile(index);
+  } else {
+    res.status(404).send('PWA Index not found');
+  }
+});
 
 // WebSocket Server
 const wss = new WebSocket.Server({ 
