@@ -40,6 +40,8 @@ class AmbientationService {
 
     this.weatherState = {
       isRaining: false,
+      condition: null,
+      temperature: null,
       lastCheck: 0,
       location: 'Valencia' // Default location
     };
@@ -50,9 +52,13 @@ class AmbientationService {
     this.weatherState.location = location;
 
     // Initial weather check (background)
-    this._checkRain(this.weatherState.location)
-      .then(isRaining => {
-        this.weatherState.isRaining = isRaining;
+    this._checkWeather(this.weatherState.location)
+      .then(weatherData => {
+        if (weatherData) {
+          this.weatherState.isRaining = weatherData.isRaining;
+          this.weatherState.condition = weatherData.condition;
+          this.weatherState.temperature = weatherData.temperature;
+        }
         this.weatherState.lastCheck = Date.now();
       })
       .catch(error => {
@@ -72,32 +78,44 @@ class AmbientationService {
     };
   }
 
-  async _checkRain(location) {
+  async _checkWeather(location) {
     try {
       const response = await fetch(`https://wttr.in/${location}?format=j1`);
-      if (!response.ok) return false;
+      if (!response.ok) return null;
 
       const data = await response.json();
-      if (!data.current_condition || !data.current_condition[0]) return false;
+      if (!data.current_condition || !data.current_condition[0]) return null;
 
       const current = data.current_condition[0];
       const desc = current.weatherDesc[0].value.toLowerCase();
+      const tempC = parseInt(current.temp_C, 10);
 
       // Palabras clave para lluvia
       const rainKeywords = ['rain', 'drizzle', 'shower', 'thunderstorm', 'precip'];
-      const isRaining = rainKeywords.some(keyword => desc.includes(keyword));
+      let isRaining = rainKeywords.some(keyword => desc.includes(keyword));
 
       // También verificar precipitación milimétrica si está disponible y es > 0
       const precipMM = parseFloat(current.precipMM);
       if (!isNaN(precipMM) && precipMM > 0) {
-          return true;
+          isRaining = true;
       }
 
-      return isRaining;
+      return {
+        isRaining,
+        condition: desc,
+        temperature: tempC,
+        precipMM
+      };
     } catch (error) {
       console.error('Error checking weather:', error);
-      return false;
+      return null;
     }
+  }
+
+  // Backward compatibility alias if needed, though internal usage is updated
+  async _checkRain(location) {
+    const data = await this._checkWeather(location);
+    return data ? data.isRaining : false;
   }
 
   async getCurrentAmbientation(timezone = 'Europe/Madrid') {
@@ -108,9 +126,13 @@ class AmbientationService {
     const nowTimestamp = Date.now();
     if (nowTimestamp - this.weatherState.lastCheck > 30 * 60 * 1000) {
         // Ejecutar en segundo plano para no bloquear respuesta
-        this._checkRain(this.weatherState.location)
-            .then(isRaining => {
-                this.weatherState.isRaining = isRaining;
+        this._checkWeather(this.weatherState.location)
+            .then(weatherData => {
+                if (weatherData) {
+                  this.weatherState.isRaining = weatherData.isRaining;
+                  this.weatherState.condition = weatherData.condition;
+                  this.weatherState.temperature = weatherData.temperature;
+                }
                 this.weatherState.lastCheck = Date.now();
             })
             .catch(err => console.error('Background weather check failed:', err));
@@ -142,6 +164,8 @@ class AmbientationService {
       timezone,
       weather: {
         raining: this.weatherState.isRaining,
+        condition: this.weatherState.condition,
+        temperature: this.weatherState.temperature,
         checked: new Date(this.weatherState.lastCheck).toISOString()
       },
       timestamp: new Date().toISOString()
@@ -165,7 +189,14 @@ class AmbientationService {
   async getWeatherBasedAmbientation(location = 'Valencia') {
     // Forzar chequeo de clima
     this.weatherState.location = location;
-    this.weatherState.isRaining = await this._checkRain(location);
+    const weatherData = await this._checkWeather(location);
+
+    if (weatherData) {
+        this.weatherState.isRaining = weatherData.isRaining;
+        this.weatherState.condition = weatherData.condition;
+        this.weatherState.temperature = weatherData.temperature;
+    }
+
     this.weatherState.lastCheck = Date.now();
     
     return await this.getCurrentAmbientation();
