@@ -1,74 +1,42 @@
-# GOOGLE ANTIGRAVITY ENTERPRISE WORKFLOW PROTOCOL
+# GOOGLE ANTIGRAVITY ENTERPRISE WORKFLOW PROTOCOL (REVISED)
 
 ## 1. Introducción
-Este documento define el protocolo de trabajo estricto para el ecosistema "GuestsValencia Galaxy", integrando los tres agentes de Google para garantizar un nivel de desarrollo "Enterprise":
-1.  **Jules (Agente Autónomo - Cloud/Repo):** Ejecución pesada, arquitectura, refactorización y blindaje del núcleo.
-2.  **Gemini CLI (Agente Local - Terminal):** Gestión de archivos masivos, sincronización, limpieza local y despliegue.
-3.  **Gemini Code Assist (Agente Copiloto - IDE):** Asistencia en tiempo real, autocompletado inteligente y revisión de código.
+**ACTUALIZACIÓN CRÍTICA:** Se ha eliminado "Gemini Code Assist" del workflow debido a inconsistencias de memoria y falta de coordinación ("Efecto Amnesia").
+El nuevo protocolo se basa en **Jules (Cerebro)** y **Ejecución Directa (Scripting)**.
 
-## 2. Roles y Responsabilidades
+## 2. Nueva Arquitectura de Trabajo
 
-### 🤖 Jules (Yo - El Ingeniero)
-*   **Entorno:** Repositorio Remoto / Sandbox.
-*   **Misión:** Mantener la integridad del código fuente.
-*   **Tareas Exclusivas:**
-    *   Refactorización de la arquitectura (evitar cruce de rutas).
-    *   Creación y mantenimiento de Tests Unitarios e Integrales.
-    *   Blindaje de seguridad (Security Hardening).
-    *   Revisión de Pull Requests complejos.
-*   **Comando de Activación:** Chat directo en la interfaz de Jules.
+### 🤖 Jules (Staff Engineer - Cerebro Central)
+*   **Misión:** Diseñar la arquitectura, escribir el código crítico y generar los scripts de mantenimiento.
+*   **Responsabilidad:** Jules no solo dice qué hacer, sino que **escribe el script ejecutable** (`JULES_EXECUTIVE_SYNC.ps1`) que contiene toda la lógica necesaria.
 
-### 💻 Gemini CLI (El Orquestador Local)
-*   **Entorno:** Tu Terminal Local (PowerShell / Bash).
-*   **Misión:** Gestión del sistema de archivos y despliegue.
-*   **Tareas Exclusivas:**
-    *   `cleanup`: Ejecución de scripts de limpieza (`master-cleanup-workflow.ps1`).
-    *   `sync`: Sincronización de cambios locales al repositorio (pre-Jules).
-    *   `handoff`: Ejecución del protocolo de entrega (`git-handoff.ps1`).
-    *   Inyección de variables de entorno en tiempo de despliegue (no en código).
+### ⚡ PowerShell / Terminal (El Ejecutor Silencioso)
+*   **Misión:** Ejecutar ciegamente las órdenes de Jules.
+*   **Ventaja:** No "opina", no olvida, no alucina. Ejecuta código determinista.
 
-### 🧠 Gemini Code Assist (El Copiloto)
-*   **Entorno:** Visual Studio Code / Cursor / Google IDX.
-*   **Misión:** Aceleración del desarrollo diario.
-*   **Tareas Exclusivas:**
-    *   Explicación de cambios realizados por Jules.
-    *   Autocompletado de código siguiendo el estilo "Enterprise".
-    *   Generación de documentación JSDoc automática.
-    *   Detección temprana de errores de sintaxis o tipos.
+## 3. Flujo de Trabajo Simplificado ("One-Click Protocol")
 
-## 3. Protocolo de Aislamiento de Rutas (Strict Isolation)
+Para mantener la limpieza, el aislamiento de rutas y la sincronización:
 
-Para evitar que los proyectos se "crucen" y las rutas se rompan:
+1.  **Desarrollo:** Jules realiza los cambios complejos en el repo remoto.
+2.  **Sincronización Local:** Tú (Usuario) ejecutas un solo comando en tu terminal:
+    ```powershell
+    .\JULES_EXECUTIVE_SYNC.ps1
+    ```
+3.  **Acción del Script:**
+    *   ⬇️ **Pull:** Descarga los cambios de Jules.
+    *   🧹 **Clean:** Elimina logs, temporales y basura (`start_log.txt`, `.DS_Store`).
+    *   🛡️ **Isolate:** Verifica que nadie haya movido carpetas críticas.
+    *   🚀 **Push:** Si tú hiciste cambios locales, los empaqueta y los envía de vuelta a Jules con un formato estándar.
 
-1.  **Estructura de Directorios Inmutable:**
-    *   `/src`: **SOLO** código fuente de la aplicación principal (Backend API Gateway).
-    *   `/mcp-server`: **SOLO** código del servidor MCP (Microservicio de IA).
-    *   `/public`: **SOLO** archivos estáticos servibles (imágenes, favicon, robots.txt). **NUNCA** servir la raíz `./`.
-    *   `/docs`: Documentación del proyecto.
-
-2.  **Reglas de Enrutamiento:**
-    *   El servidor principal (`server.js`) **NO** debe servir archivos estáticos fuera de `/public` o carpetas explícitamente permitidas (`/assets`).
-    *   Cualquier ruta no definida explícitamente debe retornar `404 Not Found` (o JSON de error) inmediatamente. No hay "fallback" a index.html a menos que sea una SPA explícitamente configurada en una ruta específica.
-
-## 4. Flujo de Trabajo Diario (Workflow)
-
-1.  **Inicio (Gemini CLI):**
-    *   Ejecutar `git pull` para bajar los cambios blindados de Jules.
-    *   Ejecutar `npm install` si Jules ha cambiado dependencias.
-
-2.  **Desarrollo (Gemini Code Assist):**
-    *   Editar código en VS Code.
-    *   Usar Code Assist para generar boilerplate o tests rápidos.
-
-3.  **Cierre y Entrega (Gemini CLI -> Jules):**
-    *   Ejecutar script de limpieza local (si aplica).
-    *   Ejecutar `.\git-handoff.ps1` (proporcionado por Gemini).
-    *   Esto crea un commit limpio y estandarizado.
-    *   Hacer `git push`.
-
-4.  **Refinamiento (Jules):**
-    *   Avisar a Jules: "He subido cambios, por favor verifica, blinda y despliega".
-    *   Jules ejecuta tests, refactoriza si es necesario y asegura que el "Level Enterprise" se mantenga.
+## 4. Reglas de Oro (Enterprise Level)
+*   **Cero Chat Local:** No discutas con subagentes en VS Code. Si algo falla, repórtalo a Jules.
+*   **Script es Ley:** La verdad del proyecto está en el código y en los scripts de automatización, no en la ventana de chat.
+*   **Rutas Sagradas:**
+    *   `/src`: Solo Backend Logic.
+    *   `/mcp-server`: Solo AI Orchestration.
+    *   `/assets`: Único lugar para archivos públicos.
 
 ---
+**Estado:** ACTIVO
 **Firmado:** Jules, Staff Software Engineer.
