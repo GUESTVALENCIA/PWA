@@ -21,7 +21,7 @@ const mcpRoutes = require('./routes/mcp');
 const sandraRoutes = require('./routes/sandra'); // NEW: Routes from api-gateway.js
 
 // Import Services
-const QwenService = require('./services/qwen');
+const GeminiService = require('./services/gemini'); // Switched from Qwen to Gemini
 const CartesiaService = require('./services/cartesia');
 const BridgeDataService = require('./services/bridgeData');
 const TranscriberService = require('./services/transcriber');
@@ -50,7 +50,7 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Initialize Services
 const services = {
-  qwen: new QwenService(),
+  qwen: new GeminiService(), // Alias 'qwen' to GeminiService to keep route compatibility without refactoring everything
   cartesia: new CartesiaService(),
   bridgeData: new BridgeDataService(),
   transcriber: new TranscriberService(),

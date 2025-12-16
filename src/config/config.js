@@ -10,6 +10,8 @@ module.exports = {
     groq: process.env.GROQ_API_KEY,
     deepgram: process.env.DEEPGRAM_API_KEY,
   },
+  // Updated Configuration for Gemini First Strategy
+  preferredAiProvider: 'gemini',
   cartesiaVoiceId: process.env.CARTESIA_VOICE_ID,
   mcpSecretKey: process.env.MCP_SECRET_KEY || 'sandra_mcp_ultra_secure_2025',
   globalConversationRules: `
