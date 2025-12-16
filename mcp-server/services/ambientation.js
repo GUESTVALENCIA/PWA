@@ -37,10 +37,27 @@ class AmbientationService {
         description: 'Sandra en día lluvioso'
       }
     };
+
+    this.weatherState = {
+      isRaining: false,
+      lastCheck: 0,
+      location: 'Valencia' // Default location
+    };
   }
 
-  async initialize() {
+  async initialize(location = 'Valencia') {
     this.ready = true;
+    this.weatherState.location = location;
+
+    // Initial weather check (background)
+    this._checkRain(this.weatherState.location)
+      .then(isRaining => {
+        this.weatherState.isRaining = isRaining;
+        this.weatherState.lastCheck = Date.now();
+      })
+      .catch(error => {
+        console.error('Error inicializando clima:', error);
+      });
   }
 
   isReady() {
@@ -50,14 +67,55 @@ class AmbientationService {
   getStatus() {
     return {
       ready: this.ready,
-      availableTypes: Object.keys(this.ambientations)
+      availableTypes: Object.keys(this.ambientations),
+      weather: this.weatherState
     };
+  }
+
+  async _checkRain(location) {
+    try {
+      const response = await fetch(`https://wttr.in/${location}?format=j1`);
+      if (!response.ok) return false;
+
+      const data = await response.json();
+      if (!data.current_condition || !data.current_condition[0]) return false;
+
+      const current = data.current_condition[0];
+      const desc = current.weatherDesc[0].value.toLowerCase();
+
+      // Palabras clave para lluvia
+      const rainKeywords = ['rain', 'drizzle', 'shower', 'thunderstorm', 'precip'];
+      const isRaining = rainKeywords.some(keyword => desc.includes(keyword));
+
+      // También verificar precipitación milimétrica si está disponible y es > 0
+      const precipMM = parseFloat(current.precipMM);
+      if (!isNaN(precipMM) && precipMM > 0) {
+          return true;
+      }
+
+      return isRaining;
+    } catch (error) {
+      console.error('Error checking weather:', error);
+      return false;
+    }
   }
 
   async getCurrentAmbientation(timezone = 'Europe/Madrid') {
     const now = new Date();
     const hour = new Date(now.toLocaleString('en-US', { timeZone: timezone })).getHours();
     
+    // Actualizar clima si ha pasado tiempo (30 min)
+    const nowTimestamp = Date.now();
+    if (nowTimestamp - this.weatherState.lastCheck > 30 * 60 * 1000) {
+        // Ejecutar en segundo plano para no bloquear respuesta
+        this._checkRain(this.weatherState.location)
+            .then(isRaining => {
+                this.weatherState.isRaining = isRaining;
+                this.weatherState.lastCheck = Date.now();
+            })
+            .catch(err => console.error('Background weather check failed:', err));
+    }
+
     // Determinar tipo según hora
     let type;
     if (hour >= 6 && hour < 12) {
@@ -68,8 +126,13 @@ class AmbientationService {
       type = 'night';
     }
     
-    // TODO: Integrar API de clima para detectar lluvia
-    // Por ahora, usar hora del día
+    // Si llueve, sobreescribir con ambiente de lluvia
+    // Nota: Podríamos querer mantener 'night' si es de noche aunque llueva,
+    // pero la definición actual de 'rain' parece ser un tipo completo.
+    // Asumiremos que 'rain' tiene prioridad visual.
+    if (this.weatherState.isRaining) {
+      type = 'rain';
+    }
     
     const ambientation = this.ambientations[type] || this.ambientations.day;
     
@@ -77,6 +140,10 @@ class AmbientationService {
       ...ambientation,
       hour,
       timezone,
+      weather: {
+        raining: this.weatherState.isRaining,
+        checked: new Date(this.weatherState.lastCheck).toISOString()
+      },
       timestamp: new Date().toISOString()
     };
   }
@@ -96,12 +163,13 @@ class AmbientationService {
   }
 
   async getWeatherBasedAmbientation(location = 'Valencia') {
-    // TODO: Integrar API de meteorología
-    // Por ahora, retornar ambientación por defecto según hora
+    // Forzar chequeo de clima
+    this.weatherState.location = location;
+    this.weatherState.isRaining = await this._checkRain(location);
+    this.weatherState.lastCheck = Date.now();
     
     return await this.getCurrentAmbientation();
   }
 }
 
 module.exports = AmbientationService;
-
