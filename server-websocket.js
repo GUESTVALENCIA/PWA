@@ -189,22 +189,39 @@ wss.on('connection', async (ws) => {
               }
 
               conversationHistory.push({ role: 'user', content: userText });
-              
-              // LLM
+
+              // LLM Generation
               const systemPrompt = `${config.globalConversationRules}\nRole: luxury`;
               let responseText = '';
+
+              // Select provider based on config
+              const useGroq = config.preferredAiProvider === 'groq';
+              console.log(`🤖 Using Provider: ${useGroq ? 'Groq (Qwen)' : 'Gemini'}`);
+
               try {
-                  // Primary: Gemini
-                  responseText = await geminiService.generateContent(userText, systemPrompt);
-              } catch (llmError) {
-                  console.error('LLM Gemini Error:', llmError);
-                  // Fallback: Groq
-                  if (config.apiKeys.groq) {
-                       console.log('🔄 Failing over to Groq...');
-                       const groqResp = await groqService.callGroqQwen(systemPrompt, userText, conversationHistory);
-                       responseText = groqResp.text;
+                  if (useGroq && config.apiKeys.groq) {
+                      // Attempt Groq first
+                      const groqResp = await groqService.callGroqQwen(systemPrompt, userText, conversationHistory);
+                      responseText = groqResp.text;
                   } else {
-                      responseText = 'Lo siento, estoy teniendo problemas técnicos.';
+                      // Default to Gemini
+                      responseText = await geminiService.generateContent(userText, systemPrompt);
+                  }
+              } catch (primaryError) {
+                  console.error(`❌ Primary LLM Error:`, primaryError);
+                  // Fallback Logic
+                  try {
+                      if (useGroq) {
+                          console.log('🔄 Failing over to Gemini...');
+                          responseText = await geminiService.generateContent(userText, systemPrompt);
+                      } else if (config.apiKeys.groq) {
+                          console.log('🔄 Failing over to Groq...');
+                          const groqResp = await groqService.callGroqQwen(systemPrompt, userText, conversationHistory);
+                          responseText = groqResp.text;
+                      }
+                  } catch (fallbackError) {
+                      console.error('❌ All LLMs failed:', fallbackError);
+                      responseText = 'Lo siento, estoy teniendo problemas técnicos de conexión.';
                   }
               }
 
@@ -242,7 +259,22 @@ wss.on('connection', async (ws) => {
         conversationHistory.push({ role: 'user', content: userMessage });
         
         const systemPrompt = `${config.globalConversationRules}\nRole: luxury`;
-        const response = await geminiService.generateContent(userMessage, systemPrompt);
+        let response = '';
+
+        // Similar logic for text chat
+        const useGroq = config.preferredAiProvider === 'groq';
+
+        try {
+             if (useGroq && config.apiKeys.groq) {
+                  const groqResp = await groqService.callGroqQwen(systemPrompt, userMessage, conversationHistory);
+                  response = groqResp.text;
+             } else {
+                  response = await geminiService.generateContent(userMessage, systemPrompt);
+             }
+        } catch (e) {
+            console.error('Text Chat LLM Error', e);
+            response = 'Lo siento, error de conexión.';
+        }
 
         lastBotResponse = response;
         conversationHistory.push({ role: 'assistant', content: response });
