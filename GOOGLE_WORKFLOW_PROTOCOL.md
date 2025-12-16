@@ -1,42 +1,48 @@
-# GOOGLE ANTIGRAVITY ENTERPRISE WORKFLOW PROTOCOL (REVISED)
+# GOOGLE ANTIGRAVITY ENTERPRISE WORKFLOW PROTOCOL (V3 - PERSISTENT MEMORY)
 
 ## 1. Introducción
-**ACTUALIZACIÓN CRÍTICA:** Se ha eliminado "Gemini Code Assist" del workflow debido a inconsistencias de memoria y falta de coordinación ("Efecto Amnesia").
-El nuevo protocolo se basa en **Jules (Cerebro)** y **Ejecución Directa (Scripting)**.
+Este protocolo define el uso de **Google AI Studio + Context Caching** como el "Cerebro Central" para resolver la amnesia de los agentes locales.
 
-## 2. Nueva Arquitectura de Trabajo
+## 2. La Trinidad de Herramientas
 
-### 🤖 Jules (Staff Engineer - Cerebro Central)
-*   **Misión:** Diseñar la arquitectura, escribir el código crítico y generar los scripts de mantenimiento.
-*   **Responsabilidad:** Jules no solo dice qué hacer, sino que **escribe el script ejecutable** (`JULES_EXECUTIVE_SYNC.ps1`) que contiene toda la lógica necesaria.
+1.  **🧠 Google AI Studio (El Cerebro):**
+    *   Mantiene el contexto completo del proyecto (hasta 2M tokens).
+    *   Planifica migraciones y genera scripts complejos.
+2.  **🤖 Jules (El Arquitecto):**
+    *   Mantiene las herramientas de volcado (`generate_repo_dump.js`).
+    *   Verifica los PRs y blinda el repositorio.
+3.  **⚡ Terminal Local (El Ejecutor):**
+    *   Ejecuta los scripts generados por el Cerebro.
 
-### ⚡ PowerShell / Terminal (El Ejecutor Silencioso)
-*   **Misión:** Ejecutar ciegamente las órdenes de Jules.
-*   **Ventaja:** No "opina", no olvida, no alucina. Ejecuta código determinista.
+## 3. Flujo de Trabajo de Memoria Persistente
 
-## 3. Flujo de Trabajo Simplificado ("One-Click Protocol")
+### Paso 1: Actualizar el Cerebro (Diario/Semanal)
+Antes de pedir una tarea compleja de migración:
 
-Para mantener la limpieza, el aislamiento de rutas y la sincronización:
-
-1.  **Desarrollo:** Jules realiza los cambios complejos en el repo remoto.
-2.  **Sincronización Local:** Tú (Usuario) ejecutas un solo comando en tu terminal:
+1.  Ejecuta en tu terminal local:
     ```powershell
-    .\JULES_EXECUTIVE_SYNC.ps1
+    .\GENERATE_DUMP.ps1
     ```
-3.  **Acción del Script:**
-    *   ⬇️ **Pull:** Descarga los cambios de Jules.
-    *   🧹 **Clean:** Elimina logs, temporales y basura (`start_log.txt`, `.DS_Store`).
-    *   🛡️ **Isolate:** Verifica que nadie haya movido carpetas críticas.
-    *   🚀 **Push:** Si tú hiciste cambios locales, los empaqueta y los envía de vuelta a Jules con un formato estándar.
+2.  Esto crea el archivo `REPOSITORY_DUMP.txt` en la raíz.
+3.  Ve a **Google AI Studio**.
+4.  Sube este archivo.
+5.  Activa la casilla **"Context Caching"** (si está disponible en tu plan) o simplemente úsalo como contexto del chat.
 
-## 4. Reglas de Oro (Enterprise Level)
-*   **Cero Chat Local:** No discutas con subagentes en VS Code. Si algo falla, repórtalo a Jules.
-*   **Script es Ley:** La verdad del proyecto está en el código y en los scripts de automatización, no en la ventana de chat.
-*   **Rutas Sagradas:**
-    *   `/src`: Solo Backend Logic.
-    *   `/mcp-server`: Solo AI Orchestration.
-    *   `/assets`: Único lugar para archivos públicos.
+### Paso 2: Ejecución de Tareas
+Una vez el cerebro tiene el contexto actualizado:
+
+1.  Pregunta en AI Studio: *"Genera el script PowerShell para mover la lógica de reservas a un microservicio aislado."*
+2.  Copia el código resultante.
+3.  Ejecútalo en tu terminal local.
+4.  Ejecuta `.\JULES_EXECUTIVE_SYNC.ps1` para sincronizar los cambios y enviarlos a Jules.
+
+## 4. Estructura de Directorios Protegida (Route Isolation)
+
+*   `/src`: **SOLO** código fuente de la aplicación principal.
+*   `/mcp-server`: **SOLO** código del servidor MCP (Microservicio de IA).
+*   `/public` o `/assets`: **SOLO** archivos estáticos servibles.
+*   **PROHIBIDO:** Servir la raíz `./` con Express.
 
 ---
-**Estado:** ACTIVO
+**Estado:** ACTIVO (MEMORIA PERSISTENTE)
 **Firmado:** Jules, Staff Software Engineer.
