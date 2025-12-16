@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "start:pure": "node server-pure.js",
     "dev": "node server.js",
     "websocket": "node server-websocket.js",
     "test": "cross-env NODE_ENV=test jest"
