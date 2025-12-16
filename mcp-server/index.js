@@ -95,8 +95,8 @@ app.use('/api/sync', syncRoutes(services));
 app.use('/api/apis', apisRoutes(services));
 app.use('/api', mcpRoutes);
 
-// Health Check
-app.get('/health', (req, res) => {
+// Health Check (Render expects /healthz)
+app.get(['/health', '/healthz'], (req, res) => {
   res.json({
     status: 'ok',
     server: 'MCP-SANDRA',
@@ -132,6 +132,15 @@ app.get('/api/status', authMiddleware, (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+// Serve Static Files (PWA) from repository root
+// This allows the server to serve index.html and assets
+app.use(express.static(path.join(__dirname, '../')));
+
+// Fallback for PWA (optional, if using client-side routing)
+// app.get('*', (req, res) => {
+//   res.sendFile(path.join(__dirname, '../index.html'));
+// });
 
 // WebSocket Server
 const wss = new WebSocket.Server({ 
@@ -414,7 +423,8 @@ async function handleAPIsRoute(action, payload, services, ws) {
 app.use(errorHandler);
 
 // Start Server
-const PORT = process.env.MCP_PORT || 4042;
+// Render sets process.env.PORT
+const PORT = process.env.PORT || process.env.MCP_PORT || 4042;
 const HOST = process.env.MCP_HOST || '0.0.0.0';
 
 async function start() {
@@ -429,7 +439,7 @@ async function start() {
     console.log('='.repeat(60));
     console.log(`📡 HTTP Server: http://${HOST}:${PORT}`);
     console.log(`🔌 WebSocket Server: ws://${HOST}:${PORT}`);
-    console.log(`🌐 Health Check: http://${HOST}:${PORT}/health`);
+    console.log(`🌐 Health Check: http://${HOST}:${PORT}/health (or /healthz)`);
     console.log(`🔗 API Base: http://${HOST}:${PORT}/api`);
     console.log('='.repeat(60));
     console.log('✨ Servidor iniciado y listo para orquestar Sandra IA\n');
@@ -464,4 +474,3 @@ start().catch(error => {
 });
 
 module.exports = { app, server, wss, services };
-
