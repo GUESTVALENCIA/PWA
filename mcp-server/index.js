@@ -1,15 +1,6 @@
 /**
  * MCP-SANDRA Server v1.0.0
  * Model Context Protocol - Orquestador Central para Sandra IA
- * 
- * Este servidor centraliza:
- * - Procesamiento conversacional (rol Conserje)
- * - Integración con PWA Vercel
- * - Lógica de control de llamadas por voz
- * - Orquestación multimodal (audio, video, texto)
- * - Sistema de ambientación por hora/día
- * - Integración interna de miles de APIs
- * - Capacidad de restauración y resiliencia
  */
 
 require('dotenv').config();
@@ -27,9 +18,10 @@ const conserjeRoutes = require('./routes/conserje');
 const syncRoutes = require('./routes/sync');
 const apisRoutes = require('./routes/apis');
 const mcpRoutes = require('./routes/mcp');
+const sandraRoutes = require('./routes/sandra'); // NEW: Routes from api-gateway.js
 
 // Import Services
-const QwenService = require('./services/qwen');
+const GeminiService = require('./services/gemini'); // Switched from Qwen to Gemini
 const CartesiaService = require('./services/cartesia');
 const BridgeDataService = require('./services/bridgeData');
 const TranscriberService = require('./services/transcriber');
@@ -58,7 +50,7 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Initialize Services
 const services = {
-  qwen: new QwenService(),
+  qwen: new GeminiService(), // Alias 'qwen' to GeminiService to keep route compatibility without refactoring everything
   cartesia: new CartesiaService(),
   bridgeData: new BridgeDataService(),
   transcriber: new TranscriberService(),
@@ -94,9 +86,10 @@ app.use('/api/conserje', conserjeRoutes(services));
 app.use('/api/sync', syncRoutes(services));
 app.use('/api/apis', apisRoutes(services));
 app.use('/api', mcpRoutes);
+app.use('/api/sandra', sandraRoutes); // NEW: Mount the ported routes
 
-// Health Check
-app.get('/health', (req, res) => {
+// Health Check (Render expects /healthz)
+app.get(['/health', '/healthz'], (req, res) => {
   res.json({
     status: 'ok',
     server: 'MCP-SANDRA',
@@ -133,11 +126,26 @@ app.get('/api/status', authMiddleware, (req, res) => {
   });
 });
 
+// Serve Static Files (PWA) - STRICT ISOLATION
+// Do not serve the entire root. Only specific assets and index.html if needed here.
+// However, since this is the MCP server (backend), it might be better to NOT serve frontend at all unless required.
+// If this server doubles as the PWA host on Render, we must be strict.
+
+app.use('/assets', express.static(path.join(__dirname, '../assets')));
+
+app.get('/', (req, res) => {
+  const index = path.join(__dirname, '../index.html');
+  if (fs.existsSync(index)) {
+    res.sendFile(index);
+  } else {
+    res.status(404).send('PWA Index not found');
+  }
+});
+
 // WebSocket Server
 const wss = new WebSocket.Server({ 
   server,
   verifyClient: (info, callback) => {
-    // Verificar token en query string o header
     const token = info.req.url.split('token=')[1]?.split('&')[0] || 
                   info.req.headers['authorization']?.replace('Bearer ', '');
     
@@ -166,7 +174,6 @@ wss.on('connection', (ws, req) => {
       const data = JSON.parse(message);
       const { route, action, payload } = data;
       
-      // Route to appropriate handler
       let response;
       switch (route) {
         case 'audio':
@@ -209,7 +216,6 @@ wss.on('connection', (ws, req) => {
     console.error(`Error en WebSocket ${clientId}:`, error);
   });
   
-  // Send welcome message
   ws.send(JSON.stringify({
     route: 'system',
     action: 'connected',
@@ -242,12 +248,10 @@ async function handleAudioRoute(action, payload, services, ws) {
         }
       };
     case 'stt':
-      // 1. Transcribir audio del usuario
       const transcript = await services.transcriber.transcribe(payload.audio);
       console.log('🎤 [MCP] Audio transcrito:', transcript);
       
       if (!transcript || !transcript.trim()) {
-        // Si no hay transcripción, enviar mensaje de "no speech"
         ws.send(JSON.stringify({
           route: 'conserje',
           action: 'message',
@@ -256,10 +260,9 @@ async function handleAudioRoute(action, payload, services, ws) {
             message: 'No he podido oírte bien. ¿Puedes repetirlo, por favor?'
           }
         }));
-        return null; // No enviar respuesta adicional
+        return null;
       }
       
-      // 2. Procesar con IA (Conserje) para obtener respuesta de texto
       const aiResponse = await services.qwen.processMessage(transcript, {
         context: payload.context || {},
         role: 'conserje',
@@ -268,14 +271,10 @@ async function handleAudioRoute(action, payload, services, ws) {
       });
       
       console.log('🧠 [MCP] Respuesta de IA:', aiResponse);
-      
-      // 3. Generar audio de la respuesta (TTS)
       const responseAudio = await services.cartesia.textToSpeech(aiResponse, payload.voiceId);
       
       console.log('🔊 [MCP] Audio generado, enviando respuesta...');
       
-      // 4. Enviar audio de respuesta directamente por WebSocket
-      // Esto es crítico: el cliente espera recibir audio, no solo texto
       ws.send(JSON.stringify({
         route: 'audio',
         action: 'tts',
@@ -287,7 +286,6 @@ async function handleAudioRoute(action, payload, services, ws) {
         }
       }));
       
-      // También devolver transcript para logs/debugging
       return { 
         transcript,
         text: aiResponse,
@@ -314,12 +312,10 @@ async function handleVideoRoute(action, payload, services, ws) {
 async function handleConserjeRoute(action, payload, services, ws) {
   switch (action) {
     case 'message':
-      // Si el cliente está listo para recibir el saludo inicial
       if (payload.type === 'ready' || payload.message?.includes('listo para recibir saludo')) {
         console.log('👋 [MCP] Cliente listo, cargando saludo inicial GRABADO...');
         
         try {
-          // CRÍTICO: Leer archivo de audio GRABADO, NO generar con TTS
           const welcomeAudioPath = path.join(__dirname, 'assets/audio/welcome.mp3');
           
           if (!fs.existsSync(welcomeAudioPath)) {
@@ -327,19 +323,10 @@ async function handleConserjeRoute(action, payload, services, ws) {
             throw new Error('Archivo de audio de bienvenida no encontrado');
           }
           
-          // Leer archivo y convertir a base64
           const welcomeAudioBuffer = fs.readFileSync(welcomeAudioPath);
           const welcomeAudio = welcomeAudioBuffer.toString('base64');
-          
           const welcomeText = '¡Hola! Soy Sandra. Bienvenido a GuestsValencia. ¿En qué puedo ayudarte hoy?';
           
-          console.log('✅ [MCP] Audio grabado cargado:', {
-            tamaño: `${(welcomeAudioBuffer.length / 1024).toFixed(2)} KB`,
-            formato: 'MP3, 44.1kHz',
-            texto: welcomeText
-          });
-          
-          // Enviar saludo inicial directamente por WebSocket con isWelcome: true
           ws.send(JSON.stringify({
             route: 'audio',
             action: 'tts',
@@ -350,14 +337,9 @@ async function handleConserjeRoute(action, payload, services, ws) {
               isWelcome: true
             }
           }));
-          
-          console.log('✅ [MCP] Saludo inicial GRABADO enviado al cliente (sin latencia de API)');
-          
-          // No devolver respuesta adicional (ya se envió directamente)
           return null;
         } catch (error) {
           console.error('❌ [MCP] Error cargando audio grabado:', error.message);
-          // NO usar fallback a TTS - si falla, es un error crítico
           ws.send(JSON.stringify({
             route: 'conserje',
             action: 'message',
@@ -370,7 +352,6 @@ async function handleConserjeRoute(action, payload, services, ws) {
         }
       }
       
-      // Procesamiento normal de mensajes
       const response = await services.qwen.processMessage(payload.message, {
         context: payload.context,
         role: 'conserje',
@@ -379,7 +360,6 @@ async function handleConserjeRoute(action, payload, services, ws) {
       });
       return { response };
     case 'stream':
-      // Implement streaming
       return { streaming: true };
     default:
       return { error: 'Unknown action' };
@@ -414,7 +394,7 @@ async function handleAPIsRoute(action, payload, services, ws) {
 app.use(errorHandler);
 
 // Start Server
-const PORT = process.env.MCP_PORT || 4042;
+const PORT = process.env.PORT || process.env.MCP_PORT || 4042;
 const HOST = process.env.MCP_HOST || '0.0.0.0';
 
 async function start() {
@@ -429,7 +409,7 @@ async function start() {
     console.log('='.repeat(60));
     console.log(`📡 HTTP Server: http://${HOST}:${PORT}`);
     console.log(`🔌 WebSocket Server: ws://${HOST}:${PORT}`);
-    console.log(`🌐 Health Check: http://${HOST}:${PORT}/health`);
+    console.log(`🌐 Health Check: http://${HOST}:${PORT}/health (or /healthz)`);
     console.log(`🔗 API Base: http://${HOST}:${PORT}/api`);
     console.log('='.repeat(60));
     console.log('✨ Servidor iniciado y listo para orquestar Sandra IA\n');
@@ -439,10 +419,7 @@ async function start() {
 // Graceful Shutdown
 process.on('SIGTERM', async () => {
   console.log('🛑 Cerrando MCP-SANDRA Server...');
-  
-  // Crear snapshot final
   await services.snapshot.createSnapshot('shutdown');
-  
   server.close(() => {
     console.log('✅ MCP-SANDRA Server cerrado');
     process.exit(0);
@@ -464,4 +441,3 @@ start().catch(error => {
 });
 
 module.exports = { app, server, wss, services };
-
