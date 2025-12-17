@@ -4,16 +4,21 @@ const { handleRequest, AppError } = require('../utils/apiClient');
 class GeminiService {
   constructor() {
     this.baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
-    this.model = 'gemini-2.5-flash';
+    this.model = 'gemini-2.0-flash-exp'; // Using the latest experimental model for speed/quality
   }
 
   async generateContent(prompt, systemPrompt) {
     const url = `${this.baseUrl}/models/${this.model}:generateContent?key=${config.apiKeys.gemini}`;
-    const fullPrompt = `${systemPrompt}\n\nUser: ${prompt}`;
 
+    // Construct the payload with system instructions if supported, or prepended
+    // Gemini 1.5/2.0 supports systemInstruction
     const payload = {
+      systemInstruction: {
+        parts: [{ text: systemPrompt }]
+      },
       contents: [{
-        parts: [{ text: fullPrompt }]
+        role: 'user',
+        parts: [{ text: prompt }]
       }]
     };
 
@@ -25,6 +30,11 @@ class GeminiService {
       });
 
       if (!data.candidates || !data.candidates[0].content) {
+        // Fallback for safety blocks or empty responses
+        console.warn('Gemini response might be blocked or empty:', JSON.stringify(data));
+        if (data.promptFeedback && data.promptFeedback.blockReason) {
+             throw new AppError(`Gemini blocked response: ${data.promptFeedback.blockReason}`, 400);
+        }
         throw new AppError('Invalid response from Gemini', 500);
       }
 

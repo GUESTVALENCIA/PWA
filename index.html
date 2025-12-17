@@ -98,7 +98,7 @@
     <!-- HOME -->
     <section id="home-page" class="page active">
       <header class="hero-section">
-        <video id="hero-video" class="hero-video" autoplay muted loop playsinline style="display:none;">
+        <video id="hero-video" class="hero-video" autoplay muted loop playsinline style="display:none;" poster="assets/images/sandra-avatar.png">
           <source src="" type="video/mp4">
         </video>
         <div id="hero-background-image" class="hero-background-image" style="background-image: url('https://images.unsplash.com/photo-1600607687644-c7171b42498b?auto=format&fit=crop&w=1920&q=95'); filter: brightness(1.05) contrast(1.1); background-size: cover; background-position: center 35%;"></div>
@@ -374,6 +374,7 @@
         this.audioQueue = [];
         this.currentAudio = null;
         this.activeCall = null;
+        this.mediaRecorder = null;
         this.chatLocked = false;
         this.init();
       }
@@ -471,6 +472,9 @@
         const acceptCallBtn = document.getElementById('sandra-accept-call');
         const declineCallBtn = document.getElementById('sandra-decline-call');
         const callPrompt = document.getElementById('sandra-call-prompt');
+        const btnCallToggle = document.getElementById('btn-call-toggle');
+        const btnMuteToggle = document.getElementById('btn-mute-toggle');
+        const btnSearchAi = document.getElementById('btn-search-ai');
 
         // Toggle Chat
         const toggleChat = () => {
@@ -517,6 +521,8 @@
             if (callPrompt) callPrompt.style.display = 'none';
             const callControls = document.getElementById('sandra-call-controls');
             if (callControls) callControls.classList.remove('hidden');
+            // Hide chat window when starting call
+            toggleChat();
           });
         }
 
@@ -525,6 +531,34 @@
             if (callPrompt) callPrompt.style.display = 'none';
             // Logic to continue chat only
           });
+        }
+
+        if (btnCallToggle) {
+            btnCallToggle.addEventListener('click', () => {
+                // Toggle logic: for now, it starts call if not started
+                if (!this.activeCall) {
+                    this.startConversationalCall();
+                } else {
+                    // Hang up
+                    this.activeCall.close();
+                    this.activeCall = null;
+                    if (this.mediaRecorder) {
+                        this.mediaRecorder.stop();
+                        this.mediaRecorder = null;
+                    }
+                    console.log("Call ended by user");
+                    // Optionally reset UI to idle state
+                }
+            });
+        }
+
+        if (btnSearchAi) {
+            btnSearchAi.addEventListener('click', () => {
+                this.startConversationalCall();
+                // Optionally hide the hero search bar to focus on video
+                const searchContainer = document.getElementById('search-container');
+                if (searchContainer) searchContainer.style.opacity = '0'; // Fade out
+            });
         }
       }
 
@@ -574,23 +608,63 @@
           heroVideo.load();
           heroVideo.play().catch(e => console.log('Error al reproducir video:', e));
         }
-        // Start Real Time Call (WebSocket)
+        // Start Real Time Call (WebSocket + Audio Capture)
         this.startRealTimeCall();
       }
 
-      startRealTimeCall() {
+      async startRealTimeCall() {
         const ws = new WebSocket('ws://localhost:4041');
         this.activeCall = ws;
 
-        ws.onopen = () => {
+        ws.onopen = async () => {
             console.log('✅ WebSocket conectado');
             ws.send(JSON.stringify({ type: 'ready', message: 'Cliente listo' }));
+
+            // Start Microphone Capture
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                });
+
+                this.mediaRecorder = new MediaRecorder(stream);
+                this.mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0 && ws.readyState === WebSocket.OPEN) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            const base64Audio = reader.result.split(',')[1];
+                            ws.send(JSON.stringify({
+                                type: 'audio',
+                                audio: base64Audio
+                            }));
+                        };
+                        reader.readAsDataURL(event.data);
+                    }
+                };
+
+                this.mediaRecorder.start(250); // Send chunk every 250ms
+                console.log("🎤 Microphone recording started");
+
+            } catch (err) {
+                console.error("Error accessing microphone:", err);
+                alert("Error: No se pudo acceder al micrófono. Por favor permite el acceso para hablar con Sandra.");
+            }
         };
 
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
             if (data.type === 'audio') {
                 this.playAudioResponse(data.audio, data.isWelcome);
+            }
+        };
+
+        ws.onclose = () => {
+            console.log("WebSocket connection closed");
+            if (this.mediaRecorder) {
+                this.mediaRecorder.stop();
             }
         };
       }
