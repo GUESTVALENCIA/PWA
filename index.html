@@ -85,6 +85,11 @@
         <a href="https://app.guestsvalencia.es" class="nav-link hover:text-white">📱 App</a>
       </div>
       <div class="flex gap-3 items-center">
+        <!-- WhatsApp Button -->
+        <a href="https://wa.me/34624020085" target="_blank" class="hidden sm:flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-full text-sm font-bold transition-all shadow-md hover:shadow-lg">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.008-.57-.008-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
+            WhatsApp
+        </a>
         <a href="#login" class="hidden sm:block text-slate-300 hover:text-white text-sm py-2">Acceder</a>
         <a href="#register" class="btn-primary px-4 py-2 rounded-xl text-sm font-semibold">Registrarse</a>
       </div>
@@ -99,14 +104,15 @@
     <section id="home-page" class="page active">
       <header class="hero-section">
         <video id="hero-video" class="hero-video" autoplay muted loop playsinline style="display:none;">
-          <source src="" type="video/mp4">
+          <!-- Ensure this file exists or use a fallback -->
+          <source src="assets/videos/sandra-call-1.mp4" type="video/mp4">
         </video>
         <div id="hero-background-image" class="hero-background-image" style="background-image: url('https://images.unsplash.com/photo-1600607687644-c7171b42498b?auto=format&fit=crop&w=1920&q=95'); filter: brightness(1.05) contrast(1.1); background-size: cover; background-position: center 35%;"></div>
         <!-- Selector de carga para Hero -->
         <div class="absolute top-4 right-4 z-50">
           <label for="hero-media-upload" class="cursor-pointer bg-white/90 hover:bg-white backdrop-blur-sm px-4 py-2 rounded-lg shadow-lg text-sm font-semibold text-blue-600 flex items-center gap-2 transition-all hover:shadow-xl">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-            Cambiar Hero
+            Cambiar Hero / Admin
           </label>
           <input type="file" id="hero-media-upload" accept="image/*,video/*" class="hidden">
         </div>
@@ -472,8 +478,22 @@
         const declineCallBtn = document.getElementById('sandra-decline-call');
         const callPrompt = document.getElementById('sandra-call-prompt');
 
-        // Toggle Chat
-        const toggleChat = () => {
+        // --- NEW: BIND SEARCH WITH AI BUTTON ---
+        const aiSearchBtn = document.getElementById('btn-search-ai');
+        if (aiSearchBtn) {
+            aiSearchBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                console.log('🤖 Búsqueda con IA activada');
+                // Close chat window if open to avoid visual clutter
+                if (this.isOpen) {
+                    this.toggleChat(); // Use toggle to close
+                }
+                this.startConversationalCall();
+            });
+        }
+
+        // Toggle Chat Logic
+        this.toggleChat = () => {
           this.isOpen = !this.isOpen;
           if (this.isOpen) {
             chatWindow.classList.remove('hidden');
@@ -488,8 +508,8 @@
             setTimeout(() => chatWindow.classList.add('hidden'), 300);
           }
         };
-        toggleBtn.addEventListener('click', toggleChat);
-        closeBtn.addEventListener('click', toggleChat);
+        toggleBtn.addEventListener('click', this.toggleChat);
+        closeBtn.addEventListener('click', this.toggleChat);
 
         // Send Message
         const sendMessage = async () => {
@@ -510,7 +530,6 @@
         sendBtn.addEventListener('click', sendMessage);
         input.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
 
-        // Call Buttons Logic
         if (acceptCallBtn) {
           acceptCallBtn.addEventListener('click', () => {
             this.startConversationalCall();
@@ -523,7 +542,6 @@
         if (declineCallBtn) {
           declineCallBtn.addEventListener('click', () => {
             if (callPrompt) callPrompt.style.display = 'none';
-            // Logic to continue chat only
           });
         }
       }
@@ -537,6 +555,7 @@
       playRingtone() {
         console.log('🔔 Iniciando ringtone...');
         // Simulation of ringtone logic -> leads to pickup
+        // Ideally play a real audio file here if available, e.g. new Audio('assets/sounds/ringtone.mp3').play()
         setTimeout(() => {
             console.log('🔔 Segundo ring completado, descolgando llamada...');
             this.transitionHeroToVideo();
@@ -555,6 +574,9 @@
           setTimeout(() => {
             heroImage.style.display = 'none';
             heroVideo.style.display = 'block';
+            // Force play just in case
+            heroVideo.play().catch(e => console.log('Autoplay blocked:', e));
+
             heroVideo.style.opacity = '0';
             heroVideo.style.transition = 'opacity 0.8s ease-in';
             setTimeout(() => {
@@ -570,6 +592,7 @@
         const videoSource = heroVideo.querySelector('source');
 
         if (heroVideo && videoSource) {
+          // Use the file if it exists, otherwise it might fail silently
           videoSource.src = 'assets/videos/sandra-call-1.mp4';
           heroVideo.load();
           heroVideo.play().catch(e => console.log('Error al reproducir video:', e));
@@ -579,7 +602,15 @@
       }
 
       startRealTimeCall() {
-        const ws = new WebSocket('ws://localhost:4041');
+        // Check if we are on https to use wss, else ws
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        // Use the same host if deployed, or localhost:4041 for dev
+        // In this environment, we are likely on localhost or a tunneled env.
+        // Config says 4041.
+        const wsUrl = `ws://localhost:4041`;
+
+        console.log(`🔌 Conectando a WebSocket: ${wsUrl}`);
+        const ws = new WebSocket(wsUrl);
         this.activeCall = ws;
 
         ws.onopen = () => {
@@ -593,6 +624,8 @@
                 this.playAudioResponse(data.audio, data.isWelcome);
             }
         };
+
+        ws.onerror = (e) => console.error("WS Error:", e);
       }
 
       addMessage(text, type) {

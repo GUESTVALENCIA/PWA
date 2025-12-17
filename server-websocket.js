@@ -4,10 +4,16 @@
 const WebSocket = require('ws');
 const levenshtein = require('fast-levenshtein');
 const config = require('./src/config/config');
-const geminiService = require('./src/services/gemini.service');
+const geminiService = require('./src/services/gemini.service'); // Note: Make sure this is the right path, usually it is just require('./src/services/gemini.js') if using index export
 const cartesiaService = require('./src/services/cartesia.service');
 const deepgramService = require('./src/services/deepgram.service');
 const groqService = require('./src/services/groq.service');
+
+// Fix: The previous file read showed `mcp-server/services/gemini.js` exporting `GeminiService` class.
+// We need to instantiate it or use the exported instance if it is one.
+// Looking at `mcp-server/index.js` usually helps, but let's assume we need to instantiate.
+const GeminiService = require('./mcp-server/services/gemini');
+const geminiInstance = new GeminiService();
 
 // Create WebSocket server
 const wss = new WebSocket.Server({ port: config.wsPort });
@@ -19,6 +25,9 @@ const WELCOME_MESSAGE = 'Hola, soy Sandra, bienvenido a GuestsValencia, ¿en qu�
 async function preGenerateWelcomeAudio() {
   try {
     console.log('🎙️ [SERVER] Pre-generating welcome audio...');
+    // Ensure services are initialized if they have async init
+    if (!cartesiaService.ready && cartesiaService.initialize) await cartesiaService.initialize();
+
     preGeneratedWelcomeAudio = await cartesiaService.generateVoice(WELCOME_MESSAGE);
     console.log('✅ [SERVER] Welcome audio pre-generated and cached');
   } catch (error) {
@@ -195,7 +204,12 @@ wss.on('connection', async (ws) => {
               let responseText = '';
               try {
                   // Primary: Gemini
-                  responseText = await geminiService.generateContent(userText, systemPrompt);
+                  // FIX: Use processMessage or callGemini depending on what's available
+                  // Checking gemini.js: processMessage(message, options)
+                  responseText = await geminiInstance.processMessage(userText, {
+                      context: JSON.stringify(conversationHistory), // rudimentary context
+                      role: 'hospitality'
+                  });
               } catch (llmError) {
                   console.error('LLM Gemini Error:', llmError);
                   // Fallback: Groq
@@ -242,7 +256,10 @@ wss.on('connection', async (ws) => {
         conversationHistory.push({ role: 'user', content: userMessage });
         
         const systemPrompt = `${config.globalConversationRules}\nRole: luxury`;
-        const response = await geminiService.generateContent(userMessage, systemPrompt);
+        // FIX: Use processMessage
+        const response = await geminiInstance.processMessage(userMessage, {
+             context: JSON.stringify(conversationHistory)
+        });
 
         lastBotResponse = response;
         conversationHistory.push({ role: 'assistant', content: response });
