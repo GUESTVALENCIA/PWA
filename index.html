@@ -73,23 +73,48 @@
 <body class="font-sans text-slate-900 bg-white min-h-full flex flex-col">
 
   <!-- NAVBAR -->
-  <nav id="main-nav" class="fixed top-0 left-0 right-0 w-full z-50 transition-all duration-300">
-    <div class="w-full glass-dark px-6 py-3 flex justify-between items-center shadow-lg" style="border-radius: 0;">
-      <a href="#home" class="nav-link text-2xl font-bold text-white flex items-center gap-2">
+  <nav id="main-nav" class="fixed top-0 left-0 right-0 w-full z-50 h-24 flex items-center transition-all duration-300 bg-black/20 backdrop-blur-md border-b border-white/10 shadow-sm">
+    <div class="w-full max-w-7xl mx-auto px-6 flex justify-between items-center">
+      <a href="#home" class="nav-link text-3xl font-bold text-white flex items-center gap-1 font-serif tracking-tight drop-shadow-md">
         <span class="text-blue-400">Guests</span>Valencia
       </a>
-      <div class="hidden md:flex gap-6 text-sm font-medium text-slate-200">
-        <a href="#home" class="nav-link hover:text-white">Inicio</a>
-        <a href="#alojamientos" class="nav-link hover:text-white">Alojamientos</a>
-        <a href="#servicios" class="nav-link hover:text-white">Servicios</a>
-        <a href="#owners" class="nav-link hover:text-white">Propietarios</a>
-        <a href="#quienes-somos" class="nav-link hover:text-white">Quiénes Somos</a>
-        <a href="#contacto" class="nav-link hover:text-white">Contacto</a>
-        <a href="https://app.guestsvalencia.es" class="nav-link hover:text-white">📱 App</a>
+
+      <div class="hidden lg:flex gap-8 text-base font-medium text-white/90">
+        <a href="#home" class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
+          Inicio
+          <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-400 transition-all group-hover:w-full"></span>
+        </a>
+        <a href="#alojamientos" class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
+          Alojamientos
+          <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-400 transition-all group-hover:w-full"></span>
+        </a>
+        <a href="#servicios" class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
+          Servicios
+          <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-400 transition-all group-hover:w-full"></span>
+        </a>
+        <a href="#owners" class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
+          Propietarios
+          <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-400 transition-all group-hover:w-full"></span>
+        </a>
+        <a href="#quienes-somos" class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
+          Quiénes Somos
+          <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-400 transition-all group-hover:w-full"></span>
+        </a>
+        <a href="#contacto" class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
+          Contacto
+          <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-400 transition-all group-hover:w-full"></span>
+        </a>
+        <a href="https://app.guestsvalencia.es" class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
+          📱 App
+          <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-400 transition-all group-hover:w-full"></span>
+        </a>
       </div>
-      <div class="flex gap-3 items-center">
-        <a href="#login" class="hidden sm:block text-slate-300 hover:text-white text-sm py-2">Acceder</a>
-        <a href="#register" class="btn-primary px-4 py-2 rounded-xl text-sm font-semibold">Registrarse</a>
+
+      <div class="flex gap-4 items-center">
+        <a href="#login" class="nav-link hidden sm:block text-white/90 hover:text-white text-base font-medium">Acceder</a>
+        <a href="#register" class="nav-link bg-white/10 hover:bg-white/20 border border-white/20 text-white px-6 py-3 rounded-full text-base font-bold backdrop-blur-sm transition-all transform hover:scale-105">
+          Registrarse
+        </a>
       </div>
     </div>
   </nav>
