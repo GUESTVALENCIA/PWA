@@ -332,6 +332,66 @@
   <!-- FOOTER -->
   <!-- [SAME FOOTER] -->
 
+  <!-- Persistencia del Hero (solo imagen): aplica + guarda, sin tocar la lógica de llamada -->
+  <script>
+    (function () {
+      const heroBg = document.getElementById('hero-background-image');
+      const heroVideo = document.getElementById('hero-video');
+      const heroInput = document.getElementById('hero-media-upload');
+      const STORAGE_KEY = 'gv-hero-image';
+      let currentObjectUrl = null;
+
+      const applyHeroImage = (url) => {
+        if (heroBg) heroBg.style.backgroundImage = `url('${url}')`;
+        if (heroVideo) heroVideo.setAttribute('poster', url);
+      };
+
+      const revokeCurrentObjectUrl = () => {
+        if (currentObjectUrl) {
+          URL.revokeObjectURL(currentObjectUrl);
+          currentObjectUrl = null;
+        }
+      };
+
+      // 1) Cargar imagen persistida (localStorage)
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) applyHeroImage(saved);
+      } catch (err) {
+        console.warn('No se pudo leer la imagen guardada del Hero', err);
+      }
+
+      // 2) Al subir imagen: mostrar y persistir (sin tocar vídeo/llamada)
+      if (heroInput) {
+        heroInput.addEventListener('change', (e) => {
+          const file = e.target.files && e.target.files[0];
+          if (!file) return;
+
+          if (!file.type || !file.type.startsWith('image/')) {
+            // No forzamos nada: si no es imagen, salimos sin romper el flujo.
+            return;
+          }
+
+          // Mostrar al instante
+          revokeCurrentObjectUrl();
+          currentObjectUrl = URL.createObjectURL(file);
+          applyHeroImage(currentObjectUrl);
+
+          // Persistir (dataURL)
+          const reader = new FileReader();
+          reader.onload = () => {
+            try {
+              localStorage.setItem(STORAGE_KEY, String(reader.result || ''));
+            } catch (err) {
+              console.warn('No se pudo guardar la imagen del Hero (localStorage)', err);
+            }
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+    })();
+  </script>
+
   <!-- SANDRA WIDGET SCRIPT -->
   <script>
     // Sandra Gateway Client
