@@ -462,10 +462,16 @@
         this.isRecording = false;
         this.isMicrophoneMuted = false;
         this.isSpeaking = false;
+        this.awaitingResponse = false;
         this.audioQueue = [];
         this.currentAudio = null;
         this.activeCall = null;
         this.mediaRecorder = null;
+        this.stream = null;
+        this.recordingSliceMs = 2500;
+        this.minRecordedBytes = 6000;
+        this.responseWatchdogTimeout = null;
+        this._mcpConfigPromise = null;
         this.chatLocked = false;
         this.init();
       }
@@ -624,34 +630,48 @@
           });
         }
 
-        if (btnCallToggle) {
-            btnCallToggle.addEventListener('click', () => {
-                // Toggle logic: for now, it starts call if not started
-                if (!this.activeCall) {
-                    this.startConversationalCall();
-	                } else {
-	                    // Hang up
-	                    this.activeCall.close();
-	                    this.activeCall = null;
-	                    this.setHeroCallActive(false);
-	                    if (this.mediaRecorder) {
-	                        this.mediaRecorder.stop();
-	                        this.mediaRecorder = null;
-	                    }
-	                    console.log("Call ended by user");
-                    // Optionally reset UI to idle state
-                }
-            });
-        }
-
-	        if (btnSearchAi) {
-	            btnSearchAi.addEventListener('click', () => {
-	                this.startConversationalCall();
-	                // Optionally hide the hero search bar to focus on video
-	                const searchContainer = document.getElementById('search-container');
-	                if (searchContainer) searchContainer.style.opacity = '0'; // Fade out
+	        if (btnCallToggle) {
+	            btnCallToggle.addEventListener('click', () => {
+	                // Toggle logic: for now, it starts call if not started
+	                if (!this.activeCall) {
+	                    this.startConversationalCall();
+		                } else {
+		                    // Hang up
+		                    try { this.activeCall.close(); } catch (_) {}
+		                    this.activeCall = null;
+		                    this.stopAudioCapture();
+		                    this.setHeroCallActive(false);
+		                    console.log("Call ended by user");
+	                    // Optionally reset UI to idle state
+	                }
 	            });
 	        }
+
+	        if (btnMuteToggle) {
+	          btnMuteToggle.addEventListener('click', () => {
+	            this.isMicrophoneMuted = !this.isMicrophoneMuted;
+	            const micIcon = document.getElementById('mic-icon');
+	            const micMutedIcon = document.getElementById('mic-muted-icon');
+	            if (this.isMicrophoneMuted) {
+	              micIcon && micIcon.classList.add('hidden');
+	              micMutedIcon && micMutedIcon.classList.remove('hidden');
+	              btnMuteToggle.classList.add('bg-red-500/40');
+	            } else {
+	              micMutedIcon && micMutedIcon.classList.add('hidden');
+	              micIcon && micIcon.classList.remove('hidden');
+	              btnMuteToggle.classList.remove('bg-red-500/40');
+	            }
+	          });
+	        }
+
+		        if (btnSearchAi) {
+		            btnSearchAi.addEventListener('click', () => {
+		                this.startConversationalCall();
+		                // Optionally hide the hero search bar to focus on video
+		                const searchContainer = document.getElementById('search-container');
+		                if (searchContainer) searchContainer.style.opacity = '0'; // Fade out
+		            });
+		        }
 	      }
 
 	      setHeroCallActive(active) {
@@ -758,17 +778,104 @@
           heroVideo.load();
           heroVideo.play().catch(e => console.log('Error al reproducir video:', e));
         }
-        // Start Real Time Call (WebSocket + Audio Capture)
-        this.startRealTimeCall();
-      }
+	        // Start Real Time Call (WebSocket + Audio Capture)
+	        this.startRealTimeCall();
+	      }
 
-      async startRealTimeCall() {
-        const ws = new WebSocket('ws://localhost:4041');
-        this.activeCall = ws;
+	      async getMcpConfig() {
+	        if (this._mcpConfigPromise) return this._mcpConfigPromise;
+	        this._mcpConfigPromise = (async () => {
+	          try {
+	            const res = await fetch('/api/config', { cache: 'no-store' });
+	            if (!res.ok) throw new Error(`config ${res.status}`);
+	            const cfg = await res.json();
+	            return {
+	              MCP_SERVER_URL: cfg && cfg.MCP_SERVER_URL ? cfg.MCP_SERVER_URL : 'https://pwa-imbf.onrender.com',
+	              MCP_TOKEN: cfg && cfg.MCP_TOKEN ? cfg.MCP_TOKEN : null
+	            };
+	          } catch (err) {
+	            console.warn('[MCP] No se pudo cargar /api/config, usando fallback', err);
+	            return { MCP_SERVER_URL: 'https://pwa-imbf.onrender.com', MCP_TOKEN: null };
+	          }
+	        })();
+	        return this._mcpConfigPromise;
+	      }
+
+	      buildWebSocketUrl(mcpServerUrl, token) {
+	        let url;
+	        try {
+	          url = new URL(String(mcpServerUrl || ''));
+	        } catch (_) {
+	          url = new URL('https://pwa-imbf.onrender.com');
+	        }
+
+	        const isRender = url.hostname.includes('onrender.com');
+	        url.protocol = (url.protocol === 'https:') ? 'wss:' : 'ws:';
+	        url.pathname = '/';
+
+	        if (isRender) {
+	          url.port = '';
+	        } else if (!url.port) {
+	          url.port = '4042';
+	        }
+
+	        url.search = token ? `?token=${encodeURIComponent(String(token))}` : '';
+	        return url.toString();
+	      }
+
+	      clearResponseWatchdog() {
+	        if (this.responseWatchdogTimeout) {
+	          clearTimeout(this.responseWatchdogTimeout);
+	          this.responseWatchdogTimeout = null;
+	        }
+	      }
+
+	      startResponseWatchdog() {
+	        this.clearResponseWatchdog();
+	        this.responseWatchdogTimeout = setTimeout(() => {
+	          this.responseWatchdogTimeout = null;
+	          if (!this.activeCall) return;
+	          if (!this.awaitingResponse) return;
+	          console.warn('[MCP] Watchdog: sin respuesta, reanudando escucha');
+	          this.awaitingResponse = false;
+	        }, 12000);
+	      }
+
+	      stopAudioCapture() {
+	        this.clearResponseWatchdog();
+	        this.awaitingResponse = false;
+	        this.isSpeaking = false;
+
+	        if (this.mediaRecorder) {
+	          try {
+	            if (this.mediaRecorder.state === 'recording' || this.mediaRecorder.state === 'paused') {
+	              this.mediaRecorder.stop();
+	            }
+	          } catch (_) {}
+	          this.mediaRecorder = null;
+	        }
+
+	        if (this.stream) {
+	          try {
+	            this.stream.getTracks().forEach(t => t.stop());
+	          } catch (_) {}
+	          this.stream = null;
+	        }
+	      }
+
+	      async startRealTimeCall() {
+	        const cfg = await this.getMcpConfig();
+	        const wsUrl = this.buildWebSocketUrl(cfg.MCP_SERVER_URL, cfg.MCP_TOKEN);
+	        const ws = new WebSocket(wsUrl);
+	        this.activeCall = ws;
 
         ws.onopen = async () => {
             console.log('✅ WebSocket conectado');
-            ws.send(JSON.stringify({ type: 'ready', message: 'Cliente listo' }));
+            ws.send(JSON.stringify({
+              route: 'conserje',
+              action: 'message',
+              payload: { type: 'ready', message: 'Cliente listo' }
+            }));
 
             // Start Microphone Capture
             try {
@@ -780,42 +887,105 @@
                     }
                 });
 
-                this.mediaRecorder = new MediaRecorder(stream);
+                this.stream = stream;
+
+                const preferredMime = 'audio/webm;codecs=opus';
+                try {
+                  if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(preferredMime)) {
+                    this.mediaRecorder = new MediaRecorder(stream, { mimeType: preferredMime });
+                  } else {
+                    this.mediaRecorder = new MediaRecorder(stream);
+                  }
+                } catch (_) {
+                  this.mediaRecorder = new MediaRecorder(stream);
+                }
                 this.mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0 && ws.readyState === WebSocket.OPEN) {
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                            const base64Audio = reader.result.split(',')[1];
-                            ws.send(JSON.stringify({
-                                type: 'audio',
-                                audio: base64Audio
-                            }));
-                        };
-                        reader.readAsDataURL(event.data);
-                    }
+                  try {
+                    if (!event.data || event.data.size <= 0) return;
+                    if (!this.activeCall || ws.readyState !== WebSocket.OPEN) return;
+                    if (this.isMicrophoneMuted || this.isSpeaking || this.awaitingResponse) return;
+                    if (event.data.size < this.minRecordedBytes) return;
+
+                    this.awaitingResponse = true;
+                    this.startResponseWatchdog();
+
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                      try {
+                        const base64Audio = String(reader.result || '').split(',')[1] || '';
+                        if (!base64Audio) {
+                          this.awaitingResponse = false;
+                          return;
+                        }
+
+                        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                        const destination = (document.getElementById('search-destination')?.value || '').trim();
+                        const guests = Number(document.getElementById('search-guests')?.value || 0) || 0;
+                        const nights = Number(document.getElementById('search-nights')?.value || 0) || 0;
+
+                        ws.send(JSON.stringify({
+                          route: 'audio',
+                          action: 'stt',
+                          payload: {
+                            audio: base64Audio,
+                            context: { timezone, destination, guests, nights }
+                          }
+                        }));
+                      } catch (err) {
+                        console.error('[MCP] Error enviando audio', err);
+                        this.awaitingResponse = false;
+                      }
+                    };
+                    reader.readAsDataURL(event.data);
+                  } catch (err) {
+                    console.error('[MCP] Error en ondataavailable', err);
+                    this.awaitingResponse = false;
+                  }
                 };
 
-                this.mediaRecorder.start(250); // Send chunk every 250ms
+                this.mediaRecorder.start(this.recordingSliceMs);
                 console.log("🎤 Microphone recording started");
 
             } catch (err) {
                 console.error("Error accessing microphone:", err);
                 alert("Error: No se pudo acceder al micrófono. Por favor permite el acceso para hablar con Sandra.");
+                this.stopAudioCapture();
+                try { ws.close(); } catch (_) {}
             }
         };
 
         ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            if (data.type === 'audio') {
-                this.playAudioResponse(data.audio, data.isWelcome);
+            let data;
+            try {
+              data = JSON.parse(event.data);
+            } catch (err) {
+              console.error('[MCP] Mensaje inválido', err);
+              return;
+            }
+
+            if (data.route === 'audio' && data.action === 'tts' && data.payload && data.payload.audio) {
+              this.clearResponseWatchdog();
+              this.awaitingResponse = false;
+              this.playAudioResponse(data.payload.audio);
+              return;
+            }
+
+            if (data.route === 'conserje' && data.action === 'message' && data.payload && data.payload.type === 'noSpeech' && data.payload.message) {
+              this.clearResponseWatchdog();
+              this.awaitingResponse = false;
+              try {
+                ws.send(JSON.stringify({
+                  route: 'audio',
+                  action: 'tts',
+                  payload: { text: data.payload.message }
+                }));
+              } catch (_) {}
             }
         };
 
 	        ws.onclose = () => {
 	            console.log("WebSocket connection closed");
-	            if (this.mediaRecorder) {
-	                this.mediaRecorder.stop();
-	            }
+	            this.stopAudioCapture();
 	            this.activeCall = null;
 	            this.setHeroCallActive(false);
 	        };
@@ -839,39 +1009,48 @@
       }
 
       // AUDIO FIX: Improved playAudioResponse with 3s delay on revoke
-      playAudioResponse(audioBase64) {
-        if (this.currentAudio) {
-          this.currentAudio.pause();
-          if (this.currentAudio._blobUrl) URL.revokeObjectURL(this.currentAudio._blobUrl);
-        }
+	      playAudioResponse(audioBase64) {
+	        if (this.currentAudio) {
+	          this.currentAudio.pause();
+	          if (this.currentAudio._blobUrl) URL.revokeObjectURL(this.currentAudio._blobUrl);
+	        }
 
-        const byteCharacters = atob(audioBase64);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
+	        this.isSpeaking = true;
+
+	        const byteCharacters = atob(audioBase64);
+	        const byteNumbers = new Array(byteCharacters.length);
+	        for (let i = 0; i < byteCharacters.length; i++) {
+	          byteNumbers[i] = byteCharacters.charCodeAt(i);
         }
         const byteArray = new Uint8Array(byteNumbers);
         const blob = new Blob([byteArray], { type: 'audio/mp3' });
         const blobUrl = URL.createObjectURL(blob);
 
         const audio = new Audio(blobUrl);
-        audio._blobUrl = blobUrl;
-        this.currentAudio = audio;
+	        audio._blobUrl = blobUrl;
+	        this.currentAudio = audio;
 
-        audio.onended = () => {
-          this.isSpeaking = false;
-          // CRITICAL FIX: Wait 3 seconds before revoking to prevent cutting off the end
-          setTimeout(() => {
+	        audio.onerror = () => {
+	          this.isSpeaking = false;
+	        };
+
+	        audio.onended = () => {
+	          this.isSpeaking = false;
+	          // CRITICAL FIX: Wait 3 seconds before revoking to prevent cutting off the end
+	          setTimeout(() => {
             if (audio._blobUrl) {
               URL.revokeObjectURL(audio._blobUrl);
               audio._blobUrl = null;
             }
             this.currentAudio = null;
-          }, 3000);
-        };
+	          }, 3000);
+	        };
 
-        audio.play().catch(e => console.error("Audio play error:", e));
-      }
+	        audio.play().catch(e => {
+	          this.isSpeaking = false;
+	          console.error("Audio play error:", e);
+	        });
+	      }
     }
 
     document.addEventListener('DOMContentLoaded', () => {
