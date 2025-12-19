@@ -48,6 +48,9 @@
     .hero-section{position:relative;min-height:100vh;display:flex;align-items:flex-end;justify-content:center;overflow:hidden;padding-bottom:10vh}
     .hero-video{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:-2}
     .hero-background-image{position:absolute;top:0;left:0;width:100%;height:100%;background-size:cover;background-position:center 35%;z-index:-3;transition:transform 0.3s ease}
+    /* Movimiento sutil del Hero durante llamada (sin video) */
+    .hero-motion{animation:hero-motion 10s ease-in-out infinite;will-change:transform}
+    @keyframes hero-motion{0%,100%{transform:scale(1) translate3d(0,0,0)}50%{transform:scale(1.015) translate3d(0,-0.6%,0)}}
     /* Subtítulos siempre visibles y con saltos de línea cuando se muestran */
     #sandra-subtitles span{white-space:pre-line;display:inline-block;line-height:1.5}
     .property-card{transition:transform 0.3s,box-shadow 0.3s}.property-card:hover{transform:translateY(-5px);box-shadow:0 20px 40px rgba(0,0,0,0.1)}
@@ -427,6 +430,9 @@
     class SandraWidget {
       constructor() {
         this.gateway = new SandraGateway();
+        // Forzamos modo estático (sin video). Cuando tengas el mp4 de Sora, pon esto a true.
+        this.useVideo = false;
+        this.ringTimeout = null;
         this.isOpen = false;
         this.isRecording = false;
         this.isMicrophoneMuted = false;
@@ -598,48 +604,96 @@
                 // Toggle logic: for now, it starts call if not started
                 if (!this.activeCall) {
                     this.startConversationalCall();
-                } else {
-                    // Hang up
-                    this.activeCall.close();
-                    this.activeCall = null;
-                    if (this.mediaRecorder) {
-                        this.mediaRecorder.stop();
-                        this.mediaRecorder = null;
-                    }
-                    console.log("Call ended by user");
+	                } else {
+	                    // Hang up
+	                    this.activeCall.close();
+	                    this.activeCall = null;
+	                    this.setHeroCallActive(false);
+	                    if (this.mediaRecorder) {
+	                        this.mediaRecorder.stop();
+	                        this.mediaRecorder = null;
+	                    }
+	                    console.log("Call ended by user");
                     // Optionally reset UI to idle state
                 }
             });
         }
 
-        if (btnSearchAi) {
-            btnSearchAi.addEventListener('click', () => {
-                this.startConversationalCall();
-                // Optionally hide the hero search bar to focus on video
-                const searchContainer = document.getElementById('search-container');
-                if (searchContainer) searchContainer.style.opacity = '0'; // Fade out
-            });
-        }
-      }
+	        if (btnSearchAi) {
+	            btnSearchAi.addEventListener('click', () => {
+	                this.startConversationalCall();
+	                // Optionally hide the hero search bar to focus on video
+	                const searchContainer = document.getElementById('search-container');
+	                if (searchContainer) searchContainer.style.opacity = '0'; // Fade out
+	            });
+	        }
+	      }
 
-      startConversationalCall() {
-        console.log('Iniciando llamada conversacional...');
-        this.chatLocked = true;
-        this.playRingtone();
-      }
+	      setHeroCallActive(active) {
+	        const heroBg = document.getElementById('hero-background-image');
+	        const heroVideo = document.getElementById('hero-video');
+	        const searchContainer = document.getElementById('search-container');
+
+	        if (searchContainer) {
+	          searchContainer.style.opacity = active ? '0' : '1';
+	          searchContainer.style.pointerEvents = active ? 'none' : 'auto';
+	        }
+
+	        if (heroBg) {
+	          heroBg.classList.toggle('hero-motion', !!active);
+	        }
+
+	        // En modo sin video, aseguramos que el <video> no se muestre ni cargue.
+	        if (heroVideo && !this.useVideo) {
+	          try {
+	            heroVideo.pause();
+	            heroVideo.currentTime = 0;
+	          } catch (_) {}
+	          heroVideo.style.display = 'none';
+	          heroVideo.style.opacity = '0';
+	          const source = heroVideo.querySelector('source');
+	          if (source) source.removeAttribute('src');
+	          try { heroVideo.load(); } catch (_) {}
+	        }
+
+	        if (!active) {
+	          this.chatLocked = false;
+	          if (this.ringTimeout) {
+	            clearTimeout(this.ringTimeout);
+	            this.ringTimeout = null;
+	          }
+	        }
+	      }
+
+	      startConversationalCall() {
+	        console.log('Iniciando llamada conversacional...');
+	        if (this.chatLocked || this.activeCall || this.ringTimeout) return;
+	        this.chatLocked = true;
+	        this.playRingtone();
+	      }
 
       playRingtone() {
         console.log('🔔 Iniciando ringtone...');
         // Simulation of ringtone logic -> leads to pickup
-        setTimeout(() => {
+        if (this.ringTimeout) clearTimeout(this.ringTimeout);
+        this.ringTimeout = setTimeout(() => {
+            this.ringTimeout = null;
             console.log('🔔 Segundo ring completado, descolgando llamada...');
-            this.transitionHeroToVideo();
-            this.startVideoStream();
+            this.setHeroCallActive(true);
+
+            if (this.useVideo) {
+              this.transitionHeroToVideo();
+              this.startVideoStream();
+            } else {
+              // Sin video: solo animamos el Hero y arrancamos la llamada/stream de audio.
+              this.startRealTimeCall();
+            }
         }, 3000);
       }
 
       transitionHeroToVideo() {
         console.log('🎥 Transición: Imagen estática → Video');
+        if (!this.useVideo) return;
         const heroImage = document.getElementById('hero-background-image');
         const heroVideo = document.getElementById('hero-video');
 
@@ -667,6 +721,10 @@
 
       startVideoStream() {
         console.log('🎬 Iniciando stream de video...');
+        if (!this.useVideo) {
+          this.startRealTimeCall();
+          return;
+        }
         const heroVideo = document.getElementById('hero-video');
         const videoSource = heroVideo.querySelector('source');
 
@@ -728,12 +786,14 @@
             }
         };
 
-        ws.onclose = () => {
-            console.log("WebSocket connection closed");
-            if (this.mediaRecorder) {
-                this.mediaRecorder.stop();
-            }
-        };
+	        ws.onclose = () => {
+	            console.log("WebSocket connection closed");
+	            if (this.mediaRecorder) {
+	                this.mediaRecorder.stop();
+	            }
+	            this.activeCall = null;
+	            this.setHeroCallActive(false);
+	        };
       }
 
       addMessage(text, type) {
