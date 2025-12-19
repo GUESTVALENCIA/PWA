@@ -644,17 +644,24 @@
         const heroVideo = document.getElementById('hero-video');
 
         if (heroImage && heroVideo) {
-          heroImage.style.transition = 'opacity 0.8s ease-out';
-          heroImage.style.opacity = '0';
-          setTimeout(() => {
-            heroImage.style.display = 'none';
-            heroVideo.style.display = 'block';
-            heroVideo.style.opacity = '0';
-            heroVideo.style.transition = 'opacity 0.8s ease-in';
-            setTimeout(() => {
-              heroVideo.style.opacity = '1';
-            }, 100);
-          }, 800);
+          // Crossfade SIN "cortina blanca": mantenemos la imagen visible y hacemos fade-in del vídeo encima.
+          // Además, igualamos el poster del vídeo al fondo actual para que el cambio sea casi imperceptible.
+          try {
+            const bg = window.getComputedStyle(heroImage).backgroundImage || '';
+            const m = bg.match(/url\(["']?(.*?)["']?\)/i);
+            if (m && m[1]) heroVideo.setAttribute('poster', m[1]);
+          } catch (_) {}
+
+          heroImage.style.display = 'block';
+          heroImage.style.opacity = '1';
+
+          heroVideo.style.display = 'block';
+          heroVideo.style.opacity = '0';
+          heroVideo.style.transition = 'opacity 0.8s ease-in';
+
+          requestAnimationFrame(() => {
+            heroVideo.style.opacity = '1';
+          });
         }
       }
 
