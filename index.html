@@ -48,11 +48,27 @@
     .hero-section{position:relative;min-height:100vh;display:flex;align-items:flex-end;justify-content:center;overflow:hidden;padding-bottom:10vh}
     .hero-video{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:-2}
     .hero-background-image{position:absolute;top:0;left:0;width:100%;height:100%;background-size:cover;background-position:center 35%;z-index:-3}
-    /* Hero Call UI (sin saltos): fade search -> controls */
-    #search-container{transition:opacity .28s ease,transform .28s ease}
-    #search-container.call-hidden{opacity:0;transform:translateY(8px);pointer-events:none}
-    #call-controls-bar{opacity:0;transform:translateY(8px);pointer-events:none;transition:opacity .28s ease,transform .28s ease}
+    /* Hero Call UI: Galaxy-style transitions */
+    #search-container{transition:opacity .5s ease,transform .5s ease,filter .5s ease}
+    #search-container.call-hidden{opacity:0;transform:translateY(12px);filter:blur(8px);pointer-events:none}
+    #call-controls-bar{opacity:0;transform:translateY(12px);pointer-events:none;transition:opacity .5s ease .2s,transform .5s ease .2s}
     #call-controls-bar.active{opacity:1;transform:translateY(0);pointer-events:auto}
+    .call-controls-inner{animation:controls-appear .4s ease forwards}
+    @keyframes controls-appear{from{opacity:0;transform:scale(0.9)}to{opacity:1;transform:scale(1)}}
+
+    /* Lip Sync Animation for Hero Image */
+    #hero-background-image{transition:transform 0.15s ease-out}
+    #hero-background-image.speaking{animation:lip-sync-pulse 0.12s ease-in-out infinite alternate}
+    @keyframes lip-sync-pulse{
+      0%{transform:scale(1) translateY(0)}
+      100%{transform:scale(1.002) translateY(-0.5px)}
+    }
+    /* Subtle breathing animation when call is active but not speaking */
+    #hero-background-image.call-active{animation:breathing 4s ease-in-out infinite}
+    @keyframes breathing{
+      0%,100%{transform:scale(1)}
+      50%{transform:scale(1.003)}
+    }
     /* Subtítulos siempre visibles y con saltos de línea cuando se muestran */
     #sandra-subtitles span{white-space:pre-line;display:inline-block;line-height:1.5}
     .property-card{transition:transform 0.3s,box-shadow 0.3s}.property-card:hover{transform:translateY(-5px);box-shadow:0 20px 40px rgba(0,0,0,0.1)}
@@ -143,64 +159,82 @@
         <div class="relative z-10 text-center px-6 max-w-4xl mx-auto" style="margin-top: 45vh;">
           <p class="text-lg md:text-xl text-white mb-8 max-w-2xl mx-auto font-semibold drop-shadow-2xl" style="text-shadow: 0 2px 12px rgba(0,0,0,0.4), 0 0 20px rgba(0,0,0,0.2);">Apartamentos de diseño con llegada autónoma y asistencia 24 horas impulsadas por Sandra IA</p>
 	          <div id="hero-action-area" class="relative max-w-4xl mx-auto">
-	            <div id="search-container" class="glass p-2 rounded-2xl max-w-4xl mx-auto shadow-2xl transition-all duration-300">
-            <form id="search-form" class="flex flex-col md:flex-row gap-2 items-center">
-              <div class="flex-1 w-full md:w-auto flex gap-2">
-                <input type="text" id="search-destination" placeholder="¿A dónde viajas? Ej: Ruzafa..." class="flex-1 pl-4 py-4 rounded-xl bg-white/90 text-slate-800 placeholder-slate-500 font-medium outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all">
-                <div class="relative">
-                  <input type="number" id="search-guests" value="2" min="1" aria-label="Número de personas" class="w-32 px-4 py-4 rounded-xl bg-white/90 text-slate-800 font-medium outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all pr-16">
-                  <span class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm pointer-events-none">Personas</span>
-	            </div>
-
-	            <!-- Barra flotante de llamada (aparece al iniciar llamada; no mueve el layout) -->
-	            <div id="call-controls-bar" class="absolute inset-0 flex items-center justify-center">
-	              <div class="bg-slate-900/80 backdrop-blur-lg border border-white/10 shadow-2xl rounded-full px-4 py-3 flex items-center gap-3">
-	                <button id="hero-hangup-btn" type="button" aria-label="Colgar llamada" class="w-11 h-11 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center shadow-lg transition-all">
-	                  <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M21 15.46l-5.27-2.11a1 1 0 00-1.11.29l-1.57 1.92a15.05 15.05 0 01-6.6-6.6l1.92-1.57a1 1 0 00.29-1.11L6.54 3.01A1 1 0 005.4 2.4l-2.4.6A1 1 0 002 4a18 18 0 0018 18 1 1 0 001-.99l.6-2.4a1 1 0 00-.59-1.15z"/></svg>
-	                </button>
-
-	                <button id="hero-pause-btn" type="button" aria-label="Pausar llamada" class="w-11 h-11 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center border border-white/15 transition-all">
-	                  <svg id="hero-pause-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6M14 9v6"/></svg>
-	                  <svg id="hero-resume-icon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-	                </button>
-
-	                <button id="hero-mute-btn" type="button" aria-label="Silenciar micrófono" class="w-11 h-11 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center border border-white/15 transition-all">
-	                  <svg id="hero-mic-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 1a3 3 0 013 3v7a3 3 0 11-6 0V4a3 3 0 013-3z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 10v1a7 7 0 01-14 0v-1"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18v4m-3 0h6"/></svg>
-	                  <svg id="hero-mic-muted-icon" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 10v1a7 7 0 01-11.2 5.7"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18v4m-3 0h6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3l18 18"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9v2a3 3 0 004.7 2.5"/></svg>
-	                </button>
-
-	                <button id="hero-camera-btn" type="button" aria-label="Abrir cámara" class="w-11 h-11 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center border border-white/15 transition-all">
-	                  <svg id="hero-camera-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-	                  <svg id="hero-camera-off-icon" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3l18 18"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-	                </button>
-	              </div>
-
-	              <!-- Preview local de cámara (solo UI; no se envía al backend aún) -->
-	              <div id="hero-camera-preview" class="hidden absolute -top-36 right-0 w-44 h-32 rounded-2xl overflow-hidden border border-white/20 shadow-2xl bg-black/40">
-	                <video id="hero-camera-video" class="w-full h-full object-cover" autoplay playsinline muted></video>
-	              </div>
-	            </div>
-	          </div>
-                <div class="relative">
-                  <input type="number" id="search-nights" value="1" min="1" aria-label="Número de noches" class="w-32 px-4 py-4 rounded-xl bg-white/90 text-slate-800 font-medium outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all pr-16">
-                  <span class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm pointer-events-none">Noches</span>
+            <!-- Barra de búsqueda Galaxy -->
+            <div id="search-container" class="galaxy-search glass p-3 rounded-2xl max-w-4xl mx-auto shadow-2xl transition-all duration-500">
+              <form id="search-form" class="flex flex-col md:flex-row gap-3 items-center">
+                <div class="flex-1 w-full md:w-auto flex gap-3">
+                  <div class="relative flex-1">
+                    <svg class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    <input type="text" id="search-destination" placeholder="¿A dónde viajas? Ej: Ruzafa..." class="w-full pl-12 pr-4 py-4 rounded-xl bg-white/95 text-slate-800 placeholder-slate-400 font-medium outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all border border-slate-200/50">
+                  </div>
+                  <div class="relative">
+                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    <input type="number" id="search-guests" value="2" min="1" aria-label="Número de personas" class="w-28 pl-9 pr-2 py-4 rounded-xl bg-white/95 text-slate-800 font-medium outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all border border-slate-200/50 text-center">
+                    <span class="absolute -bottom-5 left-1/2 -translate-x-1/2 text-white/70 text-xs font-medium whitespace-nowrap">Personas</span>
+                  </div>
+                  <div class="relative">
+                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+                    <input type="number" id="search-nights" value="1" min="1" aria-label="Número de noches" class="w-28 pl-9 pr-2 py-4 rounded-xl bg-white/95 text-slate-800 font-medium outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all border border-slate-200/50 text-center">
+                    <span class="absolute -bottom-5 left-1/2 -translate-x-1/2 text-white/70 text-xs font-medium whitespace-nowrap">Noches</span>
+                  </div>
                 </div>
-              </div>
-              <div class="flex gap-2 w-full md:w-auto">
-                <button type="button" id="btn-search-normal" class="px-6 py-4 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-lg transition-all flex items-center gap-2">
-                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                  Buscar
-                </button>
-                <button type="button" id="btn-search-ai" class="px-6 py-4 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold hover:from-purple-700 hover:to-blue-700 shadow-lg transition-all flex items-center gap-2 relative overflow-hidden group">
-                  <span class="absolute inset-0 bg-gradient-to-r from-purple-400 to-blue-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
-                  <svg class="w-5 h-5 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
-                  <span class="relative z-10">Buscar con IA</span>
-                  <span id="ai-search-pulse" class="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100">
-                    <span class="absolute inset-0 rounded-xl bg-gradient-to-r from-purple-400/50 to-blue-400/50 animate-ping"></span>
+                <div class="flex gap-2 w-full md:w-auto mt-4 md:mt-0">
+                  <button type="button" id="btn-search-normal" class="flex-1 md:flex-none px-6 py-4 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-lg transition-all flex items-center justify-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    Buscar
+                  </button>
+                  <button type="button" id="btn-search-ai" class="flex-1 md:flex-none px-6 py-4 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold hover:from-purple-700 hover:to-blue-700 shadow-lg transition-all flex items-center justify-center gap-2 relative overflow-hidden group">
+                    <span class="absolute inset-0 bg-gradient-to-r from-purple-400 to-blue-400 opacity-0 group-hover:opacity-20 transition-opacity duration-300"></span>
+                    <svg class="w-5 h-5 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                    <span class="relative z-10">Buscar con IA</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <!-- Barra flotante de controles de llamada (aparece al iniciar llamada) -->
+            <div id="call-controls-bar" class="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div class="call-controls-inner bg-slate-900/90 backdrop-blur-xl border border-white/10 shadow-2xl rounded-full px-6 py-4 flex items-center gap-4 pointer-events-auto">
+                <!-- Indicador de llamada activa -->
+                <div class="flex items-center gap-2 pr-4 border-r border-white/20">
+                  <span class="relative flex h-3 w-3">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
                   </span>
+                  <span class="text-white/80 text-sm font-medium">Sandra IA</span>
+                </div>
+
+                <button id="hero-hangup-btn" type="button" aria-label="Colgar llamada" class="w-12 h-12 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow-lg transition-all hover:scale-105">
+                  <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M21 15.46l-5.27-2.11a1 1 0 00-1.11.29l-1.57 1.92a15.05 15.05 0 01-6.6-6.6l1.92-1.57a1 1 0 00.29-1.11L6.54 3.01A1 1 0 005.4 2.4l-2.4.6A1 1 0 002 4a18 18 0 0018 18 1 1 0 001-.99l.6-2.4a1 1 0 00-.59-1.15z"/></svg>
+                </button>
+
+                <button id="hero-pause-btn" type="button" aria-label="Pausar llamada" class="w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center border border-white/20 transition-all hover:scale-105">
+                  <svg id="hero-pause-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6M14 9v6"/></svg>
+                  <svg id="hero-resume-icon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+
+                <button id="hero-mute-btn" type="button" aria-label="Silenciar micrófono" class="w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center border border-white/20 transition-all hover:scale-105">
+                  <svg id="hero-mic-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 1a3 3 0 013 3v7a3 3 0 11-6 0V4a3 3 0 013-3z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 10v1a7 7 0 01-14 0v-1"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18v4m-3 0h6"/></svg>
+                  <svg id="hero-mic-muted-icon" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 10v1a7 7 0 01-11.2 5.7"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18v4m-3 0h6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3l18 18"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9v2a3 3 0 004.7 2.5"/></svg>
+                </button>
+
+                <button id="hero-camera-btn" type="button" aria-label="Abrir cámara" class="w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center border border-white/20 transition-all hover:scale-105">
+                  <svg id="hero-camera-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                  <svg id="hero-camera-off-icon" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3l18 18"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                 </button>
               </div>
-            </form>
+
+              <!-- Preview local de cámara -->
+              <div id="hero-camera-preview" class="hidden absolute -top-40 right-0 w-48 h-36 rounded-2xl overflow-hidden border-2 border-white/30 shadow-2xl bg-black/60 pointer-events-auto">
+                <video id="hero-camera-video" class="w-full h-full object-cover" autoplay playsinline muted></video>
+                <div class="absolute bottom-2 left-2 text-white/80 text-xs font-medium bg-black/40 px-2 py-1 rounded">Tu cámara</div>
+              </div>
+            </div>
+
+            <!-- Subtítulos de Sandra durante la llamada -->
+            <div id="sandra-subtitles" class="absolute -bottom-16 left-1/2 -translate-x-1/2 w-full max-w-2xl text-center opacity-0 transition-opacity duration-300 pointer-events-none">
+              <span class="inline-block bg-black/70 backdrop-blur-sm text-white px-6 py-3 rounded-xl text-lg font-medium"></span>
+            </div>
           </div>
         </div>
       </header>
@@ -727,16 +761,29 @@
 	        const heroVideo = document.getElementById('hero-video');
 	        const searchContainer = document.getElementById('search-container');
 	        const callControlsBar = document.getElementById('call-controls-bar');
+	        const subtitles = document.getElementById('sandra-subtitles');
 
 	        if (searchContainer) {
 	          searchContainer.classList.toggle('call-hidden', !!active);
-	          // Limpieza por si quedaran estilos inline de versiones previas
 	          searchContainer.style.opacity = '';
 	          searchContainer.style.pointerEvents = '';
 	        }
 
 	        if (callControlsBar) {
 	          callControlsBar.classList.toggle('active', !!active);
+	        }
+
+	        // Animación del avatar: breathing suave durante llamada activa
+	        if (heroBg) {
+	          heroBg.classList.toggle('call-active', !!active);
+	          if (!active) {
+	            heroBg.classList.remove('speaking');
+	          }
+	        }
+
+	        // Mostrar/ocultar subtítulos
+	        if (subtitles) {
+	          subtitles.style.opacity = active ? '1' : '0';
 	        }
 
 	        // En modo sin video, aseguramos que el <video> no se muestre ni cargue.
@@ -1227,7 +1274,7 @@
         if(show) el.classList.remove('hidden'); else el.classList.add('hidden');
       }
 
-      // AUDIO FIX: Improved playAudioResponse with 3s delay on revoke
+      // AUDIO FIX: Improved playAudioResponse with lip sync animation
 		      playAudioResponse(audioBase64) {
 		        if (this.currentAudio) {
 		          this.currentAudio.pause();
@@ -1235,6 +1282,14 @@
 		        }
 
 		        this.isSpeaking = true;
+
+		        // Activar animación lip sync en el avatar
+		        const heroBg = document.getElementById('hero-background-image');
+		        if (heroBg) {
+		          heroBg.classList.add('speaking');
+		          heroBg.classList.remove('call-active'); // Pausar breathing durante habla
+		        }
+
 		        try {
 		          if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
 		            this.mediaRecorder.pause();
@@ -1260,6 +1315,16 @@
 
 		        audio.onended = () => {
 		          this.isSpeaking = false;
+
+		          // Desactivar lip sync y restaurar breathing
+		          const heroBg = document.getElementById('hero-background-image');
+		          if (heroBg) {
+		            heroBg.classList.remove('speaking');
+		            if (this.activeCall) {
+		              heroBg.classList.add('call-active');
+		            }
+		          }
+
 		          try {
 		            if (this.mediaRecorder && this.mediaRecorder.state === 'paused' && !this.isPaused && !this.isMicrophoneMuted) {
 		              this.mediaRecorder.resume();
@@ -1269,11 +1334,11 @@
 		          setTimeout(() => {
 		            if (audio._blobUrl) {
 		              URL.revokeObjectURL(audio._blobUrl);
-              audio._blobUrl = null;
-            }
-            this.currentAudio = null;
-	          }, 3000);
-	        };
+		              audio._blobUrl = null;
+		            }
+		            this.currentAudio = null;
+		          }, 3000);
+		        };
 
 	        audio.play().catch(e => {
 	          this.isSpeaking = false;
