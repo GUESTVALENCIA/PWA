@@ -70,7 +70,7 @@
   </script>
 
   <style>
-    :root{--primary:#2563EB;--accent:#3B82F6;--accent-light:#60A5FA;--accent-lighter:#93C5FD;--accent-dark:#1E40AF;--glass-bg:rgba(255,255,255,0.98);--glass-dark-bg:rgba(37,99,235,0.85);--text-primary:#0F172A;--text-secondary:#334155;--bg-light:#FFFFFF;--bg-section:#F8FAFC;--bg-accent:#EFF6FF;--galaxy-deep:#030712;--glass-surface:rgba(15,23,42,0.7);--glass-border:rgba(255,255,255,0.12);--hero-bg-zoom:1;--hero-bg-pos:66%}
+    :root{--primary:#2563EB;--accent:#3B82F6;--accent-light:#60A5FA;--accent-lighter:#93C5FD;--accent-dark:#1E40AF;--glass-bg:rgba(255,255,255,0.98);--glass-dark-bg:rgba(37,99,235,0.85);--text-primary:#0F172A;--text-secondary:#334155;--bg-light:#FFFFFF;--bg-section:#F8FAFC;--bg-accent:#EFF6FF;--galaxy-deep:#030712;--glass-surface:rgba(15,23,42,0.7);--glass-border:rgba(255,255,255,0.12);--hero-bg-zoom:1;--hero-bg-pos:72%}
     body{font-family:'Outfit',system-ui,sans-serif;background:var(--bg-light);color:var(--text-primary);overflow-x:hidden;margin:0;padding:0}
     html{margin:0;padding:0}
     h1,h2,h3{font-family:'Playfair Display',Georgia,serif}
@@ -106,9 +106,30 @@
     .shadow-5xl{box-shadow:0 35px 80px rgba(0,0,0,0.55)}
     .glossy-finish{background:rgba(15,23,42,0.65);-webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%);border:1px solid rgba(255,255,255,0.08)}
     .line-clamp-2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .galaxy-bg{background:radial-gradient(circle at 50% 50%,#0f172a 0%,#030712 100%)}
+    .section-container{max-width:1440px;margin:0 auto;padding:0 1.25rem}
+    @media (min-width:1024px){.section-container{padding:0 5rem}}
+    .section-padding{padding-top:6rem;padding-bottom:6rem}
+    @media (min-width:768px){.section-padding{padding-top:10rem;padding-bottom:10rem}}
+    .text-glow{text-shadow:0 0 15px rgba(59,130,246,0.6)}
+    .text-glow-gold{text-shadow:0 0 20px rgba(251,191,36,0.8)}
+    .shadow-glow{box-shadow:0 0 40px rgba(37,99,235,0.3)}
+    .shadow-6xl{box-shadow:0 40px 90px rgba(0,0,0,0.6)}
+    .scrollbar-hide{-ms-overflow-style:none;scrollbar-width:none}
+    .scrollbar-hide::-webkit-scrollbar{display:none}
+    .animate-fade-in-up{animation:fade-in-up 0.6s cubic-bezier(0.23,1,0.32,1) forwards}
+    .animate-breath{animation:breath 8s ease-in-out infinite}
+    .animation-delay-05s{animation-delay:0.5s}
+    .animation-delay-1s{animation-delay:1s}
+    ::-webkit-scrollbar{width:6px}
+    ::-webkit-scrollbar-track{background:var(--galaxy-deep)}
+    ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:10px}
+    ::-webkit-scrollbar-thumb:hover{background:var(--primary)}
     @keyframes pulse-glow{0%,100%{box-shadow:0 0 0 0 rgba(147,51,234,0.7),0 0 20px rgba(147,51,234,0.5)}50%{box-shadow:0 0 0 10px rgba(147,51,234,0),0 0 30px rgba(147,51,234,0.8)}}
     @keyframes fade-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes fade-in-up{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
     @keyframes pulse-slow{0%,100%{opacity:1}50%{opacity:0.7}}
+    @keyframes breath{0%,100%{transform:scale(1.01);opacity:0.8}50%{transform:scale(1.03);opacity:1}}
     .animate-fade-in{animation:fade-in 1s ease-in-out}
     .animate-pulse-slow{animation:pulse-slow 2s ease-in-out infinite}
     .text-shadow-hero{text-shadow:0 2px 12px rgba(0,0,0,0.4),0 0 20px rgba(0,0,0,0.2)}
@@ -118,9 +139,9 @@
 <body class="font-sans text-slate-900 bg-white min-h-full flex flex-col">
 
   <!-- NAVBAR -->
-  <nav id="main-nav" class="fixed top-0 left-0 right-0 w-full z-50 h-[64px] flex items-center transition-all duration-300 liquid-glass border-b border-white/10 shadow-sm">
+  <nav id="main-nav" class="fixed top-0 left-0 right-0 w-full z-50 h-[56px] flex items-center transition-all duration-300 liquid-glass border-b border-white/10 shadow-sm">
     <div class="w-full max-w-7xl mx-auto px-6 flex justify-between items-center">
-      <a href="#home" class="nav-link text-3xl font-bold text-white flex items-center gap-1 font-serif tracking-tight drop-shadow-md">
+      <a href="#home" class="nav-link text-2xl font-bold text-white flex items-center gap-1 font-serif tracking-tight drop-shadow-md">
         <span class="text-blue-400">Guests</span>Valencia
       </a>
 
@@ -173,6 +194,7 @@
           </div>
         </div>
 
+        <a href="#dashboard" id="nav-dashboard-link" class="nav-link hidden sm:block text-white/80 hover:text-white text-sm font-medium">Panel</a>
         <a href="#login" id="nav-login-btn" class="nav-link hidden sm:block text-white/90 hover:text-white text-sm font-medium">Acceder</a>
         <a href="#register" id="nav-register-btn" class="nav-link bg-white/10 hover:bg-white/20 border border-white/20 text-white px-6 py-2 rounded-full text-sm font-bold backdrop-blur-sm transition-all transform hover:scale-105">
           <span id="nav-register-label">Registrarse</span>
@@ -186,7 +208,7 @@
     <div id="sandra-widget-root" class="hidden" aria-live="polite"></div>
 
     <!-- HOME -->
-    <section id="home-page" class="page active">
+    <section id="home" class="page active">
       <header class="hero-section">
         <video id="hero-video" class="hero-video video-hidden" autoplay muted loop playsinline webkit-playsinline>
           <source src="" type="video/mp4">
@@ -200,7 +222,7 @@
           </label>
           <input type="file" id="hero-media-upload" accept="image/*,video/*" class="hidden" aria-label="Subir imagen o video para el fondo del hero">
         </div>
-        <div class="relative z-10 text-center px-6 max-w-6xl mx-auto mt-[40vh]">
+        <div class="relative z-10 text-center px-6 max-w-6xl mx-auto mt-[44vh]">
           <p class="text-lg md:text-xl text-white mb-8 max-w-2xl mx-auto font-semibold drop-shadow-2xl text-shadow-hero">Apartamentos de diseño con llegada autónoma y asistencia 24 horas impulsadas por Sandra IA</p>
           <div id="hero-action-area" class="relative max-w-6xl mx-auto">
             <div id="search-container" class="liquid-glass glossy-crystal p-2 rounded-[26px] max-w-6xl mx-auto shadow-2xl transition-all duration-300 border border-white/10">
@@ -336,7 +358,7 @@
       </section>
 
       <!-- FEATURED LISTINGS -->
-      <section class="py-24 px-6 max-w-7xl mx-auto">
+      <section id="alojamientos" class="py-24 px-6 max-w-7xl mx-auto">
         <h2 class="text-3xl md:text-4xl font-bold text-slate-900 mb-4 text-center">Alojamientos Destacados</h2>
         <p class="text-slate-600 text-center mb-12 max-w-xl mx-auto">Una selección curada de nuestros mejores alojamientos.</p>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" id="featured-grid"></div>
@@ -441,9 +463,266 @@
       </section>
     </section>
 
-    <!-- [OMITTED SECTIONS FOR BREVITY: ALOJAMIENTOS, SERVICIOS, OWNERS, QUIENES SOMOS, CONTACTO, LEGAL, AUTH] -->
-    <!-- (They remain the same as the original, assuming you want the full structure preserved) -->
-    <!-- I will inject the SandraWidget code here as per the "workflow" provided -->
+      <!-- SERVICIOS -->
+      <section id="servicios" class="galaxy-bg text-white section-padding">
+        <div class="section-container">
+          <div class="text-center mb-16">
+            <span class="text-brand-400 font-bold uppercase tracking-[0.4em] text-[10px] mb-4 block">Servicios 360°</span>
+            <h2 class="text-4xl sm:text-5xl font-serif font-bold mb-6">Operación Premium sin fricción.</h2>
+            <p class="text-slate-400 max-w-3xl mx-auto">Un equipo humano + Sandra IA coordinando cada proceso: check-in, limpieza, incidencias y optimización de ingresos en tiempo real.</p>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="liquid-glass rounded-[32px] p-8 border border-white/10">
+              <div class="w-12 h-12 rounded-2xl bg-brand-600/20 border border-brand-500/30 flex items-center justify-center text-brand-400 mb-6">
+                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 16v-2m8-6h-2M6 12H4m13.657-5.657l-1.414 1.414M7.757 16.243l-1.414 1.414m0-11.314l1.414 1.414m10.486 10.486l1.414 1.414" /></svg>
+              </div>
+              <h3 class="text-xl font-serif font-bold text-white mb-3">Check-in Autónomo</h3>
+              <p class="text-sm text-slate-400 mb-6">Smart locks, códigos temporales y guía automatizada con Sandra durante la llegada.</p>
+              <ul class="space-y-2 text-[11px] text-slate-500 uppercase tracking-widest">
+                <li>Accesos sin llaves</li>
+                <li>Validación por móvil</li>
+                <li>Soporte 24/7</li>
+              </ul>
+            </div>
+            <div class="liquid-glass rounded-[32px] p-8 border border-white/10">
+              <div class="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-300 mb-6">
+                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+              </div>
+              <h3 class="text-xl font-serif font-bold text-white mb-3">Limpieza & Mantenimiento</h3>
+              <p class="text-sm text-slate-400 mb-6">Protocolos hoteleros premium, inspección visual y reporte automático a propietarios.</p>
+              <ul class="space-y-2 text-[11px] text-slate-500 uppercase tracking-widest">
+                <li>Checklist digital</li>
+                <li>Fotos por estancia</li>
+                <li>Incidencias en 1h</li>
+              </ul>
+            </div>
+            <div class="liquid-glass rounded-[32px] p-8 border border-white/10">
+              <div class="w-12 h-12 rounded-2xl bg-purple-500/20 border border-purple-400/30 flex items-center justify-center text-purple-300 mb-6">
+                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 12H3m8 0a4 4 0 100-8 4 4 0 000 8zm0 0v8m4-4h8" /></svg>
+              </div>
+              <h3 class="text-xl font-serif font-bold text-white mb-3">Revenue Engine</h3>
+              <p class="text-sm text-slate-400 mb-6">Ajuste dinámico de precios, campañas de captación y previsión de ocupación.</p>
+              <ul class="space-y-2 text-[11px] text-slate-500 uppercase tracking-widest">
+                <li>Tarifa dinámica</li>
+                <li>Direct bookings</li>
+                <li>Insights Sandra</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PROPIETARIOS -->
+      <section id="owners" class="bg-slate-950 text-white section-padding">
+        <div class="section-container grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+          <div>
+            <span class="text-brand-400 font-bold uppercase tracking-[0.4em] text-[10px] mb-4 block">Propietarios Elite</span>
+            <h2 class="text-4xl sm:text-5xl font-serif font-bold mb-6">Rentabilidad máxima, control absoluto.</h2>
+            <p class="text-slate-400 text-lg leading-relaxed mb-8">Sandra coordina reservas, pricing y operaciones con visibilidad total. Tú solo decides el nivel de autonomía.</p>
+            <div class="flex flex-wrap gap-4">
+              <button type="button" data-call-sandra class="luxury-btn px-10 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white shadow-glow">Hablar con Sandra</button>
+              <button type="button" class="px-10 py-4 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-300 hover:bg-white/10 transition-all">Ver informe demo</button>
+            </div>
+          </div>
+          <div class="space-y-6">
+            <div class="liquid-glass rounded-[40px] p-8 border border-white/10">
+              <p class="text-[10px] uppercase tracking-[0.3em] text-slate-500 font-black mb-4">Performance</p>
+              <div class="grid grid-cols-2 gap-6">
+                <div>
+                  <p class="text-3xl font-bold text-white">+32%</p>
+                  <p class="text-xs text-slate-500 uppercase tracking-widest">Ocupación</p>
+                </div>
+                <div>
+                  <p class="text-3xl font-bold text-emerald-400">+18%</p>
+                  <p class="text-xs text-slate-500 uppercase tracking-widest">Ingresos</p>
+                </div>
+                <div>
+                  <p class="text-3xl font-bold text-white">24/7</p>
+                  <p class="text-xs text-slate-500 uppercase tracking-widest">Soporte IA</p>
+                </div>
+                <div>
+                  <p class="text-3xl font-bold text-purple-300">0%</p>
+                  <p class="text-xs text-slate-500 uppercase tracking-widest">Intermediarios</p>
+                </div>
+              </div>
+            </div>
+            <div class="liquid-glass rounded-[32px] p-8 border border-white/10">
+              <p class="text-[10px] uppercase tracking-[0.3em] text-brand-400 font-black mb-3">Sandra Insights</p>
+              <p class="text-slate-300 text-sm leading-relaxed italic">“Sugiero subir tarifa de fin de semana en Ruzafa un 12%. Demanda alta confirmada por eventos locales.”</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- QUIÉNES SOMOS -->
+      <section id="quienes-somos" class="galaxy-bg text-white section-padding">
+        <div class="section-container grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+          <div class="lg:col-span-7">
+            <span class="text-brand-400 font-bold uppercase tracking-[0.4em] text-[10px] mb-4 block">Quiénes Somos</span>
+            <h2 class="text-4xl sm:text-5xl font-serif font-bold mb-6">GuestsValencia: hostelería inteligente.</h2>
+            <p class="text-slate-400 text-lg leading-relaxed">Somos un equipo local con visión global. Operamos alojamientos premium en Valencia y automatizamos cada fase con Sandra IA para ofrecer experiencias impecables y márgenes más altos a propietarios.</p>
+          </div>
+          <div class="lg:col-span-5 space-y-4">
+            <div class="liquid-glass rounded-[28px] p-6 border border-white/10">
+              <p class="text-[10px] uppercase tracking-[0.3em] text-slate-500 font-black mb-2">2019</p>
+              <p class="text-slate-300 text-sm">Lanzamos la primera operativa con check-in autónomo en Valencia.</p>
+            </div>
+            <div class="liquid-glass rounded-[28px] p-6 border border-white/10">
+              <p class="text-[10px] uppercase tracking-[0.3em] text-slate-500 font-black mb-2">2022</p>
+              <p class="text-slate-300 text-sm">Sistema Galaxy + Sandra IA para soporte 24/7.</p>
+            </div>
+            <div class="liquid-glass rounded-[28px] p-6 border border-white/10">
+              <p class="text-[10px] uppercase tracking-[0.3em] text-slate-500 font-black mb-2">2025</p>
+              <p class="text-slate-300 text-sm">Proptech OS: automatización total de reservas, pricing y concierge.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CONTACTO -->
+      <section id="contacto" class="bg-slate-950 text-white section-padding">
+        <div class="section-container grid grid-cols-1 lg:grid-cols-2 gap-12">
+          <div>
+            <span class="text-brand-400 font-bold uppercase tracking-[0.4em] text-[10px] mb-4 block">Contacto</span>
+            <h2 class="text-4xl sm:text-5xl font-serif font-bold mb-6">Conecta con nuestro equipo.</h2>
+            <p class="text-slate-400 text-lg leading-relaxed mb-8">Escríbenos para activar tu propiedad o planificar una estancia premium. Sandra puede guiarte en directo.</p>
+            <div class="space-y-3 text-sm text-slate-400">
+              <p><span class="text-white font-semibold">Email:</span> hola@guestsvalencia.es</p>
+              <p><span class="text-white font-semibold">Teléfono:</span> +34 624 020 085</p>
+              <p><span class="text-white font-semibold">Ubicación:</span> Valencia, España</p>
+            </div>
+          </div>
+          <form id="contact-form" class="liquid-glass rounded-[40px] p-8 border border-white/10 space-y-5">
+            <input type="text" name="name" placeholder="Nombre completo" class="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-sm text-white placeholder:text-slate-500 outline-none focus:border-brand-500 transition-all" required>
+            <input type="email" name="email" placeholder="Email" class="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-sm text-white placeholder:text-slate-500 outline-none focus:border-brand-500 transition-all" required>
+            <input type="text" name="subject" placeholder="Asunto" class="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-sm text-white placeholder:text-slate-500 outline-none focus:border-brand-500 transition-all">
+            <textarea name="message" rows="5" placeholder="Cuéntanos tu necesidad" class="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-sm text-white placeholder:text-slate-500 outline-none focus:border-brand-500 transition-all resize-none" required></textarea>
+            <button type="submit" class="w-full py-4 luxury-btn text-white font-bold rounded-[28px] uppercase tracking-widest text-[11px] shadow-glow">Enviar mensaje</button>
+            <p class="text-[10px] text-slate-500 uppercase tracking-widest text-center">Respuesta en menos de 2h</p>
+          </form>
+        </div>
+      </section>
+
+      <!-- FAQ -->
+      <section id="faq" class="galaxy-bg text-white section-padding">
+        <div class="section-container">
+          <div class="text-center mb-16">
+            <span class="text-brand-400 font-bold uppercase tracking-[0.4em] text-[10px] mb-4 block">Soporte Inteligente</span>
+            <h2 class="text-4xl sm:text-5xl font-serif font-bold mb-6">Preguntas frecuentes.</h2>
+            <p class="text-slate-500 max-w-2xl mx-auto">Respuestas claras para huéspedes y propietarios. Haz clic en cada pregunta para ver el detalle.</p>
+          </div>
+          <div class="max-w-4xl mx-auto space-y-4">
+            <button type="button" class="faq-item w-full text-left p-6 sm:p-8 liquid-glass rounded-[32px] border border-white/5 transition-all hover:border-white/20 flex items-start justify-between gap-6">
+              <div class="flex-1 min-w-0">
+                <h4 class="font-bold text-base sm:text-lg text-slate-200">¿Cómo funciona el check-in autónomo?</h4>
+                <p class="faq-answer mt-3 text-slate-400 text-sm leading-relaxed hidden">Recibirás un código digital único 24h antes. Sandra te guía paso a paso y valida el acceso en tiempo real.</p>
+              </div>
+              <span class="faq-icon w-10 h-10 rounded-2xl bg-white/5 flex items-center justify-center text-slate-400">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /></svg>
+              </span>
+            </button>
+            <button type="button" class="faq-item w-full text-left p-6 sm:p-8 liquid-glass rounded-[32px] border border-white/5 transition-all hover:border-white/20 flex items-start justify-between gap-6">
+              <div class="flex-1 min-w-0">
+                <h4 class="font-bold text-base sm:text-lg text-slate-200">¿Qué incluye la conserjería premium?</h4>
+                <p class="faq-answer mt-3 text-slate-400 text-sm leading-relaxed hidden">Reservas, incidencias técnicas, recomendaciones locales y soporte 24/7 con Sandra IA.</p>
+              </div>
+              <span class="faq-icon w-10 h-10 rounded-2xl bg-white/5 flex items-center justify-center text-slate-400">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /></svg>
+              </span>
+            </button>
+            <button type="button" class="faq-item w-full text-left p-6 sm:p-8 liquid-glass rounded-[32px] border border-white/5 transition-all hover:border-white/20 flex items-start justify-between gap-6">
+              <div class="flex-1 min-w-0">
+                <h4 class="font-bold text-base sm:text-lg text-slate-200">¿Políticas de cancelación?</h4>
+                <p class="faq-answer mt-3 text-slate-400 text-sm leading-relaxed hidden">Cancelación gratuita hasta 7 días antes en reservas estándar. En estancias largas se informa durante el proceso.</p>
+              </div>
+              <span class="faq-icon w-10 h-10 rounded-2xl bg-white/5 flex items-center justify-center text-slate-400">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /></svg>
+              </span>
+            </button>
+            <button type="button" class="faq-item w-full text-left p-6 sm:p-8 liquid-glass rounded-[32px] border border-white/5 transition-all hover:border-white/20 flex items-start justify-between gap-6">
+              <div class="flex-1 min-w-0">
+                <h4 class="font-bold text-base sm:text-lg text-slate-200">¿Alojamientos aptos para teletrabajo?</h4>
+                <p class="faq-answer mt-3 text-slate-400 text-sm leading-relaxed hidden">Wi-Fi simétrico de alta velocidad y espacios de trabajo optimizados para nómadas digitales.</p>
+              </div>
+              <span class="faq-icon w-10 h-10 rounded-2xl bg-white/5 flex items-center justify-center text-slate-400">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /></svg>
+              </span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- AI STUDIO -->
+      <section id="ai-studio" class="py-24 sm:py-32 bg-slate-950 text-white relative overflow-hidden">
+        <div class="section-container relative z-10">
+          <div class="mb-16 text-center lg:text-left">
+            <span class="text-brand-400 font-bold tracking-[0.4em] uppercase text-[10px] mb-4 block">Laboratorio Creativo</span>
+            <h2 class="text-4xl sm:text-6xl font-serif font-bold mb-6">Visión Proyectada.</h2>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16">
+            <div class="lg:col-span-5">
+              <form id="ai-studio-form" class="liquid-glass p-6 sm:p-10 rounded-[40px] space-y-8 border border-white/5">
+                <div class="grid grid-cols-2 sm:grid-cols-4 bg-white/5 p-1.5 rounded-2xl border border-white/5 gap-1">
+                  <button type="button" data-ai-type="image" class="ai-type-btn py-2 text-[8px] font-bold uppercase tracking-widest rounded-xl transition-all bg-brand-600 text-white shadow-glow">image</button>
+                  <button type="button" data-ai-type="video" class="ai-type-btn py-2 text-[8px] font-bold uppercase tracking-widest rounded-xl transition-all text-slate-500 hover:text-slate-300">video</button>
+                  <button type="button" data-ai-type="edit" class="ai-type-btn py-2 text-[8px] font-bold uppercase tracking-widest rounded-xl transition-all text-slate-500 hover:text-slate-300">edit</button>
+                  <button type="button" data-ai-type="analyze" class="ai-type-btn py-2 text-[8px] font-bold uppercase tracking-widest rounded-xl transition-all text-slate-500 hover:text-slate-300">analyze</button>
+                </div>
+
+                <div class="space-y-3">
+                  <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-2">Archivo Fuente</label>
+                  <div class="w-full aspect-video bg-white/5 border-2 border-dashed border-white/10 rounded-2xl flex items-center justify-center cursor-pointer overflow-hidden group" id="ai-studio-dropzone">
+                    <span class="text-slate-600 group-hover:text-slate-400" id="ai-studio-dropzone-label">+ Subir</span>
+                  </div>
+                  <input id="ai-studio-file" type="file" class="hidden" accept="image/*">
+                </div>
+
+                <div class="space-y-3">
+                  <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-2">Prompt IA</label>
+                  <textarea id="ai-studio-prompt" placeholder="Ej: 'Añade un filtro retro' o 'Describe esta imagen'..." class="w-full h-32 bg-white/5 border border-white/10 rounded-2xl p-5 text-sm focus:border-brand-500 outline-none resize-none transition-all"></textarea>
+                </div>
+
+                <div class="grid grid-cols-2 gap-6">
+                  <div class="space-y-3">
+                    <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-2">Ratio</label>
+                    <select id="ai-studio-ratio" class="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-xs outline-none">
+                      <option>1:1</option>
+                      <option>2:3</option>
+                      <option>3:2</option>
+                      <option>3:4</option>
+                      <option>4:3</option>
+                      <option>9:16</option>
+                      <option selected>16:9</option>
+                      <option>21:9</option>
+                    </select>
+                  </div>
+                  <div class="space-y-3">
+                    <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-2">Calidad</label>
+                    <select id="ai-studio-quality" class="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-xs outline-none">
+                      <option>1K</option>
+                      <option>2K</option>
+                      <option>4K</option>
+                    </select>
+                  </div>
+                </div>
+
+                <button type="submit" id="ai-studio-submit" class="w-full py-5 rounded-2xl font-bold uppercase tracking-[0.2em] text-[10px] transition-all flex items-center justify-center gap-3 bg-brand-600 hover:bg-brand-500 text-white shadow-glow">
+                  Ejecutar IA
+                </button>
+              </form>
+            </div>
+
+            <div class="lg:col-span-7">
+              <div id="ai-studio-results" class="space-y-8">
+                <div class="h-full min-h-[400px] border border-dashed border-white/10 rounded-[40px] flex items-center justify-center text-slate-600 uppercase tracking-widest font-black text-xs">
+                  Sin resultados
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
     <!-- PORTAL DE ACCESO (Huésped / Propietario) -->
     <div id="auth-portal" class="fixed inset-0 z-[110] hidden items-center justify-center p-6">
