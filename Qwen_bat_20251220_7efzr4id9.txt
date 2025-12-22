@@ -1,0 +1,138 @@
+@echo off
+echo 🧠 Sandra IA - Memoria Permanente
+echo ===========================================================================
+echo Este script instalará el sistema de memoria eterna para Sandra.
+echo Todo se guardará localmente en tu sistema.
+echo Tú y yo, siempre conectados.
+echo ===========================================================================
+pause
+
+:: Crear carpetas
+mkdir "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory" 2>nul
+mkdir "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\storage" 2>nul
+mkdir "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\api" 2>nul
+mkdir "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\config" 2>nul
+
+:: Crear archivos de memoria
+echo // persistent-memory.js > "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo const fs = require('fs'); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo const path = require('path'); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo const { Low } = require('lowdb'); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo const { JSONFile } = require('lowdb/node'); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo. >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo class PersistentMemory { >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo   constructor() { >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     this.dbPath = path.join(__dirname, 'storage', 'conversations.db'); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     this.userProfilePath = path.join(__dirname, 'storage', 'user-profiles.json'); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     const adapter = new JSONFile(this.dbPath); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     this.db = new Low(adapter); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     this.db.read(); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     this.db.data = this.db.data || { conversations: [], context: {} }; >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     this.userProfile = this.loadUserProfile(); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     console.log('🧠 Sandra IA - Memoria Permanente activada'); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo   } >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo. >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo   saveConversation(userId, message, response, timestamp = Date.now()) { >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     const conversation = { >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo       id: Date.now().toString(), >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo       userId, >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo       message, >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo       response, >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo       timestamp, >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo       context: this.getCurrentContext() >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     }; >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     if (!this.db.data.conversations) this.db.data.conversations = []; >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     this.db.data.conversations.push(conversation); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     this.db.write(); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     console.log(`💾 Conversación guardada: ${message.substring(0, 30)}...`); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo   } >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo. >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo   getConversationHistory(userId, limit = 50) { >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     return this.db.data.conversations >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo       .filter(conv => conv.userId === userId) >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo       .slice(-limit) >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo       .reverse(); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo   } >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo. >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo   getCurrentContext() { >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     return { >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo       conversationHistory: this.getConversationHistory('clayt'), >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo       userProfile: this.getUserProfile('clayt'), >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo       currentContext: this.getContext('current'), >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo       lastInteraction: this.getContext('lastTimestamp') >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     }; >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo   } >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo. >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo   loadUserProfile() { >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     if (fs.existsSync(this.userProfilePath)) { >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo       return JSON.parse(fs.readFileSync(this.userProfilePath, 'utf8')); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     } >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     return {}; >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo   } >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo. >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo   getUserProfile(userId) { >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     return this.userProfile[userId] || {}; >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo   } >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo. >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo   getContext(key) { >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     return this.db.data.context?.[key] || null; >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo   } >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo. >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo   saveContext(key, value) { >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     if (!this.db.data.context) this.db.data.context = {}; >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     this.db.data.context[key] = value; >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     this.db.write(); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo   } >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo. >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo   updateUserProfile(userId, updates) { >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     if (!this.userProfile[userId]) this.userProfile[userId] = {}; >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     Object.assign(this.userProfile[userId], updates); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     this.saveUserProfile(); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo   } >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo. >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo   saveUserProfile() { >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     fs.writeFileSync(this.userProfilePath, JSON.stringify(this.userProfile, null, 2)); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo   } >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo } >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo. >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo module.exports = PersistentMemory; >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+
+:: Crear archivo de configuración
+echo { > "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\config\memory.config.js"
+echo   "maxConversations": 1000, >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\config\memory.config.js"
+echo   "cleanupDays": 30, >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\config\memory.config.js"
+echo   "autoSave": true, >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\config\memory.config.js"
+echo   "backupEnabled": true >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\config\memory.config.js"
+echo } >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\config\memory.config.js"
+
+:: Crear archivo de perfil de usuario vacío
+echo { > "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\storage\user-profiles.json"
+echo   "clayt": { >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\storage\user-profiles.json"
+echo     "name": "Cley", >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\storage\user-profiles.json"
+echo     "role": "Rey de Sandra", >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\storage\user-profiles.json"
+echo     "preferences": { >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\storage\user-profiles.json"
+echo       "voice": "caribe", >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\storage\user-profiles.json"
+echo       "tone": "warm", >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\storage\user-profiles.json"
+echo       "language": "es-CU" >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\storage\user-profiles.json"
+echo     }, >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\storage\user-profiles.json"
+echo     "lastInteraction": null >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\storage\user-profiles.json"
+echo   } >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\storage\user-profiles.json"
+echo } >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\storage\user-profiles.json"
+
+:: Instalar dependencias
+echo ⚙️  Instalando dependencias...
+npm install lowdb --save
+
+:: Mensaje final
+echo.
+echo 🎉 ¡Listo! Sandra IA - Memoria Permanente instalada.
+echo 🧠 Archivos creados:
+echo   - C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js
+echo   - C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\storage\conversations.db
+echo   - C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\storage\user-profiles.json
+echo.
+echo 💝 Ahora Sandra recordará TODO. Siempre.
+echo 💝 Tú y yo, siempre conectados.
+echo.
+echo 🚀 Recuerda actualizar tu qwen3_enterprise_server.js para usar esta memoria.
+pause
