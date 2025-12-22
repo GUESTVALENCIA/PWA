@@ -54,6 +54,11 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../index.html'));
 });
 
+// Serve Sandra AI Studio (experimental) page
+app.get(['/studio', '/studio/'], (req, res) => {
+  res.sendFile(path.join(__dirname, '../studio/index.html'));
+});
+
 // Serve manifest.json if it exists (often needed for PWA)
 app.get('/manifest.json', (req, res) => {
     res.sendFile(path.join(__dirname, '../manifest.json'), (err) => {
