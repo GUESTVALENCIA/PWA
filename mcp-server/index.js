@@ -313,20 +313,16 @@ async function handleConserjeRoute(action, payload, services, ws) {
   switch (action) {
     case 'message':
       if (payload.type === 'ready' || payload.message?.includes('listo para recibir saludo')) {
-        console.log('👋 [MCP] Cliente listo, cargando saludo inicial GRABADO...');
-        
+        console.log('[MCP] Cliente listo, generando saludo inicial en tiempo real...');
+        const welcomeText = 'Hola! Soy Sandra. Bienvenido a GuestsValencia. En que puedo ayudarte hoy?';
+        const voiceId = payload?.config?.voice_id || null;
+
         try {
-          const welcomeAudioPath = path.join(__dirname, 'assets/audio/welcome.mp3');
-          
-          if (!fs.existsSync(welcomeAudioPath)) {
-            console.error('❌ [MCP] ERROR: Archivo de audio grabado no encontrado:', welcomeAudioPath);
-            throw new Error('Archivo de audio de bienvenida no encontrado');
+          if (!services.cartesia || !services.cartesia.isReady()) {
+            throw new Error('Cartesia no esta disponible para el saludo en vivo');
           }
-          
-          const welcomeAudioBuffer = fs.readFileSync(welcomeAudioPath);
-          const welcomeAudio = welcomeAudioBuffer.toString('base64');
-          const welcomeText = '¡Hola! Soy Sandra. Bienvenido a GuestsValencia. ¿En qué puedo ayudarte hoy?';
-          
+
+          const welcomeAudio = await services.cartesia.textToSpeech(welcomeText, voiceId);
           ws.send(JSON.stringify({
             route: 'audio',
             action: 'tts',
@@ -334,18 +330,19 @@ async function handleConserjeRoute(action, payload, services, ws) {
               audio: welcomeAudio,
               format: 'mp3',
               text: welcomeText,
-              isWelcome: true
+              isWelcome: true,
+              realtime: true
             }
           }));
           return null;
         } catch (error) {
-          console.error('❌ [MCP] Error cargando audio grabado:', error.message);
+          console.error('Error generando saludo en vivo:', error.message);
           ws.send(JSON.stringify({
             route: 'conserje',
             action: 'message',
             payload: {
               type: 'error',
-              message: 'Error cargando saludo inicial'
+              message: 'Error generando saludo en vivo'
             }
           }));
           return null;
