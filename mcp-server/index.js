@@ -304,6 +304,9 @@ async function handleVideoRoute(action, payload, services, ws) {
     case 'sync':
       const syncData = await services.videoSync.syncVideoAudio(payload);
       return { sync: syncData };
+    case 'snapshot':
+      // Stub: receive camera frames for future multimodal processing
+      return { received: true, timestamp: new Date().toISOString() };
     default:
       return { error: 'Unknown action' };
   }
