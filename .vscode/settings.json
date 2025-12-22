@@ -1,0 +1,8 @@
+{
+    "commentTranslate.source": "Google",
+    "commentTranslate.targetLanguage": "es",
+    "commentTranslate.sourceLanguage": "es",
+    "commentTranslate.multiLineMerge": true,
+    "commentTranslate.selectTargetLanguageWhenReplacing": true,
+    "commentTranslate.browse.enabled": false
+}
