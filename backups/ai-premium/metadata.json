@@ -1,0 +1,8 @@
+{
+  "name": "Copy of GuestsValencia AI Premium",
+  "description": "Premium accommodation platform in Valencia featuring Sandra IA, a conversational concierge for booking, image/video generation, and real-time support.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
