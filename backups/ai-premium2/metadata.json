@@ -1,0 +1,8 @@
+{
+  "name": "Copy of Copia de Layout fijo y cuenta de acceso.",
+  "description": "Premium accommodation platform in Valencia featuring Sandra IA, a conversational concierge for booking, image/video generation, and real-time support.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
