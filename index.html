@@ -1053,6 +1053,8 @@
 	        this.audioCtx = null;
 	        this._ringNodes = [];
 	        this.cameraStream = null;
+	        this.cameraStreamTimer = null;
+	        this.cameraSnapshotCanvas = null;
 	        this.chatLocked = false;
 	        this.lastAudioSentTime = null; // Para medir latencia
 	        this.init();
@@ -1346,6 +1348,7 @@
 		        const iconOff = document.getElementById('hero-camera-off-icon');
 
 		        const stop = () => {
+		          this.stopCameraStream();
 		          if (this.cameraStream) {
 		            try { this.cameraStream.getTracks().forEach(t => t.stop()); } catch (_) {}
 		            this.cameraStream = null;
@@ -1371,9 +1374,49 @@
 		          preview && preview.classList.remove('hidden');
 		          iconOn && iconOn.classList.add('hidden');
 		          iconOff && iconOff.classList.remove('hidden');
+		          this.startCameraStream();
 		        } catch (err) {
-		          console.error('Error abriendo cámara:', err);
+		          console.error('Error abriendo camara:', err);
 		          stop();
+		        }
+		      }
+
+
+		      startCameraStream() {
+		        if (!this.cameraStream || !this.activeCall || this.cameraStreamTimer) return;
+		        const videoEl = document.getElementById('hero-camera-video');
+		        if (!videoEl) return;
+
+		        const canvas = this.cameraSnapshotCanvas || document.createElement('canvas');
+		        this.cameraSnapshotCanvas = canvas;
+		        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+		        if (!ctx) return;
+
+		        const sendFrame = () => {
+		          if (!this.cameraStream || !this.activeCall || this.activeCall.readyState !== WebSocket.OPEN) return;
+		          const width = 320;
+		          const height = 180;
+		          canvas.width = width;
+		          canvas.height = height;
+		          ctx.drawImage(videoEl, 0, 0, width, height);
+		          const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+		          const base64 = String(dataUrl).split(',')[1] || '';
+		          if (!base64) return;
+		          this.activeCall.send(JSON.stringify({
+		            route: 'video',
+		            action: 'snapshot',
+		            payload: { image: base64, mimeType: 'image/jpeg', timestamp: Date.now() }
+		          }));
+		        };
+
+		        sendFrame();
+		        this.cameraStreamTimer = setInterval(sendFrame, 1500);
+		      }
+
+		      stopCameraStream() {
+		        if (this.cameraStreamTimer) {
+		          clearInterval(this.cameraStreamTimer);
+		          this.cameraStreamTimer = null;
 		        }
 		      }
 
@@ -1721,6 +1764,7 @@
 
                 this.mediaRecorder.start(this.recordingSliceMs);
                 console.log("🎤 Microphone recording started");
+                if (this.cameraStream) this.startCameraStream();
 
             } catch (err) {
                 console.error("Error accessing microphone:", err);
