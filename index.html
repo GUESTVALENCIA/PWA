@@ -194,7 +194,7 @@
           </div>
         </div>
 
-        <a href="#dashboard" id="nav-dashboard-link" class="nav-link hidden sm:block text-white/80 hover:text-white text-sm font-medium">Panel</a>
+        <a href="/studio" id="nav-dashboard-link" class="nav-link hidden sm:block text-white/80 hover:text-white text-sm font-medium">Studio</a>
         <a href="#login" id="nav-login-btn" class="nav-link hidden sm:block text-white/90 hover:text-white text-sm font-medium">Acceder</a>
         <a href="#register" id="nav-register-btn" class="nav-link bg-white/10 hover:bg-white/20 border border-white/20 text-white px-6 py-2 rounded-full text-sm font-bold backdrop-blur-sm transition-all transform hover:scale-105">
           <span id="nav-register-label">Registrarse</span>
@@ -652,77 +652,6 @@
         </div>
       </section>
 
-      <!-- AI STUDIO -->
-      <section id="ai-studio" class="py-24 sm:py-32 bg-slate-950 text-white relative overflow-hidden">
-        <div class="section-container relative z-10">
-          <div class="mb-16 text-center lg:text-left">
-            <span class="text-brand-400 font-bold tracking-[0.4em] uppercase text-[10px] mb-4 block">Laboratorio Creativo</span>
-            <h2 class="text-4xl sm:text-6xl font-serif font-bold mb-6">Visión Proyectada.</h2>
-          </div>
-
-          <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16">
-            <div class="lg:col-span-5">
-              <form id="ai-studio-form" class="liquid-glass p-6 sm:p-10 rounded-[40px] space-y-8 border border-white/5">
-                <div class="grid grid-cols-2 sm:grid-cols-4 bg-white/5 p-1.5 rounded-2xl border border-white/5 gap-1">
-                  <button type="button" data-ai-type="image" class="ai-type-btn py-2 text-[8px] font-bold uppercase tracking-widest rounded-xl transition-all bg-brand-600 text-white shadow-glow">image</button>
-                  <button type="button" data-ai-type="video" class="ai-type-btn py-2 text-[8px] font-bold uppercase tracking-widest rounded-xl transition-all text-slate-500 hover:text-slate-300">video</button>
-                  <button type="button" data-ai-type="edit" class="ai-type-btn py-2 text-[8px] font-bold uppercase tracking-widest rounded-xl transition-all text-slate-500 hover:text-slate-300">edit</button>
-                  <button type="button" data-ai-type="analyze" class="ai-type-btn py-2 text-[8px] font-bold uppercase tracking-widest rounded-xl transition-all text-slate-500 hover:text-slate-300">analyze</button>
-                </div>
-
-                <div class="space-y-3">
-                  <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-2">Archivo Fuente</label>
-                  <div class="w-full aspect-video bg-white/5 border-2 border-dashed border-white/10 rounded-2xl flex items-center justify-center cursor-pointer overflow-hidden group" id="ai-studio-dropzone">
-                    <span class="text-slate-600 group-hover:text-slate-400" id="ai-studio-dropzone-label">+ Subir</span>
-                  </div>
-                  <input id="ai-studio-file" type="file" class="hidden" accept="image/*">
-                </div>
-
-                <div class="space-y-3">
-                  <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-2">Prompt IA</label>
-                  <textarea id="ai-studio-prompt" placeholder="Ej: 'Añade un filtro retro' o 'Describe esta imagen'..." class="w-full h-32 bg-white/5 border border-white/10 rounded-2xl p-5 text-sm focus:border-brand-500 outline-none resize-none transition-all"></textarea>
-                </div>
-
-                <div class="grid grid-cols-2 gap-6">
-                  <div class="space-y-3">
-                    <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-2">Ratio</label>
-                    <select id="ai-studio-ratio" class="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-xs outline-none">
-                      <option>1:1</option>
-                      <option>2:3</option>
-                      <option>3:2</option>
-                      <option>3:4</option>
-                      <option>4:3</option>
-                      <option>9:16</option>
-                      <option selected>16:9</option>
-                      <option>21:9</option>
-                    </select>
-                  </div>
-                  <div class="space-y-3">
-                    <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-2">Calidad</label>
-                    <select id="ai-studio-quality" class="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-xs outline-none">
-                      <option>1K</option>
-                      <option>2K</option>
-                      <option>4K</option>
-                    </select>
-                  </div>
-                </div>
-
-                <button type="submit" id="ai-studio-submit" class="w-full py-5 rounded-2xl font-bold uppercase tracking-[0.2em] text-[10px] transition-all flex items-center justify-center gap-3 bg-brand-600 hover:bg-brand-500 text-white shadow-glow">
-                  Ejecutar IA
-                </button>
-              </form>
-            </div>
-
-            <div class="lg:col-span-7">
-              <div id="ai-studio-results" class="space-y-8">
-                <div class="h-full min-h-[400px] border border-dashed border-white/10 rounded-[40px] flex items-center justify-center text-slate-600 uppercase tracking-widest font-black text-xs">
-                  Sin resultados
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
 
     <!-- PORTAL DE ACCESO (Huésped / Propietario) -->
     <div id="auth-portal" class="fixed inset-0 z-[110] hidden items-center justify-center p-6">
