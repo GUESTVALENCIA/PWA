@@ -32,15 +32,7 @@
       "destination": "/api/api-gateway?endpoint=:path*"
     },
     {
-      "source": "/studio",
-      "destination": "/studio/index.html"
-    },
-    {
-      "source": "/studio/",
-      "destination": "/studio/index.html"
-    },
-    {
-      "source": "/((?!assets|api|icons|media|studio|manifest\\.webmanifest|service-worker\\.js|sw\\.js|favicon\\.svg).*)",
+      "source": "/((?!assets|api|icons|media|manifest\\.webmanifest|service-worker\\.js|sw\\.js|favicon\\.svg).*)",
       "destination": "/index.html"
     }
   ],
@@ -89,7 +81,7 @@
       ]
     },
     {
-      "source": "/((?!assets|api|icons|media|studio|manifest\\.webmanifest|service-worker\\.js|sw\\.js|favicon\\.svg).*)",
+      "source": "/((?!assets|api|icons|media|manifest\\.webmanifest|service-worker\\.js|sw\\.js|favicon\\.svg).*)",
       "headers": [
         {
           "key": "Cache-Control",
