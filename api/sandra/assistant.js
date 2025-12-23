@@ -234,12 +234,25 @@ export default async function handler(req, res) {
       process.env.NODE_ENV === 'production' ||
       (process.env.VERCEL_URL && !process.env.VERCEL_URL.includes('localhost'));
 
+    const preferredProvider = (process.env.PREFERRED_AI_PROVIDER || 'gemini').toLowerCase();
+
     let useGemini = false;
     let useGroq = false;
     let groqModel = 'qwen';
     let usedModel = null; // Para trackear qué modelo se usó
     let apiUrl;
     let headers = { 'Content-Type': 'application/json' };
+
+    if (preferredProvider === 'gemini' && process.env.GEMINI_API_KEY) {
+      try {
+        useGemini = true;
+        usedModel = 'gemini-2.5-flash-lite';
+        return await handleGeminiConversation(req, res, finalTranscription, messages, conversation);
+      } catch (preferredError) {
+        useGemini = false;
+        console.warn('Gemini preferido fallo, continuando con fallback...', preferredError.message);
+      }
+    }
 
     if (isProduction) {
       // PRODUCCIÓN: Priorizar GPT-4o
