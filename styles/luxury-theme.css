@@ -143,6 +143,7 @@ body.luxury-theme a {
   color: #ffffff;
   line-height: 1.05;
   margin-bottom: 16px;
+  text-shadow: 0 20px 60px rgba(6, 10, 18, 0.55);
 }
 
 .hero-subtitle {
