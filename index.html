@@ -98,6 +98,63 @@
     .btn-primary{background:linear-gradient(135deg,var(--accent),var(--primary));color:white;box-shadow:0 4px 15px rgba(59,130,246,0.3)}
     .btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 25px rgba(59,130,246,0.4);background:linear-gradient(135deg,var(--accent-light),var(--accent))}
     .page{display:none}.page.active{display:block}
+
+    /* Page routing (multi-page) */
+    body[data-page="home"] #alojamientos,
+    body[data-page="home"] #ventas-sandra,
+    body[data-page="home"] #portal-huesped,
+    body[data-page="home"] #portal-propietario,
+    body[data-page="home"] #servicios,
+    body[data-page="home"] #owners,
+    body[data-page="home"] #quienes-somos,
+    body[data-page="home"] #contacto,
+    body[data-page="home"] #faq{display:none}
+
+    body[data-page="alojamientos"] #home,
+    body[data-page="alojamientos"] #servicios,
+    body[data-page="alojamientos"] #owners,
+    body[data-page="alojamientos"] #quienes-somos,
+    body[data-page="alojamientos"] #contacto,
+    body[data-page="alojamientos"] #faq,
+    body[data-page="alojamientos"] #portal-propietario{display:none}
+
+    body[data-page="servicios"] #home,
+    body[data-page="servicios"] #alojamientos,
+    body[data-page="servicios"] #ventas-sandra,
+    body[data-page="servicios"] #portal-huesped,
+    body[data-page="servicios"] #portal-propietario,
+    body[data-page="servicios"] #owners,
+    body[data-page="servicios"] #quienes-somos,
+    body[data-page="servicios"] #contacto,
+    body[data-page="servicios"] #faq{display:none}
+
+    body[data-page="propietarios"] #home,
+    body[data-page="propietarios"] #alojamientos,
+    body[data-page="propietarios"] #ventas-sandra,
+    body[data-page="propietarios"] #portal-huesped,
+    body[data-page="propietarios"] #servicios,
+    body[data-page="propietarios"] #quienes-somos,
+    body[data-page="propietarios"] #contacto,
+    body[data-page="propietarios"] #faq{display:none}
+
+    body[data-page="quienes-somos"] #home,
+    body[data-page="quienes-somos"] #alojamientos,
+    body[data-page="quienes-somos"] #ventas-sandra,
+    body[data-page="quienes-somos"] #portal-huesped,
+    body[data-page="quienes-somos"] #portal-propietario,
+    body[data-page="quienes-somos"] #servicios,
+    body[data-page="quienes-somos"] #owners,
+    body[data-page="quienes-somos"] #contacto,
+    body[data-page="quienes-somos"] #faq{display:none}
+
+    body[data-page="contacto"] #home,
+    body[data-page="contacto"] #alojamientos,
+    body[data-page="contacto"] #ventas-sandra,
+    body[data-page="contacto"] #portal-huesped,
+    body[data-page="contacto"] #portal-propietario,
+    body[data-page="contacto"] #servicios,
+    body[data-page="contacto"] #owners,
+    body[data-page="contacto"] #quienes-somos{display:none}
     .lightbox{display:none;position:fixed;z-index:1000;inset:0;background:rgba(11,16,32,0.95);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);justify-content:center;align-items:center}
     .lightbox.show{display:flex}
     #search-container.active{box-shadow:0 0 0 3px rgba(59,130,246,0.5),0 0 20px rgba(59,130,246,0.3),0 0 40px rgba(59,130,246,0.2);border-color:rgba(59,130,246,0.5)}
@@ -136,37 +193,37 @@
     .sandra-interface-dimensions{height:580px;max-height:calc(100vh - 150px)}
   </style>
 </head>
-<body class="font-sans text-slate-900 bg-white min-h-full flex flex-col">
+<body class="font-sans text-slate-900 bg-white min-h-full flex flex-col" data-page="home">
 
   <!-- NAVBAR -->
   <nav id="main-nav" class="fixed top-0 left-0 right-0 w-full z-50 h-[46px] flex items-center transition-all duration-300 liquid-glass border-b border-white/10 shadow-sm">
     <div class="w-full max-w-7xl mx-auto px-6 flex justify-between items-center">
-      <a href="#home" class="nav-link text-2xl font-bold text-white flex items-center gap-1 font-serif tracking-tight drop-shadow-md">
+      <a href="index.html" class="nav-link text-2xl font-bold text-white flex items-center gap-1 font-serif tracking-tight drop-shadow-md">
         <span class="text-blue-400">Guests</span>Valencia
       </a>
 
       <div class="hidden lg:flex gap-8 text-base font-medium text-white/90">
-        <a href="#home" class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
+        <a href="index.html" class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
           Inicio
           <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-400 transition-all group-hover:w-full"></span>
         </a>
-        <a href="#alojamientos" class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
+        <a href="alojamientos.html" class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
           Alojamientos
           <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-400 transition-all group-hover:w-full"></span>
         </a>
-        <a href="#servicios" class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
+        <a href="servicios.html" class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
           Servicios
           <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-400 transition-all group-hover:w-full"></span>
         </a>
-        <a href="#owners" class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
+        <a href="propietarios.html" class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
           Propietarios
           <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-400 transition-all group-hover:w-full"></span>
         </a>
-        <a href="#quienes-somos" class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
+        <a href="quienes-somos.html" class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
           Quiénes Somos
           <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-400 transition-all group-hover:w-full"></span>
         </a>
-        <a href="#contacto" class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
+        <a href="contacto.html" class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
           Contacto
           <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-400 transition-all group-hover:w-full"></span>
         </a>
@@ -353,6 +410,7 @@
           </div>
         </div>
       </section>
+    </section>
 
       <!-- FEATURED LISTINGS -->
       <section id="alojamientos" class="py-24 px-6 max-w-7xl mx-auto">
@@ -360,7 +418,7 @@
         <p class="text-slate-600 text-center mb-12 max-w-xl mx-auto">Una selección curada de nuestros mejores alojamientos.</p>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" id="featured-grid"></div>
         <div class="mt-10 text-center">
-          <a href="#alojamientos" class="nav-link inline-block btn-primary px-8 py-3 rounded-xl font-bold">Ver todos los alojamientos</a>
+          <a href="alojamientos.html" class="nav-link inline-block btn-primary px-8 py-3 rounded-xl font-bold">Ver todos los alojamientos</a>
         </div>
       </section>
 
@@ -724,7 +782,6 @@
           </div>
         </div>
       </section>
-    </section>
 
       <!-- SERVICIOS -->
       <section id="servicios" class="galaxy-bg text-white section-padding">
@@ -2960,7 +3017,6 @@
                 config: {
                   llm_provider: 'gemini',      // Cerebro: Google Gemini
                   tts_provider: 'cartesia',    // Voz: Cartesia Sonic
-                  voice_id: '2d5b0e6cf361460aa7fc47e3cee4b30c', // Tu ID de voz configurado
                   latency_optimization: true
                 }
               }
@@ -3075,12 +3131,17 @@
               this.awaitingResponse = false;
               if (ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({
-                  route: 'conserje',
+                  route: 'audio',
                   action: 'tts',
                   payload: { text: data.payload.message }
                 }));
               }
             }
+          if (data.error) {
+            this.clearResponseWatchdog();
+            this.awaitingResponse = false;
+            console.warn('[MCP] Error recibido:', data.error);
+          }
         };
 
 		        ws.onclose = () => {
@@ -3088,6 +3149,11 @@
 		            this.activeCall = null;
 		            this.hangupCall('ws_close');
 		        };
+        ws.onerror = (err) => {
+            this.clearResponseWatchdog();
+            this.awaitingResponse = false;
+            console.error('WebSocket error:', err);
+        };
 	      }
 
       addMessage(text, type) {
@@ -3167,7 +3233,7 @@
         if (!this.activeCall || this.activeCall.readyState !== WebSocket.OPEN) return false;
         try {
           this.activeCall.send(JSON.stringify({
-            route: 'conserje',
+            route: 'audio',
             action: 'tts',
             payload: { text: message }
           }));
