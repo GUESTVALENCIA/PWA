@@ -362,21 +362,52 @@
         </div>
       </section>
 
+      <!-- SANDRA SALES CHATBOT -->
+      <section id="ventas-sandra" class="galaxy-bg text-white py-20 px-6 border-t border-slate-900">
+        <div class="section-container">
+          <div class="text-center mb-12">
+            <span class="text-brand-400 font-bold uppercase tracking-[0.4em] text-[10px] mb-4 block">Sandra Sales</span>
+            <h2 class="text-3xl md:text-4xl font-serif font-bold mb-4">Chatbot de ventas inmobiliarias</h2>
+            <p class="text-slate-500 max-w-2xl mx-auto">Consulta precios, disponibilidad y promociones en tiempo real con Sandra.</p>
+          </div>
+          <div class="max-w-4xl mx-auto liquid-glass p-8 sm:p-10 rounded-[40px] border border-white/10">
+            <div id="sales-chatbot-messages" class="bg-white/5 rounded-3xl p-6 h-72 overflow-y-auto space-y-4 text-sm text-slate-200"></div>
+            <div class="mt-6 flex flex-col sm:flex-row gap-3">
+              <input type="text" id="sales-chatbot-input" placeholder="Pregunta por precios, disponibilidad, ubicaciones..." class="flex-1 bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm text-white outline-none focus:border-brand-500">
+              <button type="button" id="sales-chatbot-send" class="px-8 py-4 luxury-btn rounded-2xl text-[10px] font-black uppercase tracking-widest text-white shadow-glow">Enviar</button>
+            </div>
+            <div class="mt-4 flex items-center justify-between text-[10px] uppercase tracking-widest text-slate-500">
+              <span id="sales-chatbot-status">Bridge API: lista</span>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="sales-chatbot-thinking" class="accent-blue-500" checked>
+                <span>Modo razonamiento</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- PORTAL HUÉSPED -->
       <section id="portal-huesped" data-role-section="guest" class="hidden bg-white py-20 px-6 border-t border-slate-200">
         <div class="max-w-7xl mx-auto">
-          <div class="text-center mb-12">
-            <span class="text-blue-600 font-bold tracking-wider uppercase text-sm mb-2 block">Panel de Huésped</span>
-            <h2 class="text-3xl md:text-4xl font-bold text-slate-900 mb-4">Tu viaje, todo en un vistazo</h2>
-            <p class="text-slate-600 max-w-2xl mx-auto">Acceso rápido a tus reservas, itinerario y asistencia instantánea de Sandra.</p>
+        <div class="text-center mb-12">
+          <span class="text-blue-600 font-bold tracking-wider uppercase text-sm mb-2 block">Panel de Huésped</span>
+          <h2 class="text-3xl md:text-4xl font-bold text-slate-900 mb-4">Tu viaje, todo en un vistazo</h2>
+          <p class="text-slate-600 max-w-2xl mx-auto">Acceso rápido a tus reservas, itinerario y asistencia instantánea de Sandra.</p>
+        </div>
+        <div class="flex flex-wrap justify-center gap-3 mb-10">
+          <button type="button" data-guest-tab="reservas" class="guest-tab-btn px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-brand-600 text-white shadow-xl">Mis viajes</button>
+          <button type="button" data-guest-tab="inbox" class="guest-tab-btn px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-800 transition-all">Mensajes</button>
+          <button type="button" data-guest-tab="perfil" class="guest-tab-btn px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-800 transition-all">Mi perfil</button>
+        </div>
+
+        <div data-guest-panel="reservas" class="guest-panel grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="liquid-glass p-8 rounded-3xl border border-white/10">
+            <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-3">Próxima estancia</p>
+            <div id="guest-next-stay" class="text-lg font-semibold text-slate-900">Sin reservas activas</div>
+            <p class="text-sm text-slate-500 mt-2">Selecciona fechas y confirma tu próxima experiencia.</p>
+            <button type="button" id="guest-open-booking" class="mt-6 px-6 py-3 btn-primary rounded-2xl text-[10px] font-black uppercase tracking-widest">Reservar ahora</button>
           </div>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="liquid-glass p-8 rounded-3xl border border-white/10">
-              <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-3">Próxima estancia</p>
-              <div id="guest-next-stay" class="text-lg font-semibold text-slate-900">Sin reservas activas</div>
-              <p class="text-sm text-slate-500 mt-2">Selecciona fechas y confirma tu próxima experiencia.</p>
-              <button type="button" id="guest-open-booking" class="mt-6 px-6 py-3 btn-primary rounded-2xl text-[10px] font-black uppercase tracking-widest">Reservar ahora</button>
-            </div>
             <div class="liquid-glass p-8 rounded-3xl border border-white/10">
               <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-3">Itinerario</p>
               <ul id="guest-itinerary-list" class="space-y-3 text-sm text-slate-600">
@@ -394,6 +425,49 @@
             </div>
           </div>
         </div>
+
+        <div data-guest-panel="inbox" class="guest-panel hidden">
+          <div class="liquid-glass p-8 rounded-3xl border border-white/10 max-w-4xl mx-auto">
+            <div class="flex items-center justify-between mb-6">
+              <div>
+                <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Inbox Sandra</p>
+                <h3 class="text-2xl font-serif font-bold text-slate-900">Conversación directa</h3>
+              </div>
+              <button type="button" id="guest-inbox-call" class="luxury-btn px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white shadow-glow">Llamar ahora</button>
+            </div>
+            <div id="guest-inbox-messages" class="bg-white/70 rounded-2xl p-6 h-64 overflow-y-auto space-y-4 text-sm text-slate-700"></div>
+            <div class="mt-6 flex gap-3">
+              <input type="text" id="guest-inbox-input" placeholder="Escribe tu mensaje..." class="flex-1 bg-white/80 border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-800 outline-none focus:border-brand-500">
+              <button type="button" id="guest-inbox-send" class="px-6 py-3 btn-primary rounded-2xl text-[10px] font-black uppercase tracking-widest">Enviar</button>
+            </div>
+          </div>
+        </div>
+
+        <div data-guest-panel="perfil" class="guest-panel hidden">
+          <div class="liquid-glass p-10 rounded-3xl border border-white/10 max-w-3xl mx-auto">
+            <div class="flex items-center gap-6 mb-8">
+              <div id="guest-profile-avatar" class="w-20 h-20 rounded-full bg-brand-600 text-white flex items-center justify-center text-2xl font-serif shadow-glow">G</div>
+              <div>
+                <h3 id="guest-profile-name" class="text-2xl font-serif font-bold text-slate-900">Invitado</h3>
+                <p id="guest-profile-email" class="text-sm text-slate-500">guest@guestsvalencia.com</p>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div class="bg-white/70 rounded-2xl p-6 border border-slate-200">
+                <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">Membresía</p>
+                <p id="guest-profile-tier" class="text-lg font-bold text-slate-900">Elite</p>
+              </div>
+              <div class="bg-white/70 rounded-2xl p-6 border border-slate-200">
+                <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">Identidad</p>
+                <p class="text-sm text-emerald-600 font-bold">Verificada por Sandra</p>
+              </div>
+              <div class="bg-white/70 rounded-2xl p-6 border border-slate-200">
+                <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">Preferencias</p>
+                <p class="text-sm text-slate-600">Check-in autónomo · Wi-Fi premium</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- PORTAL PROPIETARIO -->
@@ -404,32 +478,152 @@
             <h2 class="text-4xl sm:text-5xl font-serif font-bold mb-4">Control total de tu portfolio</h2>
             <p class="text-slate-400 max-w-2xl mx-auto">Métricas clave, rendimiento y operaciones en una vista ejecutiva.</p>
           </div>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-            <div class="liquid-glass p-8 rounded-[32px] border border-white/10">
-              <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-3">Ingreso mensual</p>
-              <div id="owner-revenue" class="text-3xl font-bold text-white">€0</div>
-              <p class="text-xs text-slate-500 mt-2">Estimación actualizada</p>
-            </div>
-            <div class="liquid-glass p-8 rounded-[32px] border border-white/10">
-              <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-3">Ocupación media</p>
-              <div id="owner-occupancy" class="text-3xl font-bold text-white">0%</div>
-              <p class="text-xs text-slate-500 mt-2">Últimos 30 días</p>
-            </div>
-            <div class="liquid-glass p-8 rounded-[32px] border border-white/10">
-              <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-3">Reservas directas</p>
-              <div id="owner-direct" class="text-3xl font-bold text-white">0</div>
-              <p class="text-xs text-slate-500 mt-2">Sin comisiones</p>
-            </div>
-          </div>
-          <div class="liquid-glass p-8 rounded-[32px] border border-white/10">
-            <div class="flex items-center justify-between flex-wrap gap-4 mb-6">
-              <div>
-                <h3 class="text-2xl font-serif font-bold">Activos en cartera</h3>
-                <p class="text-sm text-slate-400">Gestión inteligente y pricing dinámico.</p>
+          <div class="grid lg:grid-cols-12 gap-8">
+            <aside class="lg:col-span-3 space-y-3">
+              <button type="button" data-owner-tab="overview" class="owner-tab-btn w-full p-5 rounded-2xl text-left bg-brand-600 text-white shadow-glow">
+                <span class="text-[10px] font-black uppercase tracking-widest">Rendimiento</span>
+              </button>
+              <button type="button" data-owner-tab="calendar" class="owner-tab-btn w-full p-5 rounded-2xl text-left bg-white/5 text-slate-500 hover:bg-white/10">
+                <span class="text-[10px] font-black uppercase tracking-widest">Calendario</span>
+              </button>
+              <button type="button" data-owner-tab="listings" class="owner-tab-btn w-full p-5 rounded-2xl text-left bg-white/5 text-slate-500 hover:bg-white/10">
+                <span class="text-[10px] font-black uppercase tracking-widest">Mis activos</span>
+              </button>
+              <button type="button" data-owner-tab="marketing" class="owner-tab-btn w-full p-5 rounded-2xl text-left bg-white/5 text-slate-500 hover:bg-white/10">
+                <span class="text-[10px] font-black uppercase tracking-widest">Marketing IA</span>
+              </button>
+              <button type="button" data-owner-tab="finance" class="owner-tab-btn w-full p-5 rounded-2xl text-left bg-white/5 text-slate-500 hover:bg-white/10">
+                <span class="text-[10px] font-black uppercase tracking-widest">ROI & liquidación</span>
+              </button>
+            </aside>
+
+            <div class="lg:col-span-9 space-y-8">
+              <div data-owner-panel="overview" class="owner-panel space-y-8">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div class="liquid-glass p-8 rounded-[32px] border border-white/10">
+                    <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-3">Ingreso mensual</p>
+                    <div id="owner-revenue" class="text-3xl font-bold text-white">€0</div>
+                    <p class="text-xs text-slate-500 mt-2">Estimación actualizada</p>
+                  </div>
+                  <div class="liquid-glass p-8 rounded-[32px] border border-white/10">
+                    <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-3">Ocupación media</p>
+                    <div id="owner-occupancy" class="text-3xl font-bold text-white">0%</div>
+                    <p class="text-xs text-slate-500 mt-2">Últimos 30 días</p>
+                  </div>
+                  <div class="liquid-glass p-8 rounded-[32px] border border-white/10">
+                    <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-3">Reservas directas</p>
+                    <div id="owner-direct" class="text-3xl font-bold text-white">0</div>
+                    <p class="text-xs text-slate-500 mt-2">Sin comisiones</p>
+                  </div>
+                </div>
+                <div class="liquid-glass p-8 rounded-[32px] border border-white/10">
+                  <div class="flex items-center justify-between flex-wrap gap-4 mb-6">
+                    <div>
+                      <h3 class="text-2xl font-serif font-bold">Activos en cartera</h3>
+                      <p class="text-sm text-slate-400">Gestión inteligente y pricing dinámico.</p>
+                    </div>
+                  </div>
+                  <ul id="owner-properties-list" class="space-y-4 text-sm text-slate-300"></ul>
+                </div>
               </div>
-              <button type="button" id="owner-payout-btn" class="px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest border border-white/10">Solicitar payout</button>
+
+              <div data-owner-panel="calendar" class="owner-panel hidden">
+                <div class="liquid-glass p-8 rounded-[32px] border border-white/10">
+                  <h3 class="text-2xl font-serif font-bold mb-4">Calendario unificado</h3>
+                  <p class="text-sm text-slate-400 mb-6">Selecciona fechas y revisa estancias activas.</p>
+                  <div class="grid md:grid-cols-2 gap-6">
+                    <div class="bg-white/5 p-6 rounded-2xl border border-white/10">
+                      <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Fecha</label>
+                      <input id="owner-calendar-date" type="date" class="w-full mt-3 bg-transparent border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-brand-500">
+                      <button id="owner-calendar-check" type="button" class="w-full mt-4 btn-primary py-3 rounded-xl text-[10px] font-black uppercase tracking-widest">Consultar disponibilidad</button>
+                    </div>
+                    <div class="bg-white/5 p-6 rounded-2xl border border-white/10">
+                      <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-3">Reservas activas</p>
+                      <ul id="owner-calendar-list" class="space-y-3 text-sm text-slate-300">
+                        <li class="flex items-center justify-between"><span>Loft Cabañal</span><span class="text-brand-400">12-18 Jun</span></li>
+                        <li class="flex items-center justify-between"><span>Ático Ruzafa</span><span class="text-brand-400">20-24 Jun</span></li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div data-owner-panel="listings" class="owner-panel hidden">
+                <div class="liquid-glass p-8 rounded-[32px] border border-white/10">
+                  <div class="flex items-center justify-between mb-6">
+                    <div>
+                      <h3 class="text-2xl font-serif font-bold">Mis propiedades</h3>
+                      <p class="text-sm text-slate-400">Carga y gestiona tus activos.</p>
+                    </div>
+                    <button type="button" id="owner-upload-btn" class="px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest border border-white/10">Nuevo listing</button>
+                  </div>
+                  <div id="owner-listings-grid" class="grid md:grid-cols-2 gap-6"></div>
+                </div>
+              </div>
+
+              <div data-owner-panel="marketing" class="owner-panel hidden">
+                <div class="grid md:grid-cols-2 gap-6">
+                  <div class="liquid-glass p-8 rounded-[32px] border border-white/10">
+                    <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-4">Direct Traffic Growth</p>
+                    <p class="text-3xl font-bold text-white">+42%</p>
+                    <p class="text-[9px] text-green-400 mt-2 font-black uppercase tracking-widest">Últimos 30 días</p>
+                  </div>
+                  <div class="liquid-glass p-8 rounded-[32px] border border-white/10">
+                    <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-4">Social Media Reach</p>
+                    <p class="text-3xl font-bold text-white">57.5K</p>
+                    <p class="text-[9px] text-brand-400 mt-2 font-black uppercase tracking-widest">Sandra omnicanal</p>
+                  </div>
+                </div>
+                <div class="liquid-glass p-8 rounded-[32px] border border-white/10 mt-6">
+                  <div class="flex items-center justify-between mb-6 flex-wrap gap-4">
+                    <div>
+                      <h3 class="text-xl font-serif font-bold">Plan de captación directa</h3>
+                      <p class="text-sm text-slate-400">Campañas activas con CTA directo.</p>
+                    </div>
+                    <div class="flex gap-3">
+                      <button type="button" class="px-5 py-2 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full text-[9px] font-black uppercase text-white shadow-lg">New IG Story</button>
+                      <button type="button" class="px-5 py-2 bg-black border border-white/10 rounded-full text-[9px] font-black uppercase text-white shadow-lg">New TikTok</button>
+                    </div>
+                  </div>
+                  <div class="space-y-4 text-sm text-slate-300">
+                    <div class="flex items-center justify-between bg-white/5 rounded-2xl p-4 border border-white/10">
+                      <div>
+                        <p class="font-bold text-white">Instagram Campaign</p>
+                        <p class="text-[10px] text-slate-500">Lifestyle Cabanyal</p>
+                      </div>
+                      <span class="text-brand-400 font-bold">12.5K</span>
+                    </div>
+                    <div class="flex items-center justify-between bg-white/5 rounded-2xl p-4 border border-white/10">
+                      <div>
+                        <p class="font-bold text-white">TikTok Campaign</p>
+                        <p class="text-[10px] text-slate-500">Loft tour con trending audio</p>
+                      </div>
+                      <span class="text-brand-400 font-bold">45K</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div data-owner-panel="finance" class="owner-panel hidden">
+                <div class="liquid-glass p-8 rounded-[32px] border border-white/10 space-y-6">
+                  <div class="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">Comisión actual</p>
+                      <h3 id="owner-commission" class="text-3xl font-bold text-white">15%</h3>
+                      <p class="text-xs text-slate-400">Optimizada por Sandra según tu volumen.</p>
+                    </div>
+                    <button type="button" id="owner-negotiate-btn" class="px-6 py-3 luxury-btn rounded-2xl text-[10px] font-black uppercase tracking-widest text-white">Revisar comisión</button>
+                  </div>
+                  <div class="bg-white/5 p-6 rounded-2xl border border-white/10 flex items-center justify-between">
+                    <div>
+                      <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1">Disponible</p>
+                      <p id="owner-available" class="text-2xl font-bold text-white">€0</p>
+                    </div>
+                    <button type="button" id="owner-payout-btn" class="px-6 py-3 bg-white text-slate-900 rounded-2xl text-[10px] font-black uppercase tracking-widest">Liquidar fondos</button>
+                  </div>
+                </div>
+              </div>
             </div>
-            <ul id="owner-properties-list" class="space-y-4 text-sm text-slate-300"></ul>
           </div>
         </div>
       </section>
