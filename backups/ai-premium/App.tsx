@@ -77,7 +77,7 @@ const App: React.FC = () => {
             <button className="nav-link hover:text-white">Quiénes Somos</button>
             <button className="nav-link hover:text-white">Contacto</button>
             <button className="text-brand-400 flex items-center gap-2 bg-brand-900/40 px-5 py-2 rounded-full border border-brand-500/20 hover:bg-brand-900/60 transition-all flex-shrink-0">
-              <span className="text-sm">📱</span> App
+              <span className="text-sm"></span> App
             </button>
           </div>
           
@@ -260,9 +260,9 @@ const App: React.FC = () => {
           <div>
             <h4 className="font-bold mb-10 uppercase tracking-[0.4em] text-[10px] text-brand-400">Valencia Office</h4>
             <ul className="space-y-8 text-slate-400 text-sm font-light">
-              <li className="flex gap-4"><span>📍</span> Calle de la Paz, 15, Valencia</li>
-              <li className="flex gap-4"><span>✉️</span> hola@guestsvalencia.es</li>
-              <li className="flex gap-4"><span>📞</span> +34 624 020 085</li>
+              <li className="flex gap-4"><span></span> Calle de la Paz, 15, Valencia</li>
+              <li className="flex gap-4"><span></span> hola@guestsvalencia.es</li>
+              <li className="flex gap-4"><span></span> +34 624 020 085</li>
             </ul>
           </div>
         </div>
