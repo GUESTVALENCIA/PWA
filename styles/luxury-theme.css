@@ -1,0 +1,205 @@
+:root {
+  --lux-night: #0b0f18;
+  --lux-deep: #121723;
+  --lux-ivory: #f6f2ea;
+  --lux-paper: #fcfaf6;
+  --lux-gold: #c8a86b;
+  --lux-gold-soft: #e6d0a3;
+  --lux-blue: #2f5bd5;
+  --lux-emerald: #1f9d74;
+  --lux-border: rgba(18, 23, 35, 0.12);
+  --lux-shadow: 0 24px 60px rgba(10, 14, 22, 0.18);
+}
+
+body.luxury-theme {
+  background: var(--lux-ivory);
+  color: #14161c;
+  letter-spacing: 0.01em;
+}
+
+body.luxury-theme main {
+  background: var(--lux-ivory);
+}
+
+body.luxury-theme h1,
+body.luxury-theme h2,
+body.luxury-theme h3 {
+  letter-spacing: -0.02em;
+}
+
+body.luxury-theme a {
+  text-decoration: none;
+}
+
+#main-nav {
+  height: 64px;
+  background: rgba(10, 14, 22, 0.86);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 10px 30px rgba(8, 12, 18, 0.3);
+}
+
+#main-nav .brand {
+  font-size: 22px;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+#main-nav .brand-accent {
+  color: var(--lux-gold);
+}
+
+#main-nav .brand-main {
+  color: #ffffff;
+}
+
+#main-nav .nav-links .nav-link {
+  text-transform: uppercase;
+  letter-spacing: 0.26em;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+#main-nav .nav-links .nav-link:hover {
+  color: #ffffff;
+}
+
+#main-nav .nav-links .nav-link span {
+  background: var(--lux-gold);
+}
+
+#main-nav #nav-login-btn {
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-size: 11px;
+}
+
+#main-nav #nav-register-btn {
+  background: rgba(200, 168, 107, 0.18);
+  border-color: rgba(200, 168, 107, 0.4);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+#main-nav #nav-register-btn:hover {
+  background: rgba(200, 168, 107, 0.3);
+  border-color: rgba(200, 168, 107, 0.6);
+}
+
+.hero-section {
+  min-height: 92vh;
+  padding: 120px 0 90px;
+  align-items: center;
+}
+
+.hero-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, rgba(9, 14, 22, 0.92) 0%, rgba(9, 14, 22, 0.65) 55%, rgba(9, 14, 22, 0.35) 100%);
+  z-index: -1;
+}
+
+.hero-background-image,
+.hero-video {
+  filter: saturate(0.95) contrast(1.05) brightness(0.9);
+}
+
+.hero-content {
+  width: min(1100px, 92%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  text-align: left;
+}
+
+.hero-copy {
+  max-width: 700px;
+}
+
+.hero-kicker {
+  font-size: 11px;
+  letter-spacing: 0.6em;
+  text-transform: uppercase;
+  color: var(--lux-gold-soft);
+  display: inline-block;
+  margin-bottom: 12px;
+}
+
+.hero-title {
+  font-size: clamp(2.6rem, 5vw, 4.6rem);
+  color: #ffffff;
+  line-height: 1.05;
+  margin-bottom: 16px;
+}
+
+.hero-subtitle {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: clamp(1rem, 2.1vw, 1.25rem);
+  line-height: 1.6;
+}
+
+#search-container {
+  background: rgba(10, 16, 28, 0.72);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: var(--lux-shadow);
+}
+
+#search-container input {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+#search-container input::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+#btn-search-normal {
+  background: linear-gradient(135deg, #2f5bd5, #3b82f6);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  letter-spacing: 0.3em;
+  font-size: 10px;
+}
+
+#btn-search-ai {
+  background: linear-gradient(135deg, #1f9d74, #2dd4bf);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+#btn-search-ai span {
+  letter-spacing: 0.22em;
+  font-size: 10px;
+}
+
+#call-controls-bar .liquid-glass {
+  background: rgba(9, 14, 22, 0.82);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.luxury-btn {
+  background: linear-gradient(135deg, #2f5bd5, #4f46e5);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 6px 24px rgba(47, 91, 213, 0.28);
+}
+
+.luxury-btn:hover {
+  box-shadow: 0 12px 28px rgba(47, 91, 213, 0.38);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #2f5bd5, #3b82f6);
+  border: 1px solid rgba(47, 91, 213, 0.3);
+}
+
+.galaxy-bg {
+  background: radial-gradient(circle at 20% 20%, #1c2233 0%, #0b0f18 70%);
+}
+
+.property-card {
+  border: 1px solid var(--lux-border);
+  background: var(--lux-paper);
+}
