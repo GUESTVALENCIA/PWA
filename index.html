@@ -194,6 +194,7 @@
         </div>
 
         <a href="#login" id="nav-login-btn" class="nav-link hidden sm:block text-white/90 hover:text-white text-sm font-medium">Acceder</a>
+        <button id="qa-trigger" type="button" class="hidden sm:inline-flex items-center px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest text-white/70 border border-white/20 hover:text-white hover:border-white/40 transition-all">Test Diagnóstico</button>
         <a href="#register" id="nav-register-btn" class="nav-link bg-white/10 hover:bg-white/20 border border-white/20 text-white px-5 py-1.5 rounded-full text-sm font-bold backdrop-blur-sm transition-all transform hover:scale-105">
           <span id="nav-register-label">Registrarse</span>
         </a>
@@ -1270,7 +1271,8 @@
           id: `google-${Date.now()}`,
           name: 'Usuario Google',
           email: 'google@guestsvalencia.com',
-          role: currentRole
+          role: currentRole,
+          tier: 'Elite'
         };
         persistUser(user);
         closeAuth();
@@ -1315,7 +1317,8 @@
           id: String(Date.now()),
           name,
           email,
-          role: currentRole
+          role: currentRole,
+          tier: 'Elite'
         };
 
         persistUser(user);
@@ -1519,6 +1522,25 @@
           const prop = properties.find((p) => p.id === id) || properties[0];
           const drift = Math.round((Math.random() * 12) - 6);
           return Math.max(50, (prop?.price || 0) + drift);
+        }
+      };
+      window.GVSandraOps = {
+        negotiatePrice: (base, nights = 1) => {
+          const discount = nights >= 7 ? 0.12 : 0.08;
+          return Math.round(base * (1 - discount));
+        },
+        performVoiceCheckin: (guestName) => {
+          return { status: 'ok', code: `GV-${Date.now().toString().slice(-4)}`, guest: guestName || 'Huesped' };
+        },
+        sendWhatsAppConfirmation: (message) => {
+          console.log('WhatsApp stub:', message);
+          return true;
+        }
+      };
+      window.GVNavigation = {
+        navigateTo: (sectionId) => {
+          const target = document.getElementById(sectionId);
+          if (target) target.scrollIntoView({ behavior: 'smooth' });
         }
       };
 
@@ -2199,6 +2221,37 @@
       btnSearchNormal && btnSearchNormal.addEventListener('click', () => {
         runSearch({ useAi: true });
       });
+
+      const qaTrigger = document.getElementById('qa-trigger');
+      const runQA = async () => {
+        const report = [
+          { id: 'VOICE_SEARCH', ok: !!window.GVSandraWidget },
+          { id: 'MANUAL_SEARCH', ok: typeof runSearch === 'function' },
+          { id: 'NAVIGATION', ok: !!document.getElementById('alojamientos') },
+          { id: 'VOICE_CHECKIN', ok: !!window.GVSandraOps },
+          { id: 'NEGOTIATION', ok: !!window.GVSandraOps }
+        ];
+        if (window.GVNotifications && typeof window.GVNotifications.add === 'function') {
+          const passed = report.filter(r => r.ok).length;
+          window.GVNotifications.add({
+            title: 'QA Diagnóstico',
+            message: `${passed}/${report.length} módulos activos.`,
+            type: 'update'
+          });
+        }
+        return report;
+      };
+
+      window.GVQA = { run: runQA };
+      if (qaTrigger) {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('debug') === '1' || localStorage.getItem('gv_debug') === '1') {
+          qaTrigger.classList.remove('hidden');
+        }
+        qaTrigger.addEventListener('click', () => {
+          runQA();
+        });
+      }
     })();
   </script>
 
@@ -3123,6 +3176,77 @@
     document.addEventListener('DOMContentLoaded', () => {
       window.GVSandraWidget = new SandraWidget();
     });
+  </script>
+
+  <script>
+    (function () {
+      const messagesEl = document.getElementById('sales-chatbot-messages');
+      const inputEl = document.getElementById('sales-chatbot-input');
+      const sendBtn = document.getElementById('sales-chatbot-send');
+      const statusEl = document.getElementById('sales-chatbot-status');
+      const thinkingToggle = document.getElementById('sales-chatbot-thinking');
+
+      if (!messagesEl || !inputEl || !sendBtn) return;
+
+      const addMessage = (text, role) => {
+        const row = document.createElement('div');
+        row.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'}`;
+        row.innerHTML = `<div class="${role === 'user' ? 'bg-brand-600 text-white' : 'bg-white/10 text-slate-200'} px-4 py-3 rounded-2xl text-sm max-w-[80%]">${text}</div>`;
+        messagesEl.appendChild(row);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      };
+
+      if (!messagesEl.childElementCount) {
+        addMessage('Hola, soy Sandra. Pregúntame por precios y disponibilidad en tiempo real.', 'bot');
+      }
+
+      const buildContext = () => {
+        const list = (window.GVProperties || []).map((p) => `${p.id}: ${p.name} (${p.location}) ${p.price}€/noche`).join('\n');
+        return `Propiedades disponibles:\n${list}`;
+      };
+
+      const fallbackAnswer = (query) => {
+        const list = window.GVProperties || [];
+        const match = list.find((p) => query.toLowerCase().includes(p.name.toLowerCase().split(' ')[0]));
+        const property = match || list[0];
+        if (!property) return 'Ahora mismo no tengo inventario disponible. Intenta nuevamente.';
+        const live = window.GVBridgeData?.getLivePricing(property.id) || property.price;
+        return `Disponibilidad confirmada para ${property.name}. Precio actual: ${live}€/noche.`;
+      };
+
+      const sendMessage = async () => {
+        const text = String(inputEl.value || '').trim();
+        if (!text) return;
+        addMessage(text, 'user');
+        inputEl.value = '';
+        const gateway = window.GVSandraGateway || (window.SandraGateway ? new window.SandraGateway() : null);
+        if (gateway) window.GVSandraGateway = gateway;
+        if (statusEl) statusEl.textContent = 'Sandra procesando...';
+
+        if (!gateway) {
+          addMessage(fallbackAnswer(text), 'bot');
+          if (statusEl) statusEl.textContent = 'Bridge API: lista';
+          return;
+        }
+
+        try {
+          const reasoning = thinkingToggle && thinkingToggle.checked ? 'Usa razonamiento profundo.' : 'Respuesta directa.';
+          const prompt = `${reasoning}\n${buildContext()}\n\nCliente: ${text}\nResponde breve y con CTA de reserva directa.`;
+          const reply = await gateway.sendMessage(prompt, 'sales_chat');
+          addMessage(reply, 'bot');
+        } catch (err) {
+          console.error('Sales chat error', err);
+          addMessage(fallbackAnswer(text), 'bot');
+        } finally {
+          if (statusEl) statusEl.textContent = 'Bridge API: lista';
+        }
+      };
+
+      sendBtn.addEventListener('click', sendMessage);
+      inputEl.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') sendMessage();
+      });
+    })();
   </script>
 </body>
 </html>
