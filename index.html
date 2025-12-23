@@ -1524,6 +1524,8 @@
       const ownerListingsGrid = document.getElementById('owner-listings-grid');
       const ownerNegotiateBtn = document.getElementById('owner-negotiate-btn');
       const ownerCommission = document.getElementById('owner-commission');
+      const ownerCalendarDate = document.getElementById('owner-calendar-date');
+      const ownerCalendarCheck = document.getElementById('owner-calendar-check');
       const guestNextStay = document.getElementById('guest-next-stay');
       const guestItinerary = document.getElementById('guest-itinerary-list');
       const guestInboxMessages = document.getElementById('guest-inbox-messages');
@@ -1554,6 +1556,11 @@
       const bookingStart = document.getElementById('booking-start');
       const bookingEnd = document.getElementById('booking-end');
       const guestBookingBtn = document.getElementById('guest-open-booking');
+      const searchForm = document.getElementById('search-form');
+      const searchDestination = document.getElementById('search-destination');
+      const searchGuests = document.getElementById('search-guests');
+      const searchNights = document.getElementById('search-nights');
+      const btnSearchNormal = document.getElementById('btn-search-normal');
 
       const paymentModal = document.getElementById('payment-modal');
       const paymentOverlay = document.getElementById('payment-overlay');
@@ -1706,6 +1713,58 @@
             <span class="text-brand-400 font-bold text-sm">${formatCurrency(property.price)}/noche</span>
           </div>
         `).join('');
+      };
+
+      const filterPropertiesByText = (query) => {
+        if (!query) return [...properties];
+        const q = query.toLowerCase();
+        return properties.filter((p) => {
+          return (
+            p.name.toLowerCase().includes(q) ||
+            p.location.toLowerCase().includes(q) ||
+            p.description.toLowerCase().includes(q) ||
+            (p.features || []).some((f) => String(f).toLowerCase().includes(q))
+          );
+        });
+      };
+
+      const runSearch = async ({ useAi } = { useAi: false }) => {
+        const query = String(searchDestination?.value || '').trim();
+        if (!query) {
+          filteredProperties = [...properties];
+          renderGrid();
+          return;
+        }
+
+        filteredProperties = filterPropertiesByText(query);
+
+        if (useAi) {
+          const gateway = getGatewayInstance();
+          if (gateway) {
+            try {
+              const prompt = `Filtra estas propiedades según la búsqueda: "${query}".\n\nPropiedades:\n${properties.map((p) => `- ${p.id}: ${p.name} (${p.location}) | ${p.description}`).join('\n')}\n\nDevuelve IDs o nombres relevantes.`;
+              const response = await gateway.sendMessage(prompt, 'ai_search');
+              const matches = properties.filter((p) => {
+                const haystack = String(response || '').toLowerCase();
+                return haystack.includes(p.id.toLowerCase()) || haystack.includes(p.name.toLowerCase());
+              });
+              if (matches.length) {
+                filteredProperties = matches;
+              }
+              if (window.GVNotifications && typeof window.GVNotifications.add === 'function') {
+                window.GVNotifications.add({
+                  title: 'Búsqueda IA',
+                  message: `Sandra ha refinado tu búsqueda: ${filteredProperties.length} resultados.`,
+                  type: 'update'
+                });
+              }
+            } catch (err) {
+              console.error('AI search error', err);
+            }
+          }
+        }
+
+        renderGrid();
       };
 
       const ownerTabs = document.querySelectorAll('[data-owner-tab]');
@@ -2010,6 +2069,37 @@
         }
         closePayment();
       });
+      paymentCard && paymentCard.addEventListener('click', () => {
+        showPaymentVPOS();
+      });
+      paymentBack && paymentBack.addEventListener('click', showPaymentMethods);
+      paymentVpos && paymentVpos.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (!validateCardFields()) return;
+        if (paymentTitle && paymentTitle.textContent.includes('Payout')) {
+          completePayout('PayPal Secure Terminal');
+        } else {
+          completeBooking('PayPal Secure Terminal');
+        }
+        closePayment();
+      });
+      if (paymentCardNumber) {
+        paymentCardNumber.addEventListener('input', (e) => {
+          const val = String(e.target.value || '').replace(/\D/g, '').slice(0, 16);
+          e.target.value = val.replace(/(.{4})/g, '$1 ').trim();
+        });
+      }
+      if (paymentCardExp) {
+        paymentCardExp.addEventListener('input', (e) => {
+          const raw = String(e.target.value || '').replace(/\D/g, '').slice(0, 4);
+          e.target.value = raw.length > 2 ? `${raw.slice(0, 2)}/${raw.slice(2)}` : raw;
+        });
+      }
+      if (paymentCardCvc) {
+        paymentCardCvc.addEventListener('input', (e) => {
+          e.target.value = String(e.target.value || '').replace(/\D/g, '').slice(0, 4);
+        });
+      }
 
       ownerUploadBtn && ownerUploadBtn.addEventListener('click', openOwnerUpload);
       ownerUploadOverlay && ownerUploadOverlay.addEventListener('click', closeOwnerUpload);
@@ -2064,13 +2154,16 @@
           });
         }
       });
-      paymentCard && paymentCard.addEventListener('click', () => {
-        if (paymentTitle && paymentTitle.textContent.includes('Payout')) {
-          completePayout('Tarjeta');
-        } else {
-          completeBooking('Tarjeta');
+      ownerCalendarCheck && ownerCalendarCheck.addEventListener('click', () => {
+        const date = ownerCalendarDate?.value || '';
+        if (!date) return;
+        if (window.GVNotifications && typeof window.GVNotifications.add === 'function') {
+          window.GVNotifications.add({
+            title: 'Calendario actualizado',
+            message: `Disponibilidad consultada para ${date}.`,
+            type: 'booking'
+          });
         }
-        closePayment();
       });
 
       ownerPayoutBtn && ownerPayoutBtn.addEventListener('click', () => {
@@ -2090,6 +2183,14 @@
             type: 'message'
           });
         }
+      });
+
+      searchForm && searchForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        runSearch({ useAi: true });
+      });
+      btnSearchNormal && btnSearchNormal.addEventListener('click', () => {
+        runSearch({ useAi: true });
       });
     })();
   </script>
@@ -2126,6 +2227,8 @@
         }
       }
     }
+
+    window.SandraGateway = SandraGateway;
 
     // Sandra Widget
     class SandraWidget {
