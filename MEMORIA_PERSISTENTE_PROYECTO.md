@@ -35,15 +35,15 @@ const welcomeAudio = await services.cartesia.textToSpeech(welcomeText);
 ## 2. CONFIGURACIÓN DE APIS - PRIORIDADES
 
 ### Producción:
-1. **GPT-4o (OpenAI)** - Primera opción
-2. **Groq (Qwen)** - Fallback 1
-3. **Groq (DeepSeek)** - Fallback 2
-4. **Gemini** - Último recurso
+1. **Gemini** - Prioritario siempre
+2. **GPT-4o (OpenAI)** - Fallback 1
+3. **Groq (Qwen)** - Fallback 2
+4. **Groq (DeepSeek)** - Fallback 3
 
 ### Local:
-1. **Gemini** - Primera opción
-2. **GPT-4o** - Fallback 1
-3. **Groq** - Fallback 2
+1. **Gemini** - Prioritario siempre
+2. **GPT-4o (OpenAI)** - Fallback 1
+3. **Groq (Qwen)** - Fallback 2
 
 ---
 
@@ -84,6 +84,7 @@ const welcomeAudio = await services.cartesia.textToSpeech(welcomeText);
 - `OPENAI_API_KEY`
 - `GROQ_API_KEY`
 - `GEMINI_API_KEY`
+- `PREFERRED_AI_PROVIDER=gemini`
 - `DEEPGRAM_API_KEY`
 - `CARTESIA_API_KEY`
 - `CARTESIA_VOICE_ID`
@@ -163,6 +164,19 @@ const welcomeAudio = await services.cartesia.textToSpeech(welcomeText);
 - El video del hero se sincroniza con el saludo inicial
 - La grabación se detiene automáticamente cuando Sandra habla (barge-in)
 - El saludo inicial **NUNCA** se genera con TTS, siempre es un archivo grabado
+
+---
+
+## 9. PROPTECH OS V14.8 (Elite)
+
+- Panel de Propietario: tabs de rendimiento, calendario, activos, marketing y finanzas. Incluye negociacion de comision y liquidacion/payout.
+- Panel de Huesped: tabs de reservas, inbox y perfil. Chat directo con Sandra integrado.
+- Chatbot de ventas: panel dedicado para disponibilidad y precios con contexto de propiedades (Gemini + fallback local).
+- Pago por voz (VPOS PayPal): formulario seguro simulado en modal de pago con validaciones y flujo PCI-DSS.
+- Busqueda IA: filtrado semantico en el hero usando Gemini cuando esta disponible.
+- WhatsApp Business (stub): confirmaciones de reserva enviadas via `GVSandraOps.sendWhatsAppConfirmation`.
+- QA Diagnostico: `window.GVQA.run()` + boton oculto `#qa-trigger` (debug) para pruebas rapidas.
+- AI Studio: eliminado del index comercial; todo laboratorio va en subdominio independiente.
 
 ---
 
