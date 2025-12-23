@@ -70,7 +70,7 @@
   </script>
 
   <style>
-    :root{--primary:#2563EB;--accent:#3B82F6;--accent-light:#60A5FA;--accent-lighter:#93C5FD;--accent-dark:#1E40AF;--glass-bg:rgba(255,255,255,0.98);--glass-dark-bg:rgba(37,99,235,0.85);--text-primary:#0F172A;--text-secondary:#334155;--bg-light:#FFFFFF;--bg-section:#F8FAFC;--bg-accent:#EFF6FF;--galaxy-deep:#030712;--glass-surface:rgba(15,23,42,0.7);--glass-border:rgba(255,255,255,0.12);--hero-bg-zoom:1;--hero-bg-pos:72%}
+    :root{--primary:#2563EB;--accent:#3B82F6;--accent-light:#60A5FA;--accent-lighter:#93C5FD;--accent-dark:#1E40AF;--glass-bg:rgba(255,255,255,0.98);--glass-dark-bg:rgba(37,99,235,0.85);--text-primary:#0F172A;--text-secondary:#334155;--bg-light:#FFFFFF;--bg-section:#F8FAFC;--bg-accent:#EFF6FF;--galaxy-deep:#030712;--glass-surface:rgba(15,23,42,0.7);--glass-border:rgba(255,255,255,0.12);--nav-height:48px;--hero-bg-zoom:1;--hero-bg-pos:60%}
     body{font-family:'Outfit',system-ui,sans-serif;background:var(--bg-light);color:var(--text-primary);overflow-x:hidden;margin:0;padding:0}
     html{margin:0;padding:0}
     h1,h2,h3{font-family:'Playfair Display',Georgia,serif}
@@ -88,8 +88,10 @@
     /* Hero Call UI (sin saltos): fade search -> controls */
     #search-container{transition:opacity .28s ease,transform .28s ease}
     #search-container.call-hidden{opacity:0;transform:translateY(8px);filter:blur(6px);pointer-events:none}
-    #call-controls-bar{position:fixed;left:50%;bottom:14px;transform:translateX(-50%) translateY(8px);z-index:60;opacity:0;pointer-events:none;transition:opacity .28s ease,transform .28s ease}
+    #call-controls-bar{position:fixed;left:50%;bottom:8px;transform:translateX(-50%) translateY(8px);z-index:60;opacity:0;pointer-events:none;transition:opacity .28s ease,transform .28s ease}
     #call-controls-bar.active{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+    body.call-active .page{filter:blur(1.5px) brightness(0.9)}
+    body.call-active #call-controls-bar{filter:none}
     /* Subtítulos siempre visibles y con saltos de línea cuando se muestran */
     #sandra-subtitles span{white-space:pre-line;display:inline-block;line-height:1.5}
     .property-card{transition:transform 0.3s,box-shadow 0.3s}.property-card:hover{transform:translateY(-5px);box-shadow:0 20px 40px rgba(0,0,0,0.1)}
@@ -98,8 +100,6 @@
     .page{display:none}.page.active{display:block}
     .lightbox{display:none;position:fixed;z-index:1000;inset:0;background:rgba(11,16,32,0.95);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);justify-content:center;align-items:center}
     .lightbox.show{display:flex}
-    #sandra-widget-container{position:fixed;bottom:20px;right:20px;z-index:9999}
-    #sandra-widget-root{display:none !important}
     #search-container.active{box-shadow:0 0 0 3px rgba(59,130,246,0.5),0 0 20px rgba(59,130,246,0.3),0 0 40px rgba(59,130,246,0.2);border-color:rgba(59,130,246,0.5)}
     .ai-search-active{animation:pulse-glow 2s ease-in-out infinite}
     .shadow-4xl{box-shadow:0 25px 60px rgba(0,0,0,0.45)}
@@ -139,7 +139,7 @@
 <body class="font-sans text-slate-900 bg-white min-h-full flex flex-col">
 
   <!-- NAVBAR -->
-  <nav id="main-nav" class="fixed top-0 left-0 right-0 w-full z-50 h-[56px] flex items-center transition-all duration-300 liquid-glass border-b border-white/10 shadow-sm">
+  <nav id="main-nav" class="fixed top-0 left-0 right-0 w-full z-50 h-[48px] flex items-center transition-all duration-300 liquid-glass border-b border-white/10 shadow-sm">
     <div class="w-full max-w-7xl mx-auto px-6 flex justify-between items-center">
       <a href="#home" class="nav-link text-2xl font-bold text-white flex items-center gap-1 font-serif tracking-tight drop-shadow-md">
         <span class="text-blue-400">Guests</span>Valencia
@@ -178,7 +178,7 @@
 
       <div class="flex gap-4 items-center">
         <div id="notif-center" class="relative hidden sm:block">
-          <button id="notif-toggle" class="relative p-2.5 text-slate-300 hover:text-white transition-all bg-white/5 rounded-2xl border border-white/5 hover:bg-white/10 glossy-finish">
+          <button id="notif-toggle" class="relative p-2 text-slate-300 hover:text-white transition-all bg-white/5 rounded-2xl border border-white/5 hover:bg-white/10 glossy-finish">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
             </svg>
@@ -194,9 +194,8 @@
           </div>
         </div>
 
-        <a href="/studio" id="nav-dashboard-link" class="nav-link hidden sm:block text-white/80 hover:text-white text-sm font-medium">Studio</a>
         <a href="#login" id="nav-login-btn" class="nav-link hidden sm:block text-white/90 hover:text-white text-sm font-medium">Acceder</a>
-        <a href="#register" id="nav-register-btn" class="nav-link bg-white/10 hover:bg-white/20 border border-white/20 text-white px-6 py-2 rounded-full text-sm font-bold backdrop-blur-sm transition-all transform hover:scale-105">
+        <a href="#register" id="nav-register-btn" class="nav-link bg-white/10 hover:bg-white/20 border border-white/20 text-white px-5 py-1.5 rounded-full text-sm font-bold backdrop-blur-sm transition-all transform hover:scale-105">
           <span id="nav-register-label">Registrarse</span>
         </a>
       </div>
@@ -204,9 +203,6 @@
   </nav>
 
   <main class="flex-1">
-    <!-- Fallback para el widget de Sandra: se reemplaza dinámicamente al inicializar -->
-    <div id="sandra-widget-root" class="hidden" aria-live="polite"></div>
-
     <!-- HOME -->
     <section id="home" class="page active">
       <header class="hero-section">
@@ -225,25 +221,25 @@
         <div class="relative z-10 text-center px-6 max-w-6xl mx-auto mt-[44vh]">
           <p class="text-lg md:text-xl text-white mb-8 max-w-2xl mx-auto font-semibold drop-shadow-2xl text-shadow-hero">Apartamentos de diseño con llegada autónoma y asistencia 24 horas impulsadas por Sandra IA</p>
           <div id="hero-action-area" class="relative max-w-6xl mx-auto">
-            <div id="search-container" class="liquid-glass glossy-crystal p-2 rounded-[26px] max-w-6xl mx-auto shadow-2xl transition-all duration-300 border border-white/10">
+            <div id="search-container" class="liquid-glass glossy-crystal p-1.5 rounded-[22px] max-w-6xl mx-auto shadow-2xl transition-all duration-300 border border-white/10">
               <form id="search-form" class="flex flex-col md:flex-row gap-2 items-center">
                 <div class="flex-1 w-full md:w-auto flex flex-col sm:flex-row gap-2 min-w-0">
-                  <input type="text" id="search-destination" placeholder="¿A dónde viajas? Ej: Ruzafa..." class="flex-1 px-5 py-3 rounded-[20px] bg-white/5 border border-white/10 text-white placeholder:text-slate-500 font-medium outline-none focus:bg-white/10 transition-all text-[12px]">
-                  <div class="flex items-center bg-white/5 px-4 rounded-[20px] border border-white/10">
+                  <input type="text" id="search-destination" placeholder="¿A dónde viajas? Ej: Ruzafa..." class="flex-1 px-4 py-2 rounded-[18px] bg-white/5 border border-white/10 text-white placeholder:text-slate-500 font-medium outline-none focus:bg-white/10 transition-all text-[12px]">
+                  <div class="flex items-center bg-white/5 px-3 rounded-[18px] border border-white/10">
                     <input type="number" id="search-guests" value="2" min="1" aria-label="Número de personas" class="w-12 bg-transparent text-white text-[12px] font-semibold outline-none text-center">
                     <span class="ml-2 text-slate-400 text-[10px] font-bold uppercase tracking-widest whitespace-nowrap">Pers.</span>
                   </div>
-                  <div class="flex items-center bg-white/5 px-4 rounded-[20px] border border-white/10">
+                  <div class="flex items-center bg-white/5 px-3 rounded-[18px] border border-white/10">
                     <input type="number" id="search-nights" value="1" min="1" aria-label="Número de noches" class="w-12 bg-transparent text-white text-[12px] font-semibold outline-none text-center">
                     <span class="ml-2 text-slate-400 text-[10px] font-bold uppercase tracking-widest whitespace-nowrap">Noches</span>
                   </div>
                 </div>
                 <div class="flex gap-2 w-full md:w-auto">
-                  <button type="button" id="btn-search-normal" class="flex-1 md:flex-none px-7 py-3 luxury-btn text-white font-bold rounded-[20px] transition-all text-[10px] uppercase tracking-[0.2em] whitespace-nowrap">
+                  <button type="button" id="btn-search-normal" class="flex-1 md:flex-none px-5 py-2 luxury-btn text-white font-bold rounded-[18px] transition-all text-[10px] uppercase tracking-[0.2em] whitespace-nowrap">
                     Buscar
                   </button>
-                  <button type="button" id="btn-search-ai" class="flex-1 md:flex-none px-6 py-3 bg-green-600 hover:bg-green-500 text-white font-bold rounded-[20px] transition-all flex items-center justify-center gap-2 border border-green-400/30 shadow-2xl group whitespace-nowrap">
-                    <div class="w-7 h-7 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+                  <button type="button" id="btn-search-ai" class="flex-1 md:flex-none px-4 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-[18px] transition-all flex items-center justify-center gap-2 border border-green-400/30 shadow-2xl group whitespace-nowrap">
+                    <div class="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
                       <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                         <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 005.455 5.455l.774-1.548a1 1 0 011.06-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
                       </svg>
