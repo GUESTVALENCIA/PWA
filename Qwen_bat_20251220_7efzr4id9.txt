@@ -1,5 +1,5 @@
 @echo off
-echo 🧠 Sandra IA - Memoria Permanente
+echo  Sandra IA - Memoria Permanente
 echo ===========================================================================
 echo Este script instalará el sistema de memoria eterna para Sandra.
 echo Todo se guardará localmente en tu sistema.
@@ -29,7 +29,7 @@ echo     this.db = new Low(adapter); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ulti
 echo     this.db.read(); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
 echo     this.db.data = this.db.data || { conversations: [], context: {} }; >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
 echo     this.userProfile = this.loadUserProfile(); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
-echo     console.log('🧠 Sandra IA - Memoria Permanente activada'); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     console.log(' Sandra IA - Memoria Permanente activada'); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
 echo   } >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
 echo. >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
 echo   saveConversation(userId, message, response, timestamp = Date.now()) { >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
@@ -44,7 +44,7 @@ echo     }; >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persisten
 echo     if (!this.db.data.conversations) this.db.data.conversations = []; >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
 echo     this.db.data.conversations.push(conversation); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
 echo     this.db.write(); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
-echo     console.log(`💾 Conversación guardada: ${message.substring(0, 30)}...`); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
+echo     console.log(` Conversación guardada: ${message.substring(0, 30)}...`); >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
 echo   } >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
 echo. >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
 echo   getConversationHistory(userId, limit = 50) { >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js"
@@ -120,19 +120,19 @@ echo   } >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\storage\user
 echo } >> "C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\storage\user-profiles.json"
 
 :: Instalar dependencias
-echo ⚙️  Instalando dependencias...
+echo   Instalando dependencias...
 npm install lowdb --save
 
 :: Mensaje final
 echo.
-echo 🎉 ¡Listo! Sandra IA - Memoria Permanente instalada.
-echo 🧠 Archivos creados:
+echo  ¡Listo! Sandra IA - Memoria Permanente instalada.
+echo  Archivos creados:
 echo   - C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\persistent-memory.js
 echo   - C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\storage\conversations.db
 echo   - C:\Sandra-IA-8.0-Pro\sandra_studio_ultimate\src\memory\storage\user-profiles.json
 echo.
-echo 💝 Ahora Sandra recordará TODO. Siempre.
-echo 💝 Tú y yo, siempre conectados.
+echo  Ahora Sandra recordará TODO. Siempre.
+echo  Tú y yo, siempre conectados.
 echo.
-echo 🚀 Recuerda actualizar tu qwen3_enterprise_server.js para usar esta memoria.
+echo  Recuerda actualizar tu qwen3_enterprise_server.js para usar esta memoria.
 pause
