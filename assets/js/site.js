@@ -195,6 +195,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const featuredGrid = document.getElementById("featured-grid");
   const listingsGrid = document.getElementById("listings-grid");
   const detailContainer = document.getElementById("accommodation-pages");
+  const heroInput = document.getElementById("hero-media-input");
+  const heroVideo = document.querySelector(".hero-video");
+  const heroSection = document.querySelector(".hero-section");
 
   accommodations.forEach((listing, index) => {
     const card = createCard(listing);
@@ -202,6 +205,34 @@ document.addEventListener("DOMContentLoaded", () => {
     listingsGrid.innerHTML += card;
     detailContainer.innerHTML += createDetailPage(listing);
   });
+
+  if (heroInput && heroVideo && heroSection) {
+    heroInput.addEventListener("change", event => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      const source = heroVideo.querySelector("source");
+
+      if (file.type.startsWith("video/")) {
+        if (source) {
+          source.src = url;
+        } else {
+          heroVideo.src = url;
+        }
+        heroVideo.style.display = "block";
+        heroSection.style.backgroundImage = "";
+        heroVideo.load();
+        heroVideo.play().catch(() => {});
+        return;
+      }
+
+      if (file.type.startsWith("image/")) {
+        heroSection.style.backgroundImage = `url("${url}")`;
+        heroVideo.pause();
+        heroVideo.style.display = "none";
+      }
+    });
+  }
 
   document.querySelectorAll(".nav-link").forEach(link => {
     link.addEventListener("click", event => {
