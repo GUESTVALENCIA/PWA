@@ -115,6 +115,16 @@ body.luxury-theme a {
   text-align: left;
 }
 
+.hero-actions {
+  width: min(1000px, 92%);
+}
+
+@media (min-width: 1024px) {
+  .hero-actions {
+    width: min(960px, 90%);
+  }
+}
+
 .hero-copy {
   max-width: 700px;
 }
@@ -146,6 +156,11 @@ body.luxury-theme a {
   border-radius: 24px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow: var(--lux-shadow);
+}
+
+.hero-actions #search-container {
+  margin-left: 0;
+  margin-right: 0;
 }
 
 #search-container input {
