@@ -12,6 +12,7 @@ export default async function handler(req, res) {
   const hasOpenAI = !!process.env.OPENAI_API_KEY;
   const hasGroq = !!process.env.GROQ_API_KEY;
   const hasGemini = !!process.env.GEMINI_API_KEY;
+  const preferredProvider = (process.env.PREFERRED_AI_PROVIDER || 'gemini').toLowerCase();
 
   // No exponer las keys completas, solo indicar si existen
   const info = {
@@ -35,7 +36,8 @@ export default async function handler(req, res) {
         startsWith: hasGemini ? process.env.GEMINI_API_KEY.substring(0, 7) + '...' : 'N/A'
       }
     },
-    expectedModel: process.env.VERCEL_ENV === 'production' ? 'gpt-4o' : 'gemini-2.5-flash-lite'
+    preferredProvider: preferredProvider,
+    expectedModel: preferredProvider === 'gemini' ? 'gemini-2.5-flash-lite' : (process.env.VERCEL_ENV === 'production' ? 'gpt-4o' : 'gemini-2.5-flash-lite')
   };
 
   res.setHeader('Access-Control-Allow-Origin', '*');
