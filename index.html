@@ -982,10 +982,31 @@
             <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
           </div>
         </div>
-        <div class="space-y-3">
+        <div id="payment-methods" class="space-y-3">
           <button id="payment-paypal" type="button" class="w-full py-4 bg-[#FFC439] text-[#003087] font-black rounded-2xl uppercase tracking-widest text-[10px]">PayPal</button>
           <button id="payment-card" type="button" class="w-full py-4 bg-white/5 border border-white/10 text-white font-bold rounded-2xl uppercase tracking-widest text-[10px]">Tarjeta</button>
         </div>
+        <form id="payment-vpos" class="hidden space-y-4">
+          <div>
+            <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Número de tarjeta</label>
+            <input id="payment-card-number" type="text" placeholder="0000 0000 0000 0000" class="mt-2 w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm outline-none focus:border-brand-500">
+            <p id="payment-error-number" class="hidden text-[9px] text-red-400 uppercase tracking-widest mt-2 font-bold"></p>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold">MM/YY</label>
+              <input id="payment-card-exp" type="text" placeholder="12/27" class="mt-2 w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm outline-none focus:border-brand-500">
+              <p id="payment-error-exp" class="hidden text-[9px] text-red-400 uppercase tracking-widest mt-2 font-bold"></p>
+            </div>
+            <div>
+              <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold">CVC</label>
+              <input id="payment-card-cvc" type="password" placeholder="***" class="mt-2 w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm outline-none focus:border-brand-500">
+              <p id="payment-error-cvc" class="hidden text-[9px] text-red-400 uppercase tracking-widest mt-2 font-bold"></p>
+            </div>
+          </div>
+          <button id="payment-card-submit" type="submit" class="w-full py-4 bg-[#003087] text-white font-black rounded-2xl uppercase tracking-widest text-[10px]">Autorizar pago seguro</button>
+          <button id="payment-back" type="button" class="w-full py-2 text-[9px] uppercase tracking-widest text-slate-500 font-bold">Cambiar método</button>
+        </form>
       </div>
     </div>
 
