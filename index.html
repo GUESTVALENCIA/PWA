@@ -1514,6 +1514,13 @@
 
       let filteredProperties = [...properties];
       window.GVProperties = properties;
+      window.GVBridgeData = {
+        getLivePricing: (id) => {
+          const prop = properties.find((p) => p.id === id) || properties[0];
+          const drift = Math.round((Math.random() * 12) - 6);
+          return Math.max(50, (prop?.price || 0) + drift);
+        }
+      };
 
       const grid = document.getElementById('featured-grid');
       const ownerList = document.getElementById('owner-properties-list');
