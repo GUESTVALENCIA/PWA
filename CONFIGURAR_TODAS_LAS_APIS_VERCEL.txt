@@ -1,63 +1,63 @@
-===============================================
-VARIABLES DE ENTORNO PARA CONFIGURAR EN VERCEL
-===============================================
-
-📍 Ubicación: Vercel Dashboard > Tu Proyecto > Settings > Environment Variables
-
-═══════════════════════════════════════════════
-APIS DE IA (TODAS REQUERIDAS)
-═══════════════════════════════════════════════
-
-1. OPENAI_API_KEY
-   Valor: sk-proj-... (TU_API_KEY_AQUI)
-   Ambientes: Production
-
-2. GROQ_API_KEY
-   Valor: gsk_... (TU_API_KEY_AQUI)
-   Ambientes: Production
-
-3. GEMINI_API_KEY
-   Valor: AIzaSy... (TU_API_KEY_AQUI)
-   Ambientes: Production, Preview
-
-═══════════════════════════════════════════════
-APIS DE VOZ (TODAS REQUERIDAS)
-═══════════════════════════════════════════════
-
-4. DEEPGRAM_API_KEY
-   Valor: 30e9dbaec29dcde1b23a8bd9de31438c74f23522 (TU_API_KEY_AQUI)
-   Ambientes: Production
-
-5. CARTESIA_API_KEY
-   Valor: a34aec03-0f17-4fff-903f-d9458a8a92a6 (TU_API_KEY_AQUI)
-   Ambientes: Production
-
-6. CARTESIA_VOICE_ID
-   Valor: 2d5b0e6cf361460aa7fc47e3cee4b30c
-   Ambientes: Production
-
-═══════════════════════════════════════════════
-MCP SERVER (REQUERIDO)
-═══════════════════════════════════════════════
-
-7. MCP_SERVER_URL
-   Valor: https://pwa-imbf.onrender.com
-   Ambientes: Production
-
-8. MCP_TOKEN (OPCIONAL)
-   Valor: (dejar vacío si no es necesario)
-   Ambientes: Production
-
-═══════════════════════════════════════════════
-INSTRUCCIONES
-═══════════════════════════════════════════════
-
-1. Ve a: https://vercel.com/dashboard
-2. Selecciona tu proyecto
-3. Settings > Environment Variables
-4. Agrega TODAS las variables de arriba
-5. Asegúrate de seleccionar "Production" en cada una
-6. Haz un nuevo deploy después de agregar todas
-
-═══════════════════════════════════════════════
-
+===============================================
+VARIABLES DE ENTORNO PARA CONFIGURAR EN VERCEL
+===============================================
+
+ Ubicación: Vercel Dashboard > Tu Proyecto > Settings > Environment Variables
+
+═══════════════════════════════════════════════
+APIS DE IA (TODAS REQUERIDAS)
+═══════════════════════════════════════════════
+
+1. OPENAI_API_KEY
+   Valor: sk-proj-... (TU_API_KEY_AQUI)
+   Ambientes: Production
+
+2. GROQ_API_KEY
+   Valor: gsk_... (TU_API_KEY_AQUI)
+   Ambientes: Production
+
+3. GEMINI_API_KEY
+   Valor: AIzaSy... (TU_API_KEY_AQUI)
+   Ambientes: Production, Preview
+
+═══════════════════════════════════════════════
+APIS DE VOZ (TODAS REQUERIDAS)
+═══════════════════════════════════════════════
+
+4. DEEPGRAM_API_KEY
+   Valor: 30e9dbaec29dcde1b23a8bd9de31438c74f23522 (TU_API_KEY_AQUI)
+   Ambientes: Production
+
+5. CARTESIA_API_KEY
+   Valor: a34aec03-0f17-4fff-903f-d9458a8a92a6 (TU_API_KEY_AQUI)
+   Ambientes: Production
+
+6. CARTESIA_VOICE_ID
+   Valor: 2d5b0e6cf361460aa7fc47e3cee4b30c
+   Ambientes: Production
+
+═══════════════════════════════════════════════
+MCP SERVER (REQUERIDO)
+═══════════════════════════════════════════════
+
+7. MCP_SERVER_URL
+   Valor: https://pwa-imbf.onrender.com
+   Ambientes: Production
+
+8. MCP_TOKEN (OPCIONAL)
+   Valor: (dejar vacío si no es necesario)
+   Ambientes: Production
+
+═══════════════════════════════════════════════
+INSTRUCCIONES
+═══════════════════════════════════════════════
+
+1. Ve a: https://vercel.com/dashboard
+2. Selecciona tu proyecto
+3. Settings > Environment Variables
+4. Agrega TODAS las variables de arriba
+5. Asegúrate de seleccionar "Production" en cada una
+6. Haz un nuevo deploy después de agregar todas
+
+═══════════════════════════════════════════════
+
