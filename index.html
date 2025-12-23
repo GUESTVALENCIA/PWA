@@ -363,6 +363,78 @@
         </div>
       </section>
 
+      <!-- PORTAL HUÉSPED -->
+      <section id="portal-huesped" data-role-section="guest" class="hidden bg-white py-20 px-6 border-t border-slate-200">
+        <div class="max-w-7xl mx-auto">
+          <div class="text-center mb-12">
+            <span class="text-blue-600 font-bold tracking-wider uppercase text-sm mb-2 block">Panel de Huésped</span>
+            <h2 class="text-3xl md:text-4xl font-bold text-slate-900 mb-4">Tu viaje, todo en un vistazo</h2>
+            <p class="text-slate-600 max-w-2xl mx-auto">Acceso rápido a tus reservas, itinerario y asistencia instantánea de Sandra.</p>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="liquid-glass p-8 rounded-3xl border border-white/10">
+              <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-3">Próxima estancia</p>
+              <div id="guest-next-stay" class="text-lg font-semibold text-slate-900">Sin reservas activas</div>
+              <p class="text-sm text-slate-500 mt-2">Selecciona fechas y confirma tu próxima experiencia.</p>
+              <button type="button" id="guest-open-booking" class="mt-6 px-6 py-3 btn-primary rounded-2xl text-[10px] font-black uppercase tracking-widest">Reservar ahora</button>
+            </div>
+            <div class="liquid-glass p-8 rounded-3xl border border-white/10">
+              <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-3">Itinerario</p>
+              <ul id="guest-itinerary-list" class="space-y-3 text-sm text-slate-600">
+                <li class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-blue-500"></span>Check-in digital pendiente</li>
+                <li class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>Guía local disponible</li>
+              </ul>
+            </div>
+            <div class="liquid-glass p-8 rounded-3xl border border-white/10">
+              <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-3">Asistencia Sandra</p>
+              <p class="text-sm text-slate-600">Atención 24/7 en tiempo real.</p>
+              <div class="mt-6 flex flex-col gap-3">
+                <button type="button" data-call-sandra class="luxury-btn px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white shadow-glow">Llamar a Sandra</button>
+                <button type="button" id="guest-message-sandra" class="px-6 py-3 bg-white/70 hover:bg-white text-slate-800 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-slate-200 transition-all">Solicitar ayuda</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PORTAL PROPIETARIO -->
+      <section id="portal-propietario" data-role-section="owner" class="hidden galaxy-bg text-white py-20 px-6 border-t border-slate-900">
+        <div class="section-container">
+          <div class="text-center mb-12">
+            <span class="text-brand-400 font-bold uppercase tracking-[0.4em] text-[10px] mb-4 block">Panel Proptech</span>
+            <h2 class="text-4xl sm:text-5xl font-serif font-bold mb-4">Control total de tu portfolio</h2>
+            <p class="text-slate-400 max-w-2xl mx-auto">Métricas clave, rendimiento y operaciones en una vista ejecutiva.</p>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+            <div class="liquid-glass p-8 rounded-[32px] border border-white/10">
+              <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-3">Ingreso mensual</p>
+              <div id="owner-revenue" class="text-3xl font-bold text-white">€0</div>
+              <p class="text-xs text-slate-500 mt-2">Estimación actualizada</p>
+            </div>
+            <div class="liquid-glass p-8 rounded-[32px] border border-white/10">
+              <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-3">Ocupación media</p>
+              <div id="owner-occupancy" class="text-3xl font-bold text-white">0%</div>
+              <p class="text-xs text-slate-500 mt-2">Últimos 30 días</p>
+            </div>
+            <div class="liquid-glass p-8 rounded-[32px] border border-white/10">
+              <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-3">Reservas directas</p>
+              <div id="owner-direct" class="text-3xl font-bold text-white">0</div>
+              <p class="text-xs text-slate-500 mt-2">Sin comisiones</p>
+            </div>
+          </div>
+          <div class="liquid-glass p-8 rounded-[32px] border border-white/10">
+            <div class="flex items-center justify-between flex-wrap gap-4 mb-6">
+              <div>
+                <h3 class="text-2xl font-serif font-bold">Activos en cartera</h3>
+                <p class="text-sm text-slate-400">Gestión inteligente y pricing dinámico.</p>
+              </div>
+              <button type="button" id="owner-payout-btn" class="px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest border border-white/10">Solicitar payout</button>
+            </div>
+            <ul id="owner-properties-list" class="space-y-4 text-sm text-slate-300"></ul>
+          </div>
+        </div>
+      </section>
+
       <!-- SANDRA IA SECTION -->
       <section class="bg-white py-16 md:py-24 border-t border-slate-200">
         <div class="max-w-7xl mx-auto px-6 grid md:grid-cols-2 gap-8 md:gap-12 items-end">
@@ -649,40 +721,125 @@
       </section>
 
 
-    <!-- PORTAL DE ACCESO (Huésped / Propietario) -->
+    <!-- SHOWCASE PROPIEDAD -->
+    <div id="property-showcase-modal" class="lightbox">
+      <div class="relative w-full max-w-3xl mx-6 bg-white rounded-[32px] overflow-hidden shadow-6xl">
+        <button id="property-showcase-close" class="absolute top-4 right-4 p-2 bg-slate-900/80 text-white rounded-full hover:bg-slate-900 transition-all" aria-label="Cerrar">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+        <div class="grid md:grid-cols-2">
+          <div class="relative">
+            <img id="property-showcase-image" src="" alt="Propiedad" class="w-full h-full object-cover min-h-[260px]">
+            <div class="absolute bottom-4 left-4 bg-slate-900/70 text-white text-[10px] uppercase tracking-[0.2em] px-4 py-2 rounded-full">Sandra Narrated Tour</div>
+          </div>
+          <div class="p-8">
+            <h3 id="property-showcase-title" class="text-2xl font-serif font-bold text-slate-900 mb-2"></h3>
+            <p id="property-showcase-location" class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-4"></p>
+            <p id="property-showcase-description" class="text-sm text-slate-600 mb-6"></p>
+            <ul id="property-showcase-features" class="space-y-2 text-sm text-slate-500 mb-6"></ul>
+            <div class="flex flex-wrap gap-3">
+              <button id="property-showcase-voice" class="luxury-btn px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white shadow-glow">Escuchar a Sandra</button>
+              <button id="property-showcase-book" class="px-6 py-3 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest">Reservar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL RESERVA -->
+    <div id="booking-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-6">
+      <div id="booking-overlay" class="absolute inset-0 bg-galaxy-deep/90 backdrop-blur-xl"></div>
+      <div class="relative w-full max-w-lg liquid-glass rounded-[40px] border border-white/10 p-8 shadow-6xl">
+        <button id="booking-close" class="absolute top-5 right-5 text-white/60 hover:text-white transition-colors" aria-label="Cerrar">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+        <h3 class="text-2xl font-serif font-bold text-white mb-2">Reserva directa</h3>
+        <p id="booking-property-name" class="text-sm text-slate-400 mb-6"></p>
+        <form id="booking-form" class="space-y-4">
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Check-in</label>
+              <input id="booking-start" type="date" class="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm outline-none focus:border-brand-500" required>
+            </div>
+            <div>
+              <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Check-out</label>
+              <input id="booking-end" type="date" class="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm outline-none focus:border-brand-500" required>
+            </div>
+          </div>
+          <button type="submit" class="w-full py-4 luxury-btn text-white font-bold rounded-[28px] uppercase tracking-widest text-[11px] shadow-2xl">Continuar</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL PAGO -->
+    <div id="payment-modal" class="hidden fixed inset-0 z-[210] flex items-center justify-center p-6">
+      <div id="payment-overlay" class="absolute inset-0 bg-galaxy-deep/90 backdrop-blur-xl"></div>
+      <div class="relative w-full max-w-lg liquid-glass rounded-[40px] border border-white/10 p-8 shadow-6xl">
+        <button id="payment-close" class="absolute top-5 right-5 text-white/60 hover:text-white transition-colors" aria-label="Cerrar">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+        <h3 id="payment-title" class="text-2xl font-serif font-bold text-white mb-2">Terminal de pago</h3>
+        <p id="payment-subtitle" class="text-sm text-slate-400 mb-6"></p>
+        <div class="bg-white/5 rounded-3xl p-6 border border-white/10 mb-6 flex items-center justify-between">
+          <div>
+            <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Total</p>
+            <p id="payment-amount" class="text-3xl font-bold text-white">€0</p>
+          </div>
+          <div class="w-12 h-12 bg-brand-600/20 text-brand-400 rounded-full flex items-center justify-center border border-brand-500/20">
+            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+          </div>
+        </div>
+        <div class="space-y-3">
+          <button id="payment-paypal" type="button" class="w-full py-4 bg-[#FFC439] text-[#003087] font-black rounded-2xl uppercase tracking-widest text-[10px]">PayPal</button>
+          <button id="payment-card" type="button" class="w-full py-4 bg-white/5 border border-white/10 text-white font-bold rounded-2xl uppercase tracking-widest text-[10px]">Tarjeta</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PORTAL DE ACCESO (Hu?sped / Propietario) -->
     <div id="auth-portal" class="fixed inset-0 z-[110] hidden items-center justify-center p-6">
-      <div id="auth-overlay" class="absolute inset-0 bg-galaxy-deep/80 backdrop-blur-md"></div>
-      <div class="relative w-full max-w-lg liquid-glass rounded-[50px] border border-white/20 overflow-hidden glossy-crystal shadow-5xl animate-fade-in">
+      <div id="auth-overlay" class="absolute inset-0 bg-galaxy-deep/85 backdrop-blur-xl"></div>
+      <div class="relative w-full max-w-lg liquid-glass rounded-[50px] border border-white/20 overflow-hidden shadow-5xl animate-fade-in-up">
         <button id="auth-close" class="absolute top-8 right-8 text-slate-400 hover:text-white transition-colors" aria-label="Cerrar">
           <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
 
-        <div class="p-10 sm:p-12">
-          <h2 class="text-3xl font-serif font-bold text-white mb-4 text-center">Únete a GuestsValencia</h2>
-          <p class="text-slate-400 text-sm text-center mb-8 font-light">Acceso exclusivo a los mejores alojamientos de Valencia.</p>
+        <div class="p-10 sm:p-14">
+          <h2 class="text-3xl font-serif font-bold text-white mb-4 text-center">Acceso Inteligente</h2>
+          <p class="text-slate-400 text-sm text-center mb-10 font-light">Sincroniza tu viaje con GuestsValencia.</p>
 
-          <div class="flex bg-white/5 p-1 rounded-3xl mb-8 border border-white/10">
-            <button type="button" id="auth-role-guest" data-role="guest" class="flex-1 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-2xl transition-all bg-brand-600 text-white shadow-xl">
-              Huésped
-            </button>
-            <button type="button" id="auth-role-owner" data-role="owner" class="flex-1 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-2xl transition-all text-slate-400 hover:text-white">
-              Propietario
+          <div class="flex bg-white/5 p-1 rounded-3xl mb-10 border border-white/10">
+            <button type="button" id="auth-role-guest" data-role="guest" class="flex-1 py-3 text-[10px] font-bold uppercase tracking-widest rounded-2xl transition-all bg-brand-600 text-white shadow-xl">Hu?sped</button>
+            <button type="button" id="auth-role-owner" data-role="owner" class="flex-1 py-3 text-[10px] font-bold uppercase tracking-widest rounded-2xl transition-all text-slate-400 hover:text-white">Propietario</button>
+          </div>
+
+          <div class="space-y-4 mb-10">
+            <button id="auth-google-btn" type="button" class="w-full py-4 bg-white text-black rounded-2xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-slate-100 transition-all shadow-lg active:scale-95">
+              <svg class="w-5 h-5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+              Continuar con Google
             </button>
           </div>
 
-          <form id="auth-form" class="space-y-5">
-            <input id="auth-name" type="text" placeholder="Nombre completo" class="w-full bg-white/5 border border-white/10 rounded-3xl px-6 py-4 outline-none focus:border-brand-500 transition-all text-white placeholder:text-slate-600" required>
-            <input id="auth-email" type="email" placeholder="Email corporativo" class="w-full bg-white/5 border border-white/10 rounded-3xl px-6 py-4 outline-none focus:border-brand-500 transition-all text-white placeholder:text-slate-600" required>
-            <button type="submit" class="w-full py-4 luxury-btn text-white font-bold rounded-[28px] uppercase tracking-widest text-[11px] shadow-2xl mt-2">
-              Crear cuenta élite
+          <div class="relative mb-10 text-center">
+            <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-white/10"></div></div>
+            <span class="relative px-4 bg-[#030712] text-[8px] uppercase tracking-[0.3em] text-slate-500">O por email</span>
+          </div>
+
+          <form id="auth-form" class="space-y-6">
+            <div class="space-y-2">
+              <input id="auth-name" type="text" placeholder="Nombre completo" class="w-full bg-white/5 border border-white/10 rounded-3xl px-8 py-5 outline-none focus:border-brand-500 transition-all text-white text-sm" required>
+              <p id="auth-error-name" class="hidden text-red-400 text-[10px] uppercase font-bold px-4 tracking-widest"></p>
+            </div>
+            <div class="space-y-2">
+              <input id="auth-email" type="email" placeholder="Email corporativo / personal" class="w-full bg-white/5 border border-white/10 rounded-3xl px-8 py-5 outline-none focus:border-brand-500 transition-all text-white text-sm" required>
+              <p id="auth-error-email" class="hidden text-red-400 text-[10px] uppercase font-bold px-4 tracking-widest"></p>
+            </div>
+            <button type="submit" class="w-full py-5 luxury-btn text-white font-bold rounded-[32px] uppercase tracking-widest text-[11px] shadow-2xl mt-4 active:scale-95">
+              Acceder ahora
             </button>
           </form>
-
-          <p class="mt-6 text-center text-[10px] text-slate-500 uppercase tracking-widest leading-loose">
-            Al registrarte aceptas los <span class="text-brand-400 cursor-pointer">Términos de Servicio</span>
-          </p>
         </div>
       </div>
     </div>
@@ -760,11 +917,15 @@
       const form = document.getElementById('auth-form');
       const nameInput = document.getElementById('auth-name');
       const emailInput = document.getElementById('auth-email');
+      const googleBtn = document.getElementById('auth-google-btn');
+      const nameError = document.getElementById('auth-error-name');
+      const emailError = document.getElementById('auth-error-email');
       const roleGuest = document.getElementById('auth-role-guest');
       const roleOwner = document.getElementById('auth-role-owner');
       const navLogin = document.getElementById('nav-login-btn');
       const navRegister = document.getElementById('nav-register-btn');
       const navRegisterLabel = document.getElementById('nav-register-label');
+      const roleSections = document.querySelectorAll('[data-role-section]');
 
       if (!portal || !form || !nameInput || !emailInput) return;
 
@@ -772,15 +933,65 @@
       const USERS_KEY = 'gv_users';
       let currentRole = 'guest';
 
+      const validateEmail = (value) => {
+        const regex = /^(([^<>()[\\]\\\\.,;:\\s@"]+(\\.[^<>()[\\]\\\\.,;:\\s@"]+)*)|(".+"))@((\\[[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\])|(([a-zA-Z\\-0-9]+\\.)+[a-zA-Z]{2,}))$/;
+        return regex.test(String(value || '').toLowerCase());
+      };
+
+      const setError = (el, message) => {
+        if (!el) return;
+        if (!message) {
+          el.textContent = '';
+          el.classList.add('hidden');
+          return;
+        }
+        el.textContent = message;
+        el.classList.remove('hidden');
+      };
+
+      const clearErrors = () => {
+        setError(nameError, '');
+        setError(emailError, '');
+      };
+
+      const applyRoleSections = (role) => {
+        roleSections.forEach((section) => {
+          const allowed = section.getAttribute('data-role-section');
+          const show = role && (allowed === 'all' || allowed === role);
+          section.classList.toggle('hidden', !show);
+        });
+        document.body.dataset.userRole = role || '';
+      };
+
+      const persistUser = (user) => {
+        try {
+          const users = JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
+          users.push(user);
+          localStorage.setItem(USERS_KEY, JSON.stringify(users));
+          localStorage.setItem(USER_KEY, JSON.stringify(user));
+        } catch (_) {}
+
+        setNavUser(user);
+        applyRoleSections(user?.role);
+        if (window.GVNotifications && typeof window.GVNotifications.add === 'function') {
+          window.GVNotifications.add({
+            title: 'Cuenta creada',
+            message: `Perfil ${user.role === 'owner' ? 'propietario' : 'huésped'} activado para ${user.name}.`,
+            type: 'auth'
+          });
+        }
+      };
+
       const updateRoleUI = () => {
         if (roleGuest && roleOwner) {
           const isGuest = currentRole === 'guest';
-          roleGuest.className = `flex-1 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-2xl transition-all ${isGuest ? 'bg-brand-600 text-white shadow-xl' : 'text-slate-400 hover:text-white'}`;
-          roleOwner.className = `flex-1 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-2xl transition-all ${!isGuest ? 'bg-brand-600 text-white shadow-xl' : 'text-slate-400 hover:text-white'}`;
+          roleGuest.className = `flex-1 py-3 text-[10px] font-bold uppercase tracking-widest rounded-2xl transition-all ${isGuest ? 'bg-brand-600 text-white shadow-xl' : 'text-slate-400 hover:text-white'}`;
+          roleOwner.className = `flex-1 py-3 text-[10px] font-bold uppercase tracking-widest rounded-2xl transition-all ${!isGuest ? 'bg-brand-600 text-white shadow-xl' : 'text-slate-400 hover:text-white'}`;
         }
       };
 
       const openAuth = () => {
+        clearErrors();
         portal.classList.remove('hidden');
         portal.classList.add('flex');
       };
@@ -793,6 +1004,7 @@
       const setNavUser = (user) => {
         if (!navRegisterLabel) return;
         navRegisterLabel.textContent = user ? String(user.name || '').split(' ')[0] || 'Cuenta' : 'Registrarse';
+        applyRoleSections(user?.role);
       };
 
       navLogin && navLogin.addEventListener('click', (e) => {
@@ -816,14 +1028,28 @@
         updateRoleUI();
       });
 
+      googleBtn && googleBtn.addEventListener('click', () => {
+        clearErrors();
+        const user = {
+          id: `google-${Date.now()}`,
+          name: 'Usuario Google',
+          email: 'google@guestsvalencia.com',
+          role: currentRole
+        };
+        persistUser(user);
+        closeAuth();
+      });
+
       const loadUser = () => {
         try {
           const saved = localStorage.getItem(USER_KEY);
           if (saved) {
             const user = JSON.parse(saved);
             setNavUser(user);
+            return;
           }
         } catch (_) {}
+        applyRoleSections(null);
       };
 
       loadUser();
@@ -832,7 +1058,20 @@
         e.preventDefault();
         const name = String(nameInput.value || '').trim();
         const email = String(emailInput.value || '').trim();
-        if (!name || !email) return;
+        clearErrors();
+        let hasErrors = false;
+        if (!name || name.length < 3) {
+          setError(nameError, 'El nombre debe tener al menos 3 caracteres.');
+          hasErrors = true;
+        }
+        if (!email) {
+          setError(emailError, 'El correo electr?nico es obligatorio.');
+          hasErrors = true;
+        } else if (!validateEmail(email)) {
+          setError(emailError, 'El formato del correo electr?nico no es v?lido.');
+          hasErrors = true;
+        }
+        if (hasErrors) return;
 
         const user = {
           id: String(Date.now()),
@@ -841,22 +1080,7 @@
           role: currentRole
         };
 
-        try {
-          const users = JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
-          users.push(user);
-          localStorage.setItem(USERS_KEY, JSON.stringify(users));
-          localStorage.setItem(USER_KEY, JSON.stringify(user));
-        } catch (_) {}
-
-        setNavUser(user);
-        if (window.GVNotifications && typeof window.GVNotifications.add === 'function') {
-          window.GVNotifications.add({
-            title: 'Cuenta creada',
-            message: `Perfil ${currentRole === 'owner' ? 'propietario' : 'huésped'} activado para ${name}.`,
-            type: 'auth'
-          });
-        }
-
+        persistUser(user);
         form.reset();
         currentRole = 'guest';
         updateRoleUI();
@@ -993,8 +1217,322 @@
     })();
   </script>
 
+  <!-- PROPIEDADES + RESERVAS + MODALES -->
+  <script>
+    (function () {
+      const properties = [
+        {
+          id: 'loft-cabanal-01',
+          name: 'Loft Industrial en El Cabañal',
+          description: 'Acceso móvil sin llaves, gestión inteligente y concierge Sandra IA.',
+          location: 'Calle del Progreso, Valencia',
+          price: 98,
+          image: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1920&q=95',
+          features: ['Mobile Key', 'Smart Lock', 'WhatsApp Sync', 'Check-in autónomo'],
+          monthlyEarnings: 2840,
+          occupancyRate: 88
+        },
+        {
+          id: 'atico-ruzafa-02',
+          name: 'Ático Art-Decó Ruzafa',
+          description: 'Vistas panorámicas y diseño de autor en el corazón del Soho valenciano.',
+          location: 'Ruzafa, Valencia',
+          price: 145,
+          image: 'https://images.unsplash.com/photo-1493809842364-78817add7ffb?auto=format&fit=crop&w=1920&q=95',
+          features: ['Terraza privada', 'Conserjería Sandra', 'Control por voz'],
+          monthlyEarnings: 3120,
+          occupancyRate: 94
+        },
+        {
+          id: 'suite-ciutat-03',
+          name: 'Suite Boutique Ciudadela',
+          description: 'Estancia premium con ambientación minimalista y acceso instantáneo.',
+          location: 'Ciutat Vella, Valencia',
+          price: 126,
+          image: 'https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=1920&q=95',
+          features: ['Wi-Fi fibra', 'Limpieza premium', 'Guía local IA'],
+          monthlyEarnings: 2460,
+          occupancyRate: 84
+        }
+      ];
+
+      const grid = document.getElementById('featured-grid');
+      const ownerList = document.getElementById('owner-properties-list');
+      const ownerRevenue = document.getElementById('owner-revenue');
+      const ownerOccupancy = document.getElementById('owner-occupancy');
+      const ownerDirect = document.getElementById('owner-direct');
+      const guestNextStay = document.getElementById('guest-next-stay');
+      const guestItinerary = document.getElementById('guest-itinerary-list');
+
+      const showcaseModal = document.getElementById('property-showcase-modal');
+      const showcaseImage = document.getElementById('property-showcase-image');
+      const showcaseTitle = document.getElementById('property-showcase-title');
+      const showcaseLocation = document.getElementById('property-showcase-location');
+      const showcaseDescription = document.getElementById('property-showcase-description');
+      const showcaseFeatures = document.getElementById('property-showcase-features');
+      const showcaseClose = document.getElementById('property-showcase-close');
+      const showcaseVoice = document.getElementById('property-showcase-voice');
+      const showcaseBook = document.getElementById('property-showcase-book');
+
+      const bookingModal = document.getElementById('booking-modal');
+      const bookingOverlay = document.getElementById('booking-overlay');
+      const bookingClose = document.getElementById('booking-close');
+      const bookingForm = document.getElementById('booking-form');
+      const bookingPropertyName = document.getElementById('booking-property-name');
+      const bookingStart = document.getElementById('booking-start');
+      const bookingEnd = document.getElementById('booking-end');
+      const guestBookingBtn = document.getElementById('guest-open-booking');
+
+      const paymentModal = document.getElementById('payment-modal');
+      const paymentOverlay = document.getElementById('payment-overlay');
+      const paymentClose = document.getElementById('payment-close');
+      const paymentTitle = document.getElementById('payment-title');
+      const paymentSubtitle = document.getElementById('payment-subtitle');
+      const paymentAmount = document.getElementById('payment-amount');
+      const paymentPaypal = document.getElementById('payment-paypal');
+      const paymentCard = document.getElementById('payment-card');
+      const ownerPayoutBtn = document.getElementById('owner-payout-btn');
+
+      let activeProperty = null;
+      let activeBooking = null;
+
+      const formatCurrency = (value) => `€${value}`;
+
+      const requestSandraVoice = (text) => {
+        const widget = window.GVSandraWidget;
+        if (widget && typeof widget.requestTTS === 'function') {
+          return widget.requestTTS(text);
+        }
+        if ('speechSynthesis' in window) {
+          const utter = new SpeechSynthesisUtterance(text);
+          utter.lang = 'es-ES';
+          window.speechSynthesis.speak(utter);
+        }
+        return false;
+      };
+
+      const renderGrid = () => {
+        if (!grid) return;
+        grid.innerHTML = properties.map((property) => `
+          <div class="property-card group transition-all duration-700 h-full" data-property-id="${property.id}">
+            <div class="relative h-full flex flex-col liquid-glass rounded-[40px] overflow-hidden border border-white/10 group-hover:border-brand-500/40 transition-all duration-700 shadow-xl">
+              <div class="relative aspect-[4/3] overflow-hidden shrink-0 cursor-pointer" data-showcase="${property.id}">
+                <img src="${property.image}" alt="${property.name}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-[6s] brightness-[0.85] group-hover:brightness-100">
+                <div class="absolute inset-0 bg-gradient-to-t from-galaxy-deep/90 via-transparent to-transparent"></div>
+                <div class="absolute top-6 left-6">
+                  <div class="px-4 py-2 rounded-2xl bg-brand-600/40 backdrop-blur-xl border border-white/20 text-[9px] font-black text-white uppercase tracking-widest">
+                    Sandra Narrated Tour
+                  </div>
+                </div>
+                <div class="absolute bottom-6 left-6 right-6 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span class="text-[10px] font-black text-white uppercase tracking-widest flex items-center gap-2">Ver detalles</span>
+                </div>
+              </div>
+              <div class="p-8 flex flex-col flex-1">
+                <h3 class="font-serif text-2xl font-bold text-white mb-2">${property.name}</h3>
+                <p class="text-slate-500 text-[10px] uppercase font-black tracking-widest mb-4">${property.location}</p>
+                <p class="text-slate-400 text-sm font-light leading-relaxed mb-8 line-clamp-2">${property.description}</p>
+                <div class="mt-auto flex items-center justify-between">
+                  <div>
+                    <p class="text-[10px] text-slate-500 uppercase font-bold">Reserva directa</p>
+                    <p class="text-2xl font-bold text-white">${property.price}€<span class="text-xs font-normal text-slate-500">/noche</span></p>
+                  </div>
+                  <button type="button" data-book="${property.id}" class="px-8 py-4 bg-brand-600 hover:bg-brand-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-glow active:scale-95">Reservar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `).join('');
+      };
+
+      const renderOwnerData = () => {
+        if (!ownerList) return;
+        ownerList.innerHTML = properties.map((property) => `
+          <li class="flex items-center justify-between bg-white/5 border border-white/10 rounded-2xl px-6 py-4">
+            <div>
+              <p class="text-white font-semibold">${property.name}</p>
+              <p class="text-xs text-slate-400">${property.location}</p>
+            </div>
+            <div class="text-right">
+              <p class="text-sm font-bold text-white">${formatCurrency(property.monthlyEarnings || 0)}</p>
+              <p class="text-[10px] text-slate-400">Ocupación ${property.occupancyRate || 0}%</p>
+            </div>
+          </li>
+        `).join('');
+
+        const revenue = properties.reduce((sum, p) => sum + (p.monthlyEarnings || 0), 0);
+        const occupancy = Math.round(properties.reduce((sum, p) => sum + (p.occupancyRate || 0), 0) / properties.length);
+        if (ownerRevenue) ownerRevenue.textContent = formatCurrency(revenue);
+        if (ownerOccupancy) ownerOccupancy.textContent = `${occupancy}%`;
+        if (ownerDirect) ownerDirect.textContent = String(properties.length * 12);
+      };
+
+      const openShowcase = (property) => {
+        if (!showcaseModal || !property) return;
+        activeProperty = property;
+        if (showcaseImage) showcaseImage.src = property.image;
+        if (showcaseTitle) showcaseTitle.textContent = property.name;
+        if (showcaseLocation) showcaseLocation.textContent = property.location;
+        if (showcaseDescription) showcaseDescription.textContent = property.description;
+        if (showcaseFeatures) {
+          showcaseFeatures.innerHTML = property.features.map((feat) => `<li class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-blue-500"></span>${feat}</li>`).join('');
+        }
+        showcaseModal.classList.add('show');
+      };
+
+      const closeShowcase = () => {
+        if (showcaseModal) showcaseModal.classList.remove('show');
+      };
+
+      const openBooking = (property) => {
+        if (!bookingModal || !property) return;
+        activeBooking = property;
+        if (bookingPropertyName) bookingPropertyName.textContent = property.name;
+        if (bookingStart) bookingStart.value = '';
+        if (bookingEnd) bookingEnd.value = '';
+        bookingModal.classList.remove('hidden');
+      };
+
+      const closeBooking = () => {
+        if (bookingModal) bookingModal.classList.add('hidden');
+      };
+
+      const openPayment = ({ title, subtitle, amount }) => {
+        if (!paymentModal) return;
+        if (paymentTitle) paymentTitle.textContent = title;
+        if (paymentSubtitle) paymentSubtitle.textContent = subtitle;
+        if (paymentAmount) paymentAmount.textContent = formatCurrency(amount);
+        paymentModal.classList.remove('hidden');
+      };
+
+      const closePayment = () => {
+        if (paymentModal) paymentModal.classList.add('hidden');
+      };
+
+      const completeBooking = (method) => {
+        if (!activeBooking) return;
+        if (window.GVNotifications && typeof window.GVNotifications.add === 'function') {
+          window.GVNotifications.add({
+            title: 'Reserva confirmada',
+            message: `${activeBooking.name} confirmada vía ${method}.`,
+            type: 'booking'
+          });
+        }
+        if (guestNextStay) guestNextStay.textContent = activeBooking.name;
+        if (guestItinerary) {
+          const item = document.createElement('li');
+          item.className = 'flex items-center gap-2';
+          item.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500"></span>Reserva confirmada: ${activeBooking.name}`;
+          guestItinerary.prepend(item);
+        }
+        activeBooking = null;
+      };
+
+      const completePayout = (method) => {
+        if (window.GVNotifications && typeof window.GVNotifications.add === 'function') {
+          window.GVNotifications.add({
+            title: 'Payout solicitado',
+            message: `Solicitud enviada vía ${method}.`,
+            type: 'alert'
+          });
+        }
+      };
+
+      if (grid) {
+        renderGrid();
+        grid.addEventListener('click', (event) => {
+          const showcaseTarget = event.target.closest('[data-showcase]');
+          const bookingTarget = event.target.closest('[data-book]');
+          if (showcaseTarget) {
+            const property = properties.find((p) => p.id === showcaseTarget.getAttribute('data-showcase'));
+            openShowcase(property);
+            if (property) {
+              requestSandraVoice(`Te presento ${property.name}. ${property.description}`);
+            }
+          }
+          if (bookingTarget) {
+            const property = properties.find((p) => p.id === bookingTarget.getAttribute('data-book'));
+            openBooking(property);
+          }
+        });
+      }
+
+      renderOwnerData();
+
+      showcaseClose && showcaseClose.addEventListener('click', closeShowcase);
+      showcaseModal && showcaseModal.addEventListener('click', (e) => {
+        if (e.target === showcaseModal) closeShowcase();
+      });
+      showcaseVoice && showcaseVoice.addEventListener('click', () => {
+        if (!activeProperty) return;
+        requestSandraVoice(`Detalles de ${activeProperty.name}. ${activeProperty.description}`);
+      });
+      showcaseBook && showcaseBook.addEventListener('click', () => {
+        if (activeProperty) openBooking(activeProperty);
+        closeShowcase();
+      });
+
+      bookingOverlay && bookingOverlay.addEventListener('click', closeBooking);
+      bookingClose && bookingClose.addEventListener('click', closeBooking);
+      bookingForm && bookingForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (!activeBooking) return;
+        closeBooking();
+        openPayment({
+          title: 'Terminal de pago directo',
+          subtitle: activeBooking.name,
+          amount: activeBooking.price
+        });
+      });
+
+      guestBookingBtn && guestBookingBtn.addEventListener('click', () => {
+        openBooking(properties[0]);
+      });
+
+      paymentOverlay && paymentOverlay.addEventListener('click', closePayment);
+      paymentClose && paymentClose.addEventListener('click', closePayment);
+      paymentPaypal && paymentPaypal.addEventListener('click', () => {
+        if (paymentTitle && paymentTitle.textContent.includes('Payout')) {
+          completePayout('PayPal');
+        } else {
+          completeBooking('PayPal');
+        }
+        closePayment();
+      });
+      paymentCard && paymentCard.addEventListener('click', () => {
+        if (paymentTitle && paymentTitle.textContent.includes('Payout')) {
+          completePayout('Tarjeta');
+        } else {
+          completeBooking('Tarjeta');
+        }
+        closePayment();
+      });
+
+      ownerPayoutBtn && ownerPayoutBtn.addEventListener('click', () => {
+        openPayment({
+          title: 'Payout propietario',
+          subtitle: 'Liquidación mensual de ingresos',
+          amount: properties.reduce((sum, p) => sum + (p.monthlyEarnings || 0), 0)
+        });
+      });
+
+      const guestMessage = document.getElementById('guest-message-sandra');
+      guestMessage && guestMessage.addEventListener('click', () => {
+        if (window.GVNotifications && typeof window.GVNotifications.add === 'function') {
+          window.GVNotifications.add({
+            title: 'Solicitud enviada',
+            message: 'Sandra revisará tu petición en tiempo real.',
+            type: 'message'
+          });
+        }
+      });
+    })();
+  </script>
+
   <!-- SANDRA WIDGET SCRIPT -->
   <script>
+    const ENABLE_SANDRA_WIDGET = false;
+
     // Sandra Gateway Client
     class SandraGateway {
       constructor() {
@@ -1057,8 +1595,11 @@
 	      }
 
       init() {
-        this.createWidgetUI();
-        this.bindEvents();
+        if (ENABLE_SANDRA_WIDGET) {
+          this.createWidgetUI();
+          this.bindWidgetEvents();
+        }
+        this.bindHeroEvents();
       }
 
       createWidgetUI() {
@@ -1139,25 +1680,18 @@
         document.body.insertAdjacentHTML('beforeend', widgetHTML);
       }
 
-      bindEvents() {
+      bindWidgetEvents() {
         const toggleBtn = document.getElementById('sandra-toggle-btn');
         const closeBtn = document.getElementById('sandra-close-btn');
         const chatWindow = document.getElementById('sandra-chat-window');
         const sendBtn = document.getElementById('sandra-send-btn');
         const input = document.getElementById('sandra-input');
-        const micBtn = document.getElementById('sandra-mic-btn');
         const acceptCallBtn = document.getElementById('sandra-accept-call');
-	        const declineCallBtn = document.getElementById('sandra-decline-call');
-	        const callPrompt = document.getElementById('sandra-call-prompt');
-	        const btnCallToggle = document.getElementById('btn-call-toggle');
-	        const btnMuteToggle = document.getElementById('btn-mute-toggle');
-	        const btnSearchAi = document.getElementById('btn-search-ai');
-	        const heroHangupBtn = document.getElementById('hero-hangup-btn');
-	        const heroPauseBtn = document.getElementById('hero-pause-btn');
-	        const heroMuteBtn = document.getElementById('hero-mute-btn');
-	        const heroCameraBtn = document.getElementById('hero-camera-btn');
+        const declineCallBtn = document.getElementById('sandra-decline-call');
+        const callPrompt = document.getElementById('sandra-call-prompt');
 
-        // Toggle Chat
+        if (!toggleBtn || !closeBtn || !chatWindow || !sendBtn || !input) return;
+
         const toggleChat = () => {
           this.isOpen = !this.isOpen;
           if (this.isOpen) {
@@ -1176,7 +1710,6 @@
         toggleBtn.addEventListener('click', toggleChat);
         closeBtn.addEventListener('click', toggleChat);
 
-        // Send Message
         const sendMessage = async () => {
           const text = input.value.trim();
           if (!text) return;
@@ -1189,20 +1722,18 @@
             this.addMessage(response, 'bot');
           } catch (error) {
             this.showTyping(false);
-            this.addMessage("Lo siento, tuve un problema. Inténtalo de nuevo.", 'bot');
+            this.addMessage("Lo siento, tuve un problema. Int?ntalo de nuevo.", 'bot');
           }
         };
         sendBtn.addEventListener('click', sendMessage);
         input.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
 
-        // Call Buttons Logic
         if (acceptCallBtn) {
           acceptCallBtn.addEventListener('click', () => {
             this.startConversationalCall();
             if (callPrompt) callPrompt.style.display = 'none';
             const callControls = document.getElementById('sandra-call-controls');
             if (callControls) callControls.classList.remove('hidden');
-            // Hide chat window when starting call
             toggleChat();
           });
         }
@@ -1210,66 +1741,77 @@
         if (declineCallBtn) {
           declineCallBtn.addEventListener('click', () => {
             if (callPrompt) callPrompt.style.display = 'none';
-            // Logic to continue chat only
+          });
+        }
+      }
+
+      bindHeroEvents() {
+        const btnCallToggle = document.getElementById('btn-call-toggle');
+        const btnMuteToggle = document.getElementById('btn-mute-toggle');
+        const btnSearchAi = document.getElementById('btn-search-ai');
+        const heroHangupBtn = document.getElementById('hero-hangup-btn');
+        const heroPauseBtn = document.getElementById('hero-pause-btn');
+        const heroMuteBtn = document.getElementById('hero-mute-btn');
+        const heroCameraBtn = document.getElementById('hero-camera-btn');
+
+        if (btnCallToggle) {
+          btnCallToggle.addEventListener('click', () => {
+            if (!this.activeCall) {
+              this.startConversationalCall();
+            } else {
+              this.hangupCall('user');
+            }
           });
         }
 
-		        if (btnCallToggle) {
-		            btnCallToggle.addEventListener('click', () => {
-		                // Toggle logic: for now, it starts call if not started
-		                if (!this.activeCall) {
-		                    this.startConversationalCall();
-			                } else {
-			                    // Hang up
-			                    this.hangupCall('user');
-			                    console.log("Call ended by user");
-		                    // Optionally reset UI to idle state
-		                }
-		            });
-		        }
+        if (btnMuteToggle) {
+          btnMuteToggle.addEventListener('click', () => {
+            this.setMicrophoneMuted(!this.isMicrophoneMuted);
+          });
+        }
 
-	        if (btnMuteToggle) {
-	          btnMuteToggle.addEventListener('click', () => {
-	            this.setMicrophoneMuted(!this.isMicrophoneMuted);
-	          });
-	        }
+        if (btnSearchAi) {
+          btnSearchAi.addEventListener('click', () => {
+            this.startConversationalCall();
+          });
+        }
 
-	        if (heroHangupBtn) {
-	          heroHangupBtn.addEventListener('click', () => {
-	            this.hangupCall('user');
-	          });
-	        }
+        const callButtons = document.querySelectorAll('[data-call-sandra]');
+        callButtons.forEach((btn) => {
+          btn.addEventListener('click', () => this.startConversationalCall());
+        });
 
-	        if (heroPauseBtn) {
-	          heroPauseBtn.addEventListener('click', () => {
-	            this.togglePause();
-	          });
-	        }
+        if (heroHangupBtn) {
+          heroHangupBtn.addEventListener('click', () => {
+            this.hangupCall('user');
+          });
+        }
 
-	        if (heroMuteBtn) {
-	          heroMuteBtn.addEventListener('click', () => {
-	            this.setMicrophoneMuted(!this.isMicrophoneMuted);
-	          });
-	        }
+        if (heroPauseBtn) {
+          heroPauseBtn.addEventListener('click', () => {
+            this.togglePause();
+          });
+        }
 
-	        if (heroCameraBtn) {
-	          heroCameraBtn.addEventListener('click', () => {
-	            this.toggleCamera();
-	          });
-	        }
+        if (heroMuteBtn) {
+          heroMuteBtn.addEventListener('click', () => {
+            this.setMicrophoneMuted(!this.isMicrophoneMuted);
+          });
+        }
 
-		        if (btnSearchAi) {
-		            btnSearchAi.addEventListener('click', () => {
-		                this.startConversationalCall();
-		            });
-		        }
-	      }
+        if (heroCameraBtn) {
+          heroCameraBtn.addEventListener('click', () => {
+            this.toggleCamera();
+          });
+        }
+      }
 
-	      setHeroCallActive(active) {
-	        const heroBg = document.getElementById('hero-background-image');
-	        const heroVideo = document.getElementById('hero-video');
-	        const searchContainer = document.getElementById('search-container');
-	        const callControlsBar = document.getElementById('call-controls-bar');
+      setHeroCallActive(active) {
+        const heroBg = document.getElementById('hero-background-image');
+        const heroVideo = document.getElementById('hero-video');
+        const searchContainer = document.getElementById('search-container');
+        const callControlsBar = document.getElementById('call-controls-bar');
+        document.body.classList.toggle('call-active', !!active);
 
 	        if (searchContainer) {
 	          searchContainer.classList.toggle('call-hidden', !!active);
@@ -1884,10 +2426,27 @@
 	          console.error("Audio play error:", e);
 	        });
 	      }
+
+      requestTTS(text) {
+        const message = String(text || '').trim();
+        if (!message) return false;
+        if (!this.activeCall || this.activeCall.readyState !== WebSocket.OPEN) return false;
+        try {
+          this.activeCall.send(JSON.stringify({
+            route: 'conserje',
+            action: 'tts',
+            payload: { text: message }
+          }));
+          return true;
+        } catch (err) {
+          console.error('[MCP] Error enviando TTS', err);
+          return false;
+        }
+      }
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-      new SandraWidget();
+      window.GVSandraWidget = new SandraWidget();
     });
   </script>
 </body>
