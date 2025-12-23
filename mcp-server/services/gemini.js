@@ -10,7 +10,7 @@ class GeminiService {
   constructor() {
     this.ready = false;
     // Updated to use the requested 3.0 preview or latest flash exp
-    this.model = 'gemini-2.0-flash-exp';
+    this.model = 'gemini-2.5-flash-lite';
     this.initialize();
   }
 
