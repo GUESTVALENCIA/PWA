@@ -924,6 +924,7 @@
           <div class="relative">
             <img id="property-showcase-image" src="" alt="Propiedad" class="w-full h-full object-cover min-h-[260px]">
             <div class="absolute bottom-4 left-4 bg-slate-900/70 text-white text-[10px] uppercase tracking-[0.2em] px-4 py-2 rounded-full">Sandra Narrated Tour</div>
+            <div id="property-showcase-thumbs" class="absolute bottom-4 right-4 flex gap-2 bg-white/70 backdrop-blur-md px-3 py-2 rounded-full shadow-lg border border-white/70"></div>
           </div>
           <div class="p-8">
             <h3 id="property-showcase-title" class="text-2xl font-serif font-bold text-slate-900 mb-2"></h3>
@@ -1006,6 +1007,25 @@
           </div>
           <button id="payment-card-submit" type="submit" class="w-full py-4 bg-[#003087] text-white font-black rounded-2xl uppercase tracking-widest text-[10px]">Autorizar pago seguro</button>
           <button id="payment-back" type="button" class="w-full py-2 text-[9px] uppercase tracking-widest text-slate-500 font-bold">Cambiar método</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL NUEVO LISTING (PROPIETARIO) -->
+    <div id="owner-upload-modal" class="hidden fixed inset-0 z-[220] flex items-center justify-center p-6">
+      <div id="owner-upload-overlay" class="absolute inset-0 bg-galaxy-deep/90 backdrop-blur-xl"></div>
+      <div class="relative w-full max-w-lg liquid-glass rounded-[40px] border border-white/10 p-8 shadow-6xl">
+        <button id="owner-upload-close" class="absolute top-5 right-5 text-white/60 hover:text-white transition-colors" aria-label="Cerrar">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+        <h3 class="text-2xl font-serif font-bold text-white mb-2">Nuevo listing</h3>
+        <p class="text-sm text-slate-400 mb-6">Carga rápida para propietarios.</p>
+        <form id="owner-upload-form" class="space-y-4">
+          <input id="owner-upload-name" type="text" placeholder="Nombre de la propiedad" class="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm outline-none focus:border-brand-500" required>
+          <input id="owner-upload-location" type="text" placeholder="Ubicación" class="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm outline-none focus:border-brand-500" required>
+          <input id="owner-upload-price" type="number" min="0" placeholder="Precio por noche" class="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm outline-none focus:border-brand-500" required>
+          <input id="owner-upload-image" type="url" placeholder="URL de imagen" class="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm outline-none focus:border-brand-500">
+          <button type="submit" class="w-full py-4 luxury-btn text-white font-bold rounded-[28px] uppercase tracking-widest text-[11px] shadow-2xl">Guardar listing</button>
         </form>
       </div>
     </div>
@@ -1187,6 +1207,8 @@
 
         setNavUser(user);
         applyRoleSections(user?.role);
+        window.GVUser = user;
+        document.dispatchEvent(new CustomEvent('gv:user', { detail: user }));
         if (window.GVNotifications && typeof window.GVNotifications.add === 'function') {
           window.GVNotifications.add({
             title: 'Cuenta creada',
@@ -1260,6 +1282,8 @@
           if (saved) {
             const user = JSON.parse(saved);
             setNavUser(user);
+            window.GVUser = user;
+            document.dispatchEvent(new CustomEvent('gv:user', { detail: user }));
             return;
           }
         } catch (_) {}
@@ -1442,9 +1466,15 @@
           location: 'Calle del Progreso, Valencia',
           price: 98,
           image: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1920&q=95',
+          gallery: [
+            'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1920&q=95',
+            'https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=1920&q=95',
+            'https://images.unsplash.com/photo-1493809842364-78817add7ffb?auto=format&fit=crop&w=1920&q=95'
+          ],
           features: ['Mobile Key', 'Smart Lock', 'WhatsApp Sync', 'Check-in autónomo'],
           monthlyEarnings: 2840,
-          occupancyRate: 88
+          occupancyRate: 88,
+          ownerId: 'owner-1'
         },
         {
           id: 'atico-ruzafa-02',
@@ -1453,9 +1483,15 @@
           location: 'Ruzafa, Valencia',
           price: 145,
           image: 'https://images.unsplash.com/photo-1493809842364-78817add7ffb?auto=format&fit=crop&w=1920&q=95',
+          gallery: [
+            'https://images.unsplash.com/photo-1493809842364-78817add7ffb?auto=format&fit=crop&w=1920&q=95',
+            'https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=1920&q=95',
+            'https://images.unsplash.com/photo-1481277542470-605612bd2d61?auto=format&fit=crop&w=1920&q=95'
+          ],
           features: ['Terraza privada', 'Conserjería Sandra', 'Control por voz'],
           monthlyEarnings: 3120,
-          occupancyRate: 94
+          occupancyRate: 94,
+          ownerId: 'owner-1'
         },
         {
           id: 'suite-ciutat-03',
@@ -1464,19 +1500,40 @@
           location: 'Ciutat Vella, Valencia',
           price: 126,
           image: 'https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=1920&q=95',
+          gallery: [
+            'https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=1920&q=95',
+            'https://images.unsplash.com/photo-1481277542470-605612bd2d61?auto=format&fit=crop&w=1920&q=95',
+            'https://images.unsplash.com/photo-1502005097973-6a7082348e28?auto=format&fit=crop&w=1920&q=95'
+          ],
           features: ['Wi-Fi fibra', 'Limpieza premium', 'Guía local IA'],
           monthlyEarnings: 2460,
-          occupancyRate: 84
+          occupancyRate: 84,
+          ownerId: 'owner-2'
         }
       ];
+
+      let filteredProperties = [...properties];
+      window.GVProperties = properties;
 
       const grid = document.getElementById('featured-grid');
       const ownerList = document.getElementById('owner-properties-list');
       const ownerRevenue = document.getElementById('owner-revenue');
       const ownerOccupancy = document.getElementById('owner-occupancy');
       const ownerDirect = document.getElementById('owner-direct');
+      const ownerAvailable = document.getElementById('owner-available');
+      const ownerListingsGrid = document.getElementById('owner-listings-grid');
+      const ownerNegotiateBtn = document.getElementById('owner-negotiate-btn');
+      const ownerCommission = document.getElementById('owner-commission');
       const guestNextStay = document.getElementById('guest-next-stay');
       const guestItinerary = document.getElementById('guest-itinerary-list');
+      const guestInboxMessages = document.getElementById('guest-inbox-messages');
+      const guestInboxInput = document.getElementById('guest-inbox-input');
+      const guestInboxSend = document.getElementById('guest-inbox-send');
+      const guestInboxCall = document.getElementById('guest-inbox-call');
+      const guestProfileName = document.getElementById('guest-profile-name');
+      const guestProfileEmail = document.getElementById('guest-profile-email');
+      const guestProfileTier = document.getElementById('guest-profile-tier');
+      const guestProfileAvatar = document.getElementById('guest-profile-avatar');
 
       const showcaseModal = document.getElementById('property-showcase-modal');
       const showcaseImage = document.getElementById('property-showcase-image');
@@ -1484,6 +1541,7 @@
       const showcaseLocation = document.getElementById('property-showcase-location');
       const showcaseDescription = document.getElementById('property-showcase-description');
       const showcaseFeatures = document.getElementById('property-showcase-features');
+      const showcaseThumbs = document.getElementById('property-showcase-thumbs');
       const showcaseClose = document.getElementById('property-showcase-close');
       const showcaseVoice = document.getElementById('property-showcase-voice');
       const showcaseBook = document.getElementById('property-showcase-book');
@@ -1505,7 +1563,26 @@
       const paymentAmount = document.getElementById('payment-amount');
       const paymentPaypal = document.getElementById('payment-paypal');
       const paymentCard = document.getElementById('payment-card');
+      const paymentMethods = document.getElementById('payment-methods');
+      const paymentVpos = document.getElementById('payment-vpos');
+      const paymentCardNumber = document.getElementById('payment-card-number');
+      const paymentCardExp = document.getElementById('payment-card-exp');
+      const paymentCardCvc = document.getElementById('payment-card-cvc');
+      const paymentCardSubmit = document.getElementById('payment-card-submit');
+      const paymentBack = document.getElementById('payment-back');
+      const paymentErrorNumber = document.getElementById('payment-error-number');
+      const paymentErrorExp = document.getElementById('payment-error-exp');
+      const paymentErrorCvc = document.getElementById('payment-error-cvc');
       const ownerPayoutBtn = document.getElementById('owner-payout-btn');
+      const ownerUploadBtn = document.getElementById('owner-upload-btn');
+      const ownerUploadModal = document.getElementById('owner-upload-modal');
+      const ownerUploadOverlay = document.getElementById('owner-upload-overlay');
+      const ownerUploadClose = document.getElementById('owner-upload-close');
+      const ownerUploadForm = document.getElementById('owner-upload-form');
+      const ownerUploadName = document.getElementById('owner-upload-name');
+      const ownerUploadLocation = document.getElementById('owner-upload-location');
+      const ownerUploadPrice = document.getElementById('owner-upload-price');
+      const ownerUploadImage = document.getElementById('owner-upload-image');
 
       let activeProperty = null;
       let activeBooking = null;
@@ -1525,9 +1602,42 @@
         return false;
       };
 
-      const renderGrid = () => {
+      const getGatewayInstance = () => {
+        if (window.GVSandraGateway) return window.GVSandraGateway;
+        if (window.SandraGateway) {
+          window.GVSandraGateway = new window.SandraGateway();
+          return window.GVSandraGateway;
+        }
+        return null;
+      };
+
+      const addGuestMessage = (text, role) => {
+        if (!guestInboxMessages) return;
+        const wrapper = document.createElement('div');
+        wrapper.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'}`;
+        wrapper.innerHTML = `
+          <div class="${role === 'user' ? 'bg-brand-600 text-white' : 'bg-white/80 text-slate-700'} px-4 py-3 rounded-2xl text-sm max-w-[80%]">
+            ${text}
+          </div>
+        `;
+        guestInboxMessages.appendChild(wrapper);
+        guestInboxMessages.scrollTop = guestInboxMessages.scrollHeight;
+      };
+
+      const applyGuestProfile = (user) => {
+        if (guestProfileName) guestProfileName.textContent = user?.name || 'Invitado';
+        if (guestProfileEmail) guestProfileEmail.textContent = user?.email || 'guest@guestsvalencia.com';
+        if (guestProfileTier) guestProfileTier.textContent = user?.tier || 'Elite';
+        if (guestProfileAvatar) guestProfileAvatar.textContent = (user?.name || 'G').trim().charAt(0).toUpperCase();
+      };
+
+      const renderGrid = (list = filteredProperties) => {
         if (!grid) return;
-        grid.innerHTML = properties.map((property) => `
+        if (!list.length) {
+          grid.innerHTML = '<div class="col-span-full text-center text-slate-500 py-10">No se encontraron alojamientos con esos filtros.</div>';
+          return;
+        }
+        grid.innerHTML = list.map((property) => `
           <div class="property-card group transition-all duration-700 h-full" data-property-id="${property.id}">
             <div class="relative h-full flex flex-col liquid-glass rounded-[40px] overflow-hidden border border-white/10 group-hover:border-brand-500/40 transition-all duration-700 shadow-xl">
               <div class="relative aspect-[4/3] overflow-hidden shrink-0 cursor-pointer" data-showcase="${property.id}">
@@ -1579,6 +1689,54 @@
         if (ownerRevenue) ownerRevenue.textContent = formatCurrency(revenue);
         if (ownerOccupancy) ownerOccupancy.textContent = `${occupancy}%`;
         if (ownerDirect) ownerDirect.textContent = String(properties.length * 12);
+        if (ownerAvailable) ownerAvailable.textContent = formatCurrency(revenue);
+      };
+
+      const renderOwnerListings = () => {
+        if (!ownerListingsGrid) return;
+        ownerListingsGrid.innerHTML = properties.map((property) => `
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-4 flex gap-4 items-center">
+            <div class="w-20 h-20 rounded-2xl overflow-hidden">
+              <img src="${property.image}" alt="${property.name}" class="w-full h-full object-cover">
+            </div>
+            <div class="flex-1">
+              <p class="text-white font-semibold">${property.name}</p>
+              <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold">${property.location}</p>
+            </div>
+            <span class="text-brand-400 font-bold text-sm">${formatCurrency(property.price)}/noche</span>
+          </div>
+        `).join('');
+      };
+
+      const ownerTabs = document.querySelectorAll('[data-owner-tab]');
+      const ownerPanels = document.querySelectorAll('[data-owner-panel]');
+      const setOwnerTab = (tab) => {
+        ownerTabs.forEach((btn) => {
+          const active = btn.getAttribute('data-owner-tab') === tab;
+          btn.classList.toggle('bg-brand-600', active);
+          btn.classList.toggle('text-white', active);
+          btn.classList.toggle('shadow-glow', active);
+          btn.classList.toggle('bg-white/5', !active);
+          btn.classList.toggle('text-slate-500', !active);
+        });
+        ownerPanels.forEach((panel) => {
+          panel.classList.toggle('hidden', panel.getAttribute('data-owner-panel') !== tab);
+        });
+      };
+
+      const guestTabs = document.querySelectorAll('[data-guest-tab]');
+      const guestPanels = document.querySelectorAll('[data-guest-panel]');
+      const setGuestTab = (tab) => {
+        guestTabs.forEach((btn) => {
+          const active = btn.getAttribute('data-guest-tab') === tab;
+          btn.classList.toggle('bg-brand-600', active);
+          btn.classList.toggle('text-white', active);
+          btn.classList.toggle('shadow-xl', active);
+          btn.classList.toggle('text-slate-500', !active);
+        });
+        guestPanels.forEach((panel) => {
+          panel.classList.toggle('hidden', panel.getAttribute('data-guest-panel') !== tab);
+        });
       };
 
       const openShowcase = (property) => {
@@ -1590,6 +1748,15 @@
         if (showcaseDescription) showcaseDescription.textContent = property.description;
         if (showcaseFeatures) {
           showcaseFeatures.innerHTML = property.features.map((feat) => `<li class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-blue-500"></span>${feat}</li>`).join('');
+        }
+        if (showcaseThumbs) {
+          const gallery = Array.isArray(property.gallery) && property.gallery.length ? property.gallery : [property.image];
+          showcaseThumbs.innerHTML = gallery.map((img, idx) => `
+            <button type="button" data-showcase-thumb="${idx}" class="w-10 h-10 rounded-full overflow-hidden border border-white/70 ${idx === 0 ? 'ring-2 ring-brand-500' : ''}">
+              <img src="${img}" alt="Vista ${idx + 1}" class="w-full h-full object-cover">
+            </button>
+          `).join('');
+          showcaseThumbs.dataset.activeImage = gallery[0];
         }
         showcaseModal.classList.add('show');
       };
@@ -1616,11 +1783,75 @@
         if (paymentTitle) paymentTitle.textContent = title;
         if (paymentSubtitle) paymentSubtitle.textContent = subtitle;
         if (paymentAmount) paymentAmount.textContent = formatCurrency(amount);
+        showPaymentMethods();
         paymentModal.classList.remove('hidden');
       };
 
       const closePayment = () => {
         if (paymentModal) paymentModal.classList.add('hidden');
+      };
+
+      const showPaymentMethods = () => {
+        if (paymentMethods) paymentMethods.classList.remove('hidden');
+        if (paymentVpos) paymentVpos.classList.add('hidden');
+        if (paymentCardNumber) paymentCardNumber.value = '';
+        if (paymentCardExp) paymentCardExp.value = '';
+        if (paymentCardCvc) paymentCardCvc.value = '';
+        if (paymentErrorNumber) paymentErrorNumber.classList.add('hidden');
+        if (paymentErrorExp) paymentErrorExp.classList.add('hidden');
+        if (paymentErrorCvc) paymentErrorCvc.classList.add('hidden');
+      };
+
+      const showPaymentVPOS = () => {
+        if (paymentMethods) paymentMethods.classList.add('hidden');
+        if (paymentVpos) paymentVpos.classList.remove('hidden');
+      };
+
+      const validateCardFields = () => {
+        let valid = true;
+        const number = String(paymentCardNumber?.value || '').replace(/\s/g, '');
+        const exp = String(paymentCardExp?.value || '');
+        const cvc = String(paymentCardCvc?.value || '');
+
+        if (!number || number.length < 16 || !/^\d+$/.test(number)) {
+          if (paymentErrorNumber) {
+            paymentErrorNumber.textContent = 'Tarjeta incompleta (mín. 16 dígitos).';
+            paymentErrorNumber.classList.remove('hidden');
+          }
+          valid = false;
+        } else if (paymentErrorNumber) {
+          paymentErrorNumber.classList.add('hidden');
+        }
+
+        if (!/^\d{2}\/\d{2}$/.test(exp)) {
+          if (paymentErrorExp) {
+            paymentErrorExp.textContent = 'Formato MM/YY.';
+            paymentErrorExp.classList.remove('hidden');
+          }
+          valid = false;
+        } else if (paymentErrorExp) {
+          paymentErrorExp.classList.add('hidden');
+        }
+
+        if (!cvc || cvc.length < 3 || !/^\d+$/.test(cvc)) {
+          if (paymentErrorCvc) {
+            paymentErrorCvc.textContent = 'CVC inválido.';
+            paymentErrorCvc.classList.remove('hidden');
+          }
+          valid = false;
+        } else if (paymentErrorCvc) {
+          paymentErrorCvc.classList.add('hidden');
+        }
+
+        return valid;
+      };
+
+      const openOwnerUpload = () => {
+        if (ownerUploadModal) ownerUploadModal.classList.remove('hidden');
+      };
+
+      const closeOwnerUpload = () => {
+        if (ownerUploadModal) ownerUploadModal.classList.add('hidden');
       };
 
       const completeBooking = (method) => {
@@ -1672,10 +1903,76 @@
       }
 
       renderOwnerData();
+      renderOwnerListings();
+
+      ownerTabs.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const tab = btn.getAttribute('data-owner-tab');
+          if (tab) setOwnerTab(tab);
+        });
+      });
+      if (ownerTabs.length) setOwnerTab(ownerTabs[0].getAttribute('data-owner-tab'));
+
+      guestTabs.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const tab = btn.getAttribute('data-guest-tab');
+          if (tab) setGuestTab(tab);
+        });
+      });
+      if (guestTabs.length) setGuestTab(guestTabs[0].getAttribute('data-guest-tab'));
+
+      applyGuestProfile(window.GVUser || {});
+      document.addEventListener('gv:user', (event) => {
+        applyGuestProfile(event.detail || {});
+      });
+
+      if (guestInboxMessages && !guestInboxMessages.childElementCount) {
+        addGuestMessage('Hola, soy Sandra. Estoy lista para ayudarte con tu reserva.', 'bot');
+      }
+
+      const sendGuestInbox = async () => {
+        if (!guestInboxInput || !guestInboxMessages) return;
+        const text = String(guestInboxInput.value || '').trim();
+        if (!text) return;
+        addGuestMessage(text, 'user');
+        guestInboxInput.value = '';
+        const gateway = getGatewayInstance();
+        if (!gateway) {
+          addGuestMessage('Ahora mismo no tengo conexión. Intenta de nuevo en unos minutos.', 'bot');
+          return;
+        }
+        try {
+          const reply = await gateway.sendMessage(text, 'guest_inbox');
+          addGuestMessage(reply, 'bot');
+        } catch (err) {
+          addGuestMessage('No pude procesar tu mensaje. ¿Puedes repetirlo?', 'bot');
+        }
+      };
+
+      guestInboxSend && guestInboxSend.addEventListener('click', sendGuestInbox);
+      guestInboxInput && guestInboxInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') sendGuestInbox();
+      });
+      guestInboxCall && guestInboxCall.addEventListener('click', () => {
+        const callBtn = document.querySelector('[data-call-sandra]');
+        if (callBtn) callBtn.click();
+      });
 
       showcaseClose && showcaseClose.addEventListener('click', closeShowcase);
       showcaseModal && showcaseModal.addEventListener('click', (e) => {
         if (e.target === showcaseModal) closeShowcase();
+      });
+      showcaseThumbs && showcaseThumbs.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-showcase-thumb]');
+        if (!btn || !activeProperty) return;
+        const gallery = Array.isArray(activeProperty.gallery) && activeProperty.gallery.length ? activeProperty.gallery : [activeProperty.image];
+        const idx = Number(btn.getAttribute('data-showcase-thumb'));
+        const img = gallery[idx] || activeProperty.image;
+        if (showcaseImage) showcaseImage.src = img;
+        [...showcaseThumbs.querySelectorAll('[data-showcase-thumb]')].forEach((el) => {
+          el.classList.toggle('ring-2', el === btn);
+          el.classList.toggle('ring-brand-500', el === btn);
+        });
       });
       showcaseVoice && showcaseVoice.addEventListener('click', () => {
         if (!activeProperty) return;
@@ -1712,6 +2009,60 @@
           completeBooking('PayPal');
         }
         closePayment();
+      });
+
+      ownerUploadBtn && ownerUploadBtn.addEventListener('click', openOwnerUpload);
+      ownerUploadOverlay && ownerUploadOverlay.addEventListener('click', closeOwnerUpload);
+      ownerUploadClose && ownerUploadClose.addEventListener('click', closeOwnerUpload);
+      ownerUploadForm && ownerUploadForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const name = String(ownerUploadName?.value || '').trim();
+        const location = String(ownerUploadLocation?.value || '').trim();
+        const price = Number(ownerUploadPrice?.value || 0);
+        const image = String(ownerUploadImage?.value || '').trim() || 'https://images.unsplash.com/photo-1502005097973-6a7082348e28?auto=format&fit=crop&w=1920&q=95';
+        if (!name || !location || !price) return;
+        const newProperty = {
+          id: `prop-${Date.now()}`,
+          name,
+          description: 'Propiedad añadida por propietario.',
+          location,
+          price,
+          image,
+          gallery: [image],
+          features: ['Listado privado', 'Gestión Sandra'],
+          monthlyEarnings: 0,
+          occupancyRate: 0,
+          ownerId: 'owner-1'
+        };
+        properties.unshift(newProperty);
+        filteredProperties = [...properties];
+        renderGrid();
+        renderOwnerData();
+        renderOwnerListings();
+        if (window.GVNotifications && typeof window.GVNotifications.add === 'function') {
+          window.GVNotifications.add({
+            title: 'Listing añadido',
+            message: `${name} se ha incorporado a tu cartera.`,
+            type: 'update'
+          });
+        }
+        ownerUploadForm.reset();
+        closeOwnerUpload();
+      });
+
+      ownerNegotiateBtn && ownerNegotiateBtn.addEventListener('click', () => {
+        const count = properties.length;
+        let commission = 15;
+        if (count >= 5) commission = 10;
+        else if (count >= 3) commission = 12;
+        if (ownerCommission) ownerCommission.textContent = `${commission}%`;
+        if (window.GVNotifications && typeof window.GVNotifications.add === 'function') {
+          window.GVNotifications.add({
+            title: 'Comisión actualizada',
+            message: `Nueva comisión aplicada: ${commission}%`,
+            type: 'update'
+          });
+        }
       });
       paymentCard && paymentCard.addEventListener('click', () => {
         if (paymentTitle && paymentTitle.textContent.includes('Payout')) {
