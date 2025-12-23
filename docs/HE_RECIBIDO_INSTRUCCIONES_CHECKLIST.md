@@ -2626,7 +2626,7 @@
 - [ ] User
 - [ ] WHATSAPP SANDRA = +34624829117
 - [ ] NUMERO TWILIO PRUEBA = +18577608754
-- [ ] SID TWILIO = [REDACTED] TWILIO = DtGiPlf1K5gvDQk3EgPQUQtPsk9hrZal
+- [ ] SID TWILIO = [REDACTED]
 - [ ] API keys & tokens
 - [ ] Region
 - [ ] Regional
@@ -2646,13 +2646,13 @@
 - [ ] Auth token
 - [ ] Request a secondary token
 - [ ] Sensitive information. Store your token securely to protect your account. Learn more
-- [ ] 5502a7df0779ba9124318c4e0543d695
+- [ ] [REDACTED]
 - [ ] Keep this somewhere safe and secure
 - [ ] Test credentials
 - [ ] Account SID- used to exercise the REST API
 - [ ] [REDACTED]
 - [ ] Test Auth token
-- [ ] bdea5738a40bde3b1fe553ad98984ac3
+- [ ] [REDACTED]
 - [ ] Keep this somewhere safe and secure
 - [ ] Gemini 3 Flash Preview
 - [ ] Ran for 51s
