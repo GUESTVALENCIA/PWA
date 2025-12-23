@@ -82,16 +82,15 @@
     h1,h2,h3{font-family:"Playfair Display",Georgia,serif}
     .glass{background:var(--glass-bg);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.3)}
     .glass-dark{background:var(--glass-dark-bg);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.1);color:white}
-    .hero-section{position:relative;min-height:90vh;display:flex;align-items:center;justify-content:center;overflow:hidden}
+    .hero-section{position:relative;min-height:90vh;display:flex;align-items:center;justify-content:center;overflow:hidden;background-position:center;background-size:cover}
     .hero-video{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:-1}
-    .hero-overlay{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,0.4),rgba(0,0,0,0.85))}
+    .hero-text{color:#ffffff;text-shadow:0 6px 24px rgba(0,0,0,0.6)}
     .property-card{transition:transform 0.3s,box-shadow 0.3s}.property-card:hover{transform:translateY(-5px);box-shadow:0 20px 40px rgba(0,0,0,0.1)}
     .btn-primary{background:linear-gradient(135deg,#2563EB,#1D4ED8);color:white;box-shadow:0 4px 15px rgba(37,99,235,0.3)}
     .btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 25px rgba(37,99,235,0.4)}
     .page{display:none}.page.active{display:block}
     .lightbox{display:none;position:fixed;z-index:1000;inset:0;background:rgba(11,16,32,0.95);backdrop-filter:blur(8px);justify-content:center;align-items:center}
     .lightbox.show{display:flex}
-    #sandra-widget-container{position:fixed;bottom:20px;right:20px;z-index:9999}
   </style>
 </head>
 <body class="font-sans text-slate-900 bg-slate-50 min-h-full flex flex-col">
@@ -125,19 +124,15 @@
         <video class="hero-video" autoplay muted loop playsinline poster="/assets/images/hero-oficina-minimalista.png">
           <source src="/assets/videos/sandra-call-1.mp4" type="video/mp4">
         </video>
-        <div class="hero-overlay"></div>
-        <div class="relative z-10 text-center px-6 max-w-4xl mx-auto mt-20">
-          <span class="inline-block py-1 px-4 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-200 text-xs font-bold tracking-widest mb-6 uppercase backdrop-blur-sm">Premium Vacation Rentals</span>
-          <h1 class="text-4xl md:text-6xl lg:text-7xl font-bold text-white leading-tight mb-6">
-            El Futuro del Alojamiento<br><span class="bg-clip-text text-transparent bg-gradient-to-r from-blue-300 to-white">Ha llegado a Valencia</span>
-          </h1>
-          <p class="text-lg md:text-xl text-slate-300 mb-10 max-w-2xl mx-auto">Apartamentos de diseño con llegada autónoma y asistencia 24/7 impulsadas por Sandra IA.</p>
-          <div class="glass p-2 rounded-2xl max-w-3xl mx-auto shadow-2xl">
-            <form class="flex flex-col md:flex-row gap-2">
-              <input type="text" placeholder="¿A dónde viajas? Ej: Ruzafa..." class="flex-1 pl-4 py-4 rounded-xl bg-white/90 text-slate-800 placeholder-slate-500 font-medium outline-none">
-              <input type="number" value="2" min="1" class="w-24 px-4 py-4 rounded-xl bg-white/90 text-slate-800 font-medium outline-none">
-              <a href="#alojamientos" class="nav-link px-6 py-4 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-lg text-center">Buscar</a>
-            </form>
+        <div class="relative z-10 text-center px-6 max-w-3xl mx-auto mt-20 space-y-6">
+          <p class="hero-text text-lg md:text-2xl font-semibold">
+            Apartamentos de diseño con llegada autónoma y asistencia 24/7 impulsadas por Sandra IA.
+          </p>
+          <div class="flex items-center justify-center">
+            <label class="btn-primary px-6 py-3 rounded-xl text-sm font-semibold cursor-pointer">
+              Cargar imagen o video
+              <input id="hero-media-input" type="file" accept="image/*,video/*" class="hidden">
+            </label>
           </div>
         </div>
       </header>
@@ -439,9 +434,6 @@
     <div class="absolute bottom-4 left-1/2 -translate-x-1/2 text-white text-sm bg-black/50 px-3 py-1 rounded-full lightbox-counter"></div>
   </div>
 
-  <!-- SANDRA WIDGET -->
-  <div id="sandra-widget-container"></div>
-  <script type="module" src="/assets/js/sandra-widget-integrated.js"></script>
   <script src="/assets/js/site.js" defer></script>
 </body>
 </html>
