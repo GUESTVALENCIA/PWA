@@ -19,6 +19,7 @@ class AIOrchestrator {
                          (process.env.VERCEL_URL && !process.env.VERCEL_URL.includes('localhost'));
 
     this.isProduction = isProduction;
+    this.preferredProvider = (process.env.PREFERRED_AI_PROVIDER || 'gemini').toLowerCase();
     
     this.providers = {
       openai: {
@@ -53,6 +54,18 @@ class AIOrchestrator {
     // ESTRATEGIA DE PRIORIDADES:
     // PRODUCCIÓN: GPT-4o > Groq (Qwen/DeepSeek) > Gemini
     // LOCAL: Gemini > GPT-4o > Groq
+// Override: PREFERRED_AI_PROVIDER=gemini fuerza Gemini primero en cualquier entorno.
+
+    if (this.preferredProvider === 'gemini') {
+      try {
+        console.log("[PREFERIDO] Intentando Gemini...");
+        const response = await this.callGemini(shortPrompt, fullSystemPrompt);
+        return { text: response, model: this.providers.gemini.model };
+      } catch (preferredError) {
+        console.warn('Gemini preferido fallo, continuando con fallback...', preferredError.message);
+      }
+    }
+
 
     if (this.isProduction) {
       // PRODUCCIÓN: Priorizar GPT-4o
