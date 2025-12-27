@@ -3131,9 +3131,19 @@
             const remoteAudio = document.createElement('audio');
             remoteAudio.autoplay = true;
             remoteAudio.playsInline = true;
-            remoteAudio.style.display = 'none';
             remoteAudio.muted = false;
             remoteAudio.volume = 1;
+            remoteAudio.setAttribute('playsinline', 'true');
+            remoteAudio.style.position = 'fixed';
+            remoteAudio.style.left = '-9999px';
+            remoteAudio.style.top = '0';
+            remoteAudio.style.width = '1px';
+            remoteAudio.style.height = '1px';
+            remoteAudio.style.opacity = '0';
+            remoteAudio.style.pointerEvents = 'none';
+            remoteAudio.onplaying = () => console.log('[REALTIME] Audio reproduci?ndose');
+            remoteAudio.onpause = () => console.log('[REALTIME] Audio pausado');
+            remoteAudio.onerror = (e) => console.warn('[REALTIME] Audio error', e);
             document.body.appendChild(remoteAudio);
             this.realtimeAudioEl = remoteAudio;
 
