@@ -28,7 +28,7 @@ module.exports = async function handler(req, res) {
 
     // Crear sesión de Realtime con configuración de Sandra
     // OpenAI Realtime API: crear sesión y obtener token efímero
-    const sessionResponse = await fetch('https://api.openai.com/v1/realtime', {
+    const sessionResponse = await fetch('https://api.openai.com/v1/realtime/sessions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
@@ -97,20 +97,21 @@ module.exports = async function handler(req, res) {
 
     const sessionData = await sessionResponse.json();
     
+    const sessionId = sessionData.session_id || sessionData.id || null;
     // El token efímero para WebRTC está en client_secret.value
-    const ephemeralToken = sessionData.client_secret?.value || sessionData.session_id;
+    const ephemeralToken = sessionData.client_secret?.value;
 
     if (!ephemeralToken) {
       console.error('[Realtime] No se recibió token efímero');
       return res.status(500).json({ error: 'No ephemeral token received' });
     }
 
-    console.log('[Realtime] Sesión creada:', sessionData.session_id);
+    console.log('[Realtime] Sesión creada:', sessionId);
 
     return res.status(200).json({
-      session_id: sessionData.session_id,
+      session_id: sessionId,
       token: ephemeralToken,
-      expires_at: sessionData.expires_at
+      expires_at: sessionData.expires_at || sessionData.client_secret?.expires_at || null
     });
 
   } catch (error) {
