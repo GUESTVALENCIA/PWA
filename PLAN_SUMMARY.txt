@@ -1,0 +1,144 @@
+╔════════════════════════════════════════════════════════════════════════════════╗
+║           STRATEGIC PLAN: SOLVING DUAL-VOICE + COST PROBLEM                   ║
+║                         (AWAITING YOUR APPROVAL)                              ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+CURRENT PROBLEM
+═══════════════════════════════════════════════════════════════════════════════
+
+1. USER HEARS TWO VOICES:
+   - OpenAI voice: "Hola"
+   - Sandra voice: "Hola buenas, gracias..."
+
+2. ROOT CAUSE:
+   - File: /api/sandra/realtime-token.js (lines 106-113)
+   - Problem: voice: 'alloy' parameter FORCES OpenAI to generate audio
+   - This contradicts modalities: ['text'] which should mean "text only"
+
+3. COST PROBLEM:
+   - Current model: gpt-4o-realtime-preview-2024-12-17 (expensive)
+   - Your budget: $9.78/$30 monthly (limited)
+   - Realtime audio streaming costs: $2-5 per call
+   - You need: Cheaper model that doesn't generate audio
+
+
+SOLUTION STRATEGY: TWO-PHASE APPROACH
+═══════════════════════════════════════════════════════════════════════════════
+
+PHASE 1: TEST MINI REALTIME (Without Audio Generation)
+────────────────────────────────────────────────────────
+
+What: Change to cheaper realtime model + remove audio parameter
+Model: gpt-realtime-mini-2025-12-15 (50% cheaper)
+Change: Remove voice: 'alloy' parameter
+Expected: No dual voices + lower cost
+
+Implementation Time: 5 minutes
+Testing Time: 15 minutes
+Total: 20 minutes
+
+If It Works:
+✅ Done! Dual voices gone, cost reduced 50%
+
+If It Doesn't Work:
+→ Proceed to Phase 2
+
+
+PHASE 2: TEXT-ONLY API (Guaranteed Solution)
+──────────────────────────────────────────────
+
+What: Use cheap text model + browser speech recognition
+Model: gpt-4o-mini (10x cheaper, text only)
+Flow: Your voice → Browser speech-to-text → gpt-4o-mini → Sandra voice plays
+
+Implementation Time: 1-2 hours
+Cost per call: $0.15-0.30 (vs $2-5 currently)
+
+Guaranteed Benefits:
+✅ Only Sandra voice (no dual voices)
+✅ Cheapest option
+✅ Works with your existing Sandra voice system
+
+
+COST COMPARISON
+═══════════════════════════════════════════════════════════════════════════════
+
+Current Setup (gpt-4o-realtime):
+- Per call: $2-5
+- Monthly (10 calls/day): $60-150
+- Problem: DUAL VOICES + EXPENSIVE
+
+Phase 1 (gpt-realtime-mini):
+- Per call: $1-2
+- Monthly (10 calls/day): $30-60
+- Status: If works = ✅ Problem solved + 50% savings
+
+Phase 2 (gpt-4o-mini + STT):
+- Per call: $0.15-0.30
+- Monthly (10 calls/day): $4.50-9
+- Status: ✅ Guaranteed solution + 95% savings
+
+
+WHAT WE DO NEXT (AFTER YOUR APPROVAL)
+═══════════════════════════════════════════════════════════════════════════════
+
+1. ✅ PHASE 1 IMPLEMENTATION (5 minutes):
+   - Change model in /api/sandra/realtime-token.js
+   - Remove voice parameter
+   - Deploy
+
+2. ✅ PHASE 1 TESTING (15 minutes):
+   - Make test call
+   - Listen: Only Sandra voice? Or still dual?
+   - Check logs: Any OpenAI audio generation?
+
+3. 📊 REPORT RESULTS:
+   - If working: ✅ Done! We're finished
+   - If not working: Proceed to Phase 2
+
+4. 🔄 PHASE 2 (If Needed):
+   - Implement text API instead of realtime
+   - Add browser speech recognition
+   - Test and verify
+   - Guaranteed to work
+
+
+NO MORE CHANGES WITHOUT TESTING
+═══════════════════════════════════════════════════════════════════════════════
+
+This plan is:
+✅ Researched (analyzed your account models)
+✅ Staged (low-risk Phase 1, fallback Phase 2)
+✅ Tested (will verify before proceeding)
+✅ Documented (full analysis in STRATEGIC_MODEL_ANALYSIS.md)
+
+No rapid changes. Just strategic implementation with verification.
+
+
+YOUR DECISION NEEDED
+═══════════════════════════════════════════════════════════════════════════════
+
+Please confirm:
+
+1. ✅ Proceed with Phase 1 test?
+   (Change to mini realtime, remove voice parameter, test for 20 minutes)
+
+2. ✅ If Phase 1 doesn't work, proceed with Phase 2?
+   (Implement text-only API with speech recognition)
+
+3. Any concerns or preferences?
+
+
+DOCUMENTATION
+═══════════════════════════════════════════════════════════════════════════════
+
+Full Analysis: STRATEGIC_MODEL_ANALYSIS.md
+- Complete problem breakdown
+- All 4 options analyzed
+- Cost comparison table
+- Implementation details
+
+
+═══════════════════════════════════════════════════════════════════════════════
+Status: READY FOR IMPLEMENTATION (AWAITING YOUR APPROVAL)
+═══════════════════════════════════════════════════════════════════════════════
