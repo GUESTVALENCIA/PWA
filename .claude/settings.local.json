@@ -9,7 +9,10 @@
       "Bash(ls:*)",
       "Bash(cat:*)",
       "Bash(git ls-tree:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "WebFetch(domain:platform.openai.com)",
+      "WebSearch",
+      "WebFetch(domain:community.openai.com)"
     ]
   }
 }
