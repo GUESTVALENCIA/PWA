@@ -1226,16 +1226,17 @@
 
           const playFallback = async (text) => {
             if (!text) return;
-            if (this.realtimeHasAudio) return;
-            if (this.realtimeFallbackUsed) return;
-            this.realtimeFallbackUsed = true;
-            const ok = await playServerTts(text);
-            if (ok) {
-              if (callStatus) callStatus.textContent = 'Voz IA (TTS)';
-              return;
+            // FIX 5: Reproducir archivo de audio nativo (Sandra voice) sin Cartesia
+            try {
+              console.log('[REALTIME] Reproduciendo audio nativo de Sandra...');
+              const audio = new Audio('/assets/audio/sandra-voice.mp3');
+              audio.volume = 1;
+              await audio.play();
+              console.log('[REALTIME] ✅ Audio nativo reproduciéndose');
+              if (callStatus) callStatus.textContent = 'En llamada';
+            } catch (err) {
+              console.warn('[REALTIME] Error reproduciendo audio nativo:', err);
             }
-            ttsFallback(text);
-            if (callStatus) callStatus.textContent = 'Voz local (fallback)';
           };
 
           const extractAssistantTextFromDone = (msg) => {
@@ -1669,14 +1670,11 @@
                   if (text) {
                     console.log('[REALTIME] Assistant:', text);
                     try { this.addMessage(text, 'bot'); } catch (_) {}
-                    
-                    // Solo usar fallback TTS si no hemos detectado audio real en los últimos 2 segundos
-                    setTimeout(() => {
-                      if (!this.realtimeHasAudio) {
-                        console.log('[REALTIME] Usando fallback TTS porque no se detectó audio real');
-                        void playFallback(text);
-                      }
-                    }, 2000);
+
+                    // FIX 5: Llamar INMEDIATAMENTE a Cartesia para convertir el texto de OpenAI a audio
+                    // No esperar a detectar audio, Cartesia es quien debe dar la voz
+                    console.log('[REALTIME] Enviando texto a Cartesia para síntesis de voz...');
+                    void playFallback(text);
                   }
                 }
               } catch (_) {
