@@ -1278,23 +1278,55 @@
               const output = Array.isArray(response.output) ? response.output : [];
               const parts = [];
 
+              // Log estructura para debugging
+              console.log('[REALTIME] OUTPUT estructura:', JSON.stringify(output, null, 2));
+
               for (const item of output) {
                 if (!item) continue;
+
+                // Intenta extraer del formato content_part
+                if (item.type === 'content_part' && item.content_part) {
+                  const cp = item.content_part;
+                  if (cp.type === 'text' && cp.text) {
+                    const t = String(cp.text).trim();
+                    if (t) {
+                      console.log('[REALTIME] Texto encontrado (content_part):', t);
+                      parts.push(t);
+                    }
+                  }
+                }
+
+                // Intenta extraer del formato content array
                 const content = Array.isArray(item.content) ? item.content : [];
                 for (const part of content) {
                   const type = String(part && part.type ? part.type : '');
                   if (type === 'output_text' || type === 'text') {
                     const t = String(part.text || part.transcript || '').trim();
-                    if (t) parts.push(t);
+                    if (t) {
+                      console.log('[REALTIME] Texto encontrado (content array):', t);
+                      parts.push(t);
+                    }
                   }
                 }
-                if (typeof item.text === 'string' && item.text.trim()) parts.push(item.text.trim());
+
+                // Intenta extraer directamente del item
+                if (typeof item.text === 'string' && item.text.trim()) {
+                  console.log('[REALTIME] Texto encontrado (item.text):', item.text);
+                  parts.push(item.text.trim());
+                }
               }
 
-              if (typeof response.text === 'string' && response.text.trim()) parts.push(response.text.trim());
+              // Intenta extraer de response.text
+              if (typeof response.text === 'string' && response.text.trim()) {
+                console.log('[REALTIME] Texto encontrado (response.text):', response.text);
+                parts.push(response.text.trim());
+              }
 
-              return parts.join(' ').replace(/\s+/g, ' ').trim();
-            } catch (_) {
+              const finalText = parts.join(' ').replace(/\s+/g, ' ').trim();
+              console.log('[REALTIME] Texto final extraído:', finalText || '(vacío)');
+              return finalText;
+            } catch (e) {
+              console.error('[REALTIME] Error extrayendo texto:', e);
               return '';
             }
           };
