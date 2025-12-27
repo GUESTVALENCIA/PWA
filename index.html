@@ -1918,6 +1918,7 @@
             this.activeCall = null;
             this.realtimeDataChannel = null;
             this.realtimeGreetingSent = false;
+            this.updateChatInputState();
 
             // Limpiar keep-alive heartbeat
             if (this.realtimeKeepaliveInterval) {
