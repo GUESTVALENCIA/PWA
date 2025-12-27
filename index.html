@@ -882,6 +882,10 @@
             } catch (_) {}
             this.realtimeAudioEl = null;
             this.realtimeGreetingSent = false;
+            if (this.realtimeGreetingFallbackTimer) {
+              clearTimeout(this.realtimeGreetingFallbackTimer);
+              this.realtimeGreetingFallbackTimer = null;
+            }
             try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (_) {}
             try {
               if (this.realtimeAudioNodes) {
@@ -889,7 +893,6 @@
                 if (n.rafId) cancelAnimationFrame(n.rafId);
                 try { n.source && n.source.disconnect(); } catch (_) {}
                 try { n.analyser && n.analyser.disconnect(); } catch (_) {}
-                try { n.gain && n.gain.disconnect(); } catch (_) {}
               }
             } catch (_) {}
             this.realtimeAudioNodes = null;
@@ -1170,6 +1173,7 @@
           if (unlockBtn) unlockBtn.classList.add('hidden');
           this.realtimeHasAudio = false;
           this.realtimeLastResponseId = null;
+          this.realtimeGreetingFallbackTimer = null;
 
           const ttsFallback = (text) => {
             try {
@@ -1293,8 +1297,8 @@
             const remoteAudio = document.createElement('audio');
             remoteAudio.autoplay = true;
             remoteAudio.playsInline = true;
-            remoteAudio.muted = true;
-            remoteAudio.volume = 0;
+            remoteAudio.muted = false;
+            remoteAudio.volume = 1;
             remoteAudio.setAttribute('playsinline', 'true');
             remoteAudio.style.position = 'fixed';
             remoteAudio.style.left = '-9999px';
@@ -1307,6 +1311,10 @@
               console.log('[REALTIME] Audio reproduciéndose');
               if (callStatus) callStatus.textContent = 'En llamada';
               if (unlockBtn) unlockBtn.classList.add('hidden');
+              if (this.realtimeGreetingFallbackTimer) {
+                clearTimeout(this.realtimeGreetingFallbackTimer);
+                this.realtimeGreetingFallbackTimer = null;
+              }
             };
             remoteAudio.onpause = () => console.log('[REALTIME] Audio pausado');
             remoteAudio.onerror = (e) => console.warn('[REALTIME] Audio error', e);
@@ -1354,19 +1362,13 @@
                     if (n.rafId) cancelAnimationFrame(n.rafId);
                     try { n.source && n.source.disconnect(); } catch (_) {}
                     try { n.analyser && n.analyser.disconnect(); } catch (_) {}
-                    try { n.gain && n.gain.disconnect(); } catch (_) {}
                   }
                 } catch (_) {}
 
                 const source = audioCtx.createMediaStreamSource(remoteStream);
                 const analyser = audioCtx.createAnalyser();
                 analyser.fftSize = 2048;
-                const gain = audioCtx.createGain();
-                gain.gain.value = 2.2;
-
                 source.connect(analyser);
-                analyser.connect(gain);
-                gain.connect(audioCtx.destination);
 
                 const data = new Uint8Array(analyser.fftSize);
                 const tick = () => {
@@ -1389,10 +1391,10 @@
                   this.realtimeAudioNodes.rafId = requestAnimationFrame(tick);
                 };
 
-                this.realtimeAudioNodes = { source, analyser, gain, rafId: null };
+                this.realtimeAudioNodes = { source, analyser, rafId: null };
                 tick();
               } catch (err) {
-                console.warn('[REALTIME] Error conectando audio a altavoz', err);
+                console.warn('[REALTIME] Error analizando audio remoto', err);
               }
             };
 
@@ -1465,9 +1467,27 @@
                 } catch (_) {}
 
                 dc.send(JSON.stringify({
-                  type: 'response.create',
-                  response: { modalities: ['audio', 'text'], voice: 'alloy', instructions: prompt }
+                  type: 'conversation.item.create',
+                  item: {
+                    type: 'message',
+                    role: 'user',
+                    content: [{ type: 'input_text', text: prompt }]
+                  }
                 }));
+
+                dc.send(JSON.stringify({
+                  type: 'response.create',
+                  response: { modalities: ['audio', 'text'], voice: 'alloy' }
+                }));
+
+                if (this.realtimeGreetingFallbackTimer) {
+                  clearTimeout(this.realtimeGreetingFallbackTimer);
+                }
+                this.realtimeGreetingFallbackTimer = setTimeout(() => {
+                  if (this.realtimeHasAudio) return;
+                  ttsFallback('Hola, soy Sandra, tu asistente virtual. ¿En qué puedo ayudarte?');
+                  if (callStatus) callStatus.textContent = 'Voz local (fallback)';
+                }, 1200);
               } catch (err) {
                 console.warn('[REALTIME] No se pudo enviar saludo:', err);
               }
