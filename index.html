@@ -965,6 +965,34 @@
 		        this.playRingtone();
 		      }
 
+		      updateChatInputState() {
+		        const input = document.getElementById('sandra-input');
+		        const sendBtn = document.getElementById('sandra-send-btn');
+		        const chatWindow = document.getElementById('sandra-chat-window');
+
+		        if (!input || !sendBtn) return;
+
+		        if (this.activeCall) {
+		          // DURANTE LLAMADA: Bloquear chat de texto
+		          input.disabled = true;
+		          sendBtn.disabled = true;
+		          input.style.opacity = '0.5';
+		          sendBtn.style.opacity = '0.5';
+		          input.placeholder = 'Chat bloqueado durante llamada de voz';
+		          if (chatWindow) chatWindow.style.opacity = '0.6';
+		          console.log('[REALTIME] Chat de texto bloqueado durante llamada');
+		        } else {
+		          // FUERA DE LLAMADA: Desbloquear chat de texto
+		          input.disabled = false;
+		          sendBtn.disabled = false;
+		          input.style.opacity = '1';
+		          sendBtn.style.opacity = '1';
+		          input.placeholder = 'Escribe tu mensaje...';
+		          if (chatWindow) chatWindow.style.opacity = '1';
+		          console.log('[REALTIME] Chat de texto desbloqueado');
+		        }
+		      }
+
       playRingtone() {
         this.stopRingtone();
 
@@ -1938,6 +1966,7 @@
 	        const wsUrl = this.buildWebSocketUrl(cfg.MCP_SERVER_URL, cfg.MCP_TOKEN);
 	        const ws = new WebSocket(wsUrl);
 	        this.activeCall = ws;
+	        this.updateChatInputState();
 
         ws.onopen = async () => {
             console.log('✅ WebSocket conectado');
