@@ -61,12 +61,15 @@ Voz de Sandra reproduce respuesta
 Asegúrate que tengas en tu `.env`:
 
 ```bash
-# OpenAI
-OPENAI_API_KEY=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
+# OpenAI - Agregar tu API key aquí (no commitear)
+OPENAI_API_KEY=your_openai_api_key_here
 
-# Deepgram
-DEEPGRAM_API_KEY=53202ecf825c59e8ea498f7cf68c4822c2466005
+# Deepgram - Agregar tu API key aquí (no commitear)
+DEEPGRAM_API_KEY=your_deepgram_api_key_here
 ```
+
+**IMPORTANTE:** Nunca commits archivos `.env` o archivos con API keys reales.
+Las claves deben estar solo en tu máquina local o en variables de entorno del servidor.
 
 ---
 
