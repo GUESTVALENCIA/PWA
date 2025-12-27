@@ -83,13 +83,23 @@
 
       this.isEnabled = this.checkEnabled();
 
+      this.scriptOrigin = this.getScriptOrigin();
+      this.apiOrigin = this.getApiOrigin();
+
       this.mcpServerUrl = this.getMcpServerUrl();
 
-      this.chatApiUrl = window.SANDRA_CHAT_API_URL || '/api/sandra/chat';
+      this.chatApiUrl = this.resolveApiUrl(window.SANDRA_CHAT_API_URL, '/api/sandra/chat');
 
-      this.transcribeApiUrl = window.SANDRA_TRANSCRIBE_API_URL || '/api/sandra/transcribe';
+      this.transcribeApiUrl = this.resolveApiUrl(window.SANDRA_TRANSCRIBE_API_URL, '/api/sandra/transcribe');
 
-      this.voiceApiUrl = window.SANDRA_VOICE_API_URL || '/api/sandra/voice';
+      this.voiceApiUrl = this.resolveApiUrl(window.SANDRA_VOICE_API_URL, '/api/sandra/voice');
+
+      this.voiceCallApiUrl = this.resolveApiUrl(window.SANDRA_VOICE_CALL_API_URL, '/api/sandra/voice-call');
+
+      this.realtimeTokenApiUrl = this.resolveApiUrl(
+        window.SANDRA_REALTIME_TOKEN_API_URL || window.SANDRA_REALTIME_TOKEN_URL,
+        '/api/sandra/realtime-token'
+      );
 
       this.chatRoleStorageKey = 'SANDRA_ROLE';
 
@@ -122,10 +132,6 @@
       this.currentVideo = null;
 
       this.currentImage = null;
-
-
-
-      this.scriptOrigin = this.getScriptOrigin();
 
       // Config remota (/api/config) para fijar MCP_SERVER_URL correcto por entorno
       this.configLoaded = false;
@@ -252,6 +258,70 @@
 
     // FUNCIÓN ELIMINADA: getGreetingAudioUrl()
     // Ya no se usa audio pregrabado
+    getApiOrigin() {
+      const explicit = String(window.SANDRA_API_ORIGIN || window.SANDRA_API_BASE_URL || '').trim();
+      if (explicit) return explicit.replace(/\/+$/, '');
+
+      const fromScript = String(this.scriptOrigin || '').trim();
+      if (fromScript) return fromScript.replace(/\/+$/, '');
+
+      return (window.location && window.location.origin) ? window.location.origin : '';
+    }
+
+    resolveApiUrl(urlOrPath, fallbackPath) {
+      const value = String(urlOrPath || fallbackPath || '').trim();
+      if (!value) return '';
+
+      try {
+        const base = this.apiOrigin || this.scriptOrigin || (window.location && window.location.origin) || undefined;
+        return new URL(value, base).toString();
+      } catch (_) {
+        return value;
+      }
+    }
+
+    waitForIceGatheringComplete(pc, timeoutMs = 3000) {
+      try {
+        if (!pc || pc.iceGatheringState === 'complete') return Promise.resolve();
+      } catch (_) {
+        return Promise.resolve();
+      }
+
+      return new Promise((resolve) => {
+        let settled = false;
+        let timeout = null;
+
+        const cleanup = () => {
+          if (timeout) clearTimeout(timeout);
+          try { pc.removeEventListener('icegatheringstatechange', onState); } catch (_) {}
+          try { pc.removeEventListener('icecandidate', onCandidate); } catch (_) {}
+        };
+
+        const done = () => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          resolve();
+        };
+
+        const onState = () => {
+          try {
+            if (pc.iceGatheringState === 'complete') done();
+          } catch (_) {
+            done();
+          }
+        };
+
+        const onCandidate = (event) => {
+          if (!event || !event.candidate) done();
+        };
+
+        timeout = setTimeout(done, timeoutMs);
+        try { pc.addEventListener('icegatheringstatechange', onState); } catch (_) {}
+        try { pc.addEventListener('icecandidate', onCandidate); } catch (_) {}
+      });
+    }
+
     getGreetingAudioUrl() {
       return null; // Audio pregrabado deshabilitado
     }
@@ -268,7 +338,7 @@
 
       this.configPromise = (async () => {
         try {
-          const url = `${this.scriptOrigin}/api/config`;
+          const url = `${this.apiOrigin || this.scriptOrigin}/api/config`;
           const res = await fetch(url, { cache: 'no-store' });
           if (!res.ok) return;
 
@@ -1597,7 +1667,7 @@
       try {
         // 1. Obtener token efímero del servidor
         console.log(' [REALTIME] Obteniendo token efímero...');
-        const tokenResponse = await fetch('/api/sandra/realtime-token', {
+        const tokenResponse = await fetch(this.realtimeTokenApiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
         });
@@ -1650,6 +1720,8 @@
           offerToReceiveVideo: false
         });
         await pc.setLocalDescription(offer);
+        await this.waitForIceGatheringComplete(pc);
+        const localSdp = (pc.localDescription && pc.localDescription.sdp) ? pc.localDescription.sdp : offer.sdp;
 
         // 7. Enviar oferta a OpenAI Realtime API (endpoint de llamadas WebRTC)
         console.log(' [REALTIME] Enviando oferta SDP a OpenAI...');
@@ -1660,7 +1732,7 @@
             'Content-Type': 'application/sdp',
             'OpenAI-Beta': 'realtime=v1'
           },
-          body: offer.sdp
+          body: localSdp
         });
 
         if (!sdpResponse.ok) {
@@ -2399,7 +2471,7 @@
         
         const mimeType = (audioBlob && audioBlob.type) ? audioBlob.type : 'audio/webm';
         
-        const response = await fetch('/api/sandra/voice-call', {
+        const response = await fetch(this.voiceCallApiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
