@@ -1,0 +1,369 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                   GUESTSVALENCIA NATIVE VOICE SYSTEM                         ║
+║                          Architecture Diagram                                 ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                         OPENAI WEBRTC SYSTEM                                │
+│                    (Conversation & Speech Input)                             │
+└──────────────────┬───────────────────────────────────────────────────────────┘
+                   │
+                   │ Response.Done Event
+                   │
+                   ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                         playFallback(text)                                  │
+│              (Native Voice Library Integration Point)                        │
+└──────────────────┬───────────────────────────────────────────────────────────┘
+                   │
+        ┌──────────┴──────────┐
+        │                     │
+        ▼                     ▼
+   ┌─────────┐            ┌──────────────────┐
+   │ Library │           │ Detect Response  │
+   │ Ready?  │           │ Type from Text   │
+   └─┬───┬───┘           └─────────┬────────┘
+     │ Y │ N                       │
+     │   └────────────┐            │
+     │                ▼            │
+     │           Use Fallback◄─────┴─────┐
+     │           Audio                   │
+     │                │                  │
+     │                │  response.type = │
+     │                │ (general/luxury/ │
+     │                │  welcome/support)│
+     │                │                  │
+     ▼                │                  │
+┌──────────────────────┴──────────────────────────────────┐
+│      VOICE LIBRARY MANAGER (/assets/js/...)            │
+│                                                        │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  selectVoice(responseType)                       │  │
+│  │  1. Read responseTypeMapping from config        │  │
+│  │  2. Get voice key for type                      │  │
+│  │  3. Return voice configuration                  │  │
+│  └─────────────────────┬───────────────────────────┘  │
+│                        │                               │
+│  ┌─────────────────────▼───────────────────────────┐  │
+│  │  voiceExists(filePath)                         │  │
+│  │  1. Check if audio file exists via HEAD req    │  │
+│  │  2. Return true/false                          │  │
+│  └─────────────────────┬───────────────────────────┘  │
+│                        │                               │
+│  ┌─────────────────────▼───────────────────────────┐  │
+│  │  playAudio(filePath, settings)                 │  │
+│  │  1. Create HTML5 Audio element                 │  │
+│  │  2. Set volume and playback rate               │  │
+│  │  3. Play audio file                            │  │
+│  │  4. Handle onended, onerror events             │  │
+│  └─────────────────────┬───────────────────────────┘  │
+│                        │                               │
+└────────────────────────┼───────────────────────────────┘
+                         │
+        ┌────────────────┴────────────────┐
+        │                                 │
+        ▼                                 ▼
+   ┌─────────────┐              ┌──────────────────┐
+   │ Voice File  │              │ FALLBACK CHAIN   │
+   │ Exists      │              │ If Voice Missing │
+   │ /assets/    │              │ 1. Try default   │
+   │ audio/...   │              │ 2. Try welcome   │
+   │             │              │ 3. Fail graceful │
+   └──────┬──────┘              └──────────────────┘
+          │
+    ┌─────┴──────┐
+    │ YES        │ NO
+    │            │
+    ▼            ▼
+ ┌──────┐    ┌─────────┐
+ │ PLAY │    │ FALLBACK│
+ │ FILE │    │ VOICE   │
+ └──┬───┘    └────┬────┘
+    │             │
+    └─────┬───────┘
+          │
+          ▼
+    ┌──────────────┐
+    │ HTML5 AUDIO  │
+    │ ELEMENT      │
+    │ <Audio>      │
+    └──────┬───────┘
+           │
+           ▼
+    ┌──────────────┐
+    │  SPEAKER     │
+    │  OUTPUT      │
+    └──────────────┘
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                         CONFIGURATION LAYERS                                ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+/assets/config/voice-library.json
+│
+├─ voiceLibrary
+│  ├─ default: {file: "/assets/audio/sandra-voice.mp3", ...}
+│  ├─ welcome: {file: "/assets/audio/welcome.mp3", ...}
+│  ├─ cartesia-professional: {file: "/assets/audio/cartesia-professional.mp3", ...}
+│  ├─ cartesia-friendly: {file: "/assets/audio/cartesia-friendly.mp3", ...}
+│  └─ cartesia-luxury: {file: "/assets/audio/cartesia-luxury.mp3", ...}
+│
+├─ responseTypeMapping
+│  ├─ greeting: "welcome"
+│  ├─ general: "default"
+│  ├─ hospitality: "cartesia-professional"
+│  ├─ luxury: "cartesia-luxury"
+│  ├─ support: "cartesia-friendly"
+│  ├─ error: "cartesia-professional"
+│  └─ default: "default"
+│
+├─ voiceSettings
+│  ├─ volume: 1.0
+│  ├─ playbackRate: 1.0
+│  └─ maxConcurrentAudio: 1
+│
+└─ fallbackChain
+   ├─ "default"
+   └─ "welcome"
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                      RESPONSE TYPE DETECTION                                ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Response Text Processing:
+┌─────────────────────┐
+│  Sandra Response    │
+│  "Bienvenido a      │
+│   GuestsValencia... │──┐
+│                     │  │
+│  "Lujo premium...   │  │ Check keywords
+│                     │  │ in response
+│  "Error: WiFi..     │  │ text
+│                     │  │
+│  "¿Necesitas        │  │
+│   soporte?"         │  │
+└──────────────────────┘  │
+                          │
+        ┌─────────────────┘
+        │
+        ▼
+ Response Type Mapping:
+
+ "bienvenid" ─────────────────► Type: welcome
+ "lujo"/"premium" ──────────────► Type: luxury
+ "error"/"problema" ────────────► Type: error
+ "ayuda"/"soporte"/"técnico" ───► Type: support
+ (default) ─────────────────────► Type: general
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                       FILE ORGANIZATION                                     ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+GuestsValencia PWA Root:
+│
+├─ index.html (MODIFIED)
+│  └─ Line 42: <script src="/assets/js/voice-library-manager.js" defer></script>
+│  └─ Line 1230-1273: Enhanced playFallback() function
+│
+├─ assets/
+│  ├─ audio/ (Audio Files)
+│  │  ├─ sandra-voice.mp3 ..................... [28KB] Default Voice
+│  │  ├─ welcome.mp3 ......................... [51KB] Welcome Greeting
+│  │  ├─ cartesia-professional.mp3 ........... [READY] (Generate)
+│  │  ├─ cartesia-friendly.mp3 .............. [READY] (Generate)
+│  │  └─ cartesia-luxury.mp3 ................. [READY] (Generate)
+│  │
+│  ├─ config/ (Configuration)
+│  │  └─ voice-library.json .................. [NEW] Voice Configuration
+│  │
+│  └─ js/ (JavaScript)
+│     ├─ voice-library-manager.js ............ [NEW] 6.6KB Voice Manager
+│     └─ cartesia-voice-generator.js ........ [NEW] 11KB Generator Tool
+│
+├─ VOICE_SYSTEM_QUICKSTART.md ............... [NEW] 5-min Guide
+├─ NATIVE_VOICE_INTEGRATION.md ............. [NEW] Complete Guide
+├─ VOICE_SYSTEM_IMPLEMENTATION_SUMMARY.md .. [NEW] Architecture Doc
+└─ ARCHITECTURE_DIAGRAM.txt ................. [NEW] This Diagram
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                        VOICE PLAYBACK FLOW                                  ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Step 1: Response Arrives
+   OpenAI WebRTC → response.done event
+   Extract text from response
+
+Step 2: Detect Type
+   playFallback(text) called
+   Analyze keywords in text
+   Determine response type
+
+Step 3: Select Voice
+   Look up responseType in voice library config
+   Get voice key and file path
+
+Step 4: Verify Availability
+   Check if voice file exists
+   If exists → Play it
+   If not → Try fallback chain
+
+Step 5: Configure Audio
+   Create Audio element
+   Set volume (default: 1.0)
+   Set playback rate (default: 1.0)
+
+Step 6: Play Audio
+   audio.play() with error handling
+   Log to console
+   Wait for onended event
+
+Step 7: Done
+   Audio finishes playing
+   System ready for next response
+   User continues conversation
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                     CARTESIA INTEGRATION FLOW                               ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Developer Workflow:
+
+1. Browser Console:
+   const gen = new CartesiaVoiceGenerator('API_KEY');
+
+2. Get Templates:
+   const templates = gen.getCommonResponseTemplates();
+
+3. Generate Voices:
+   const voices = await gen.generateMultipleVoices(templates);
+
+4. Download Files:
+   Browser auto-downloads MP3 files
+
+5. Upload to Server:
+   Copy files to /assets/audio/
+
+6. Update Config:
+   const update = gen.generateLibraryUpdate(voices);
+   Copy JSON to voice-library.json
+
+7. Reload & Test:
+   Hard refresh (Ctrl+Shift+R)
+   Make a call
+   Listen for Cartesia voice
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                        FALLBACK CHAIN LOGIC                                 ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Request for: "cartesia-luxury"
+│
+├─ Exists? YES ──────────────────────► PLAY cartesia-luxury.mp3 ✅
+│
+├─ Exists? NO
+│  └─ Try Fallback Chain:
+│     ├─ fallbackChain[0] = "default"
+│     │  └─ Exists? YES ───────────► PLAY default.mp3 ✅
+│     │  └─ Exists? NO
+│     │     └─ Try next in chain
+│     │
+│     └─ fallbackChain[1] = "welcome"
+│        └─ Exists? YES ───────────► PLAY welcome.mp3 ✅
+│        └─ Exists? NO
+│           └─ Log error, fail gracefully ⚠️
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                     SYSTEM STATE DIAGRAM                                    ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+              ┌─────────────────────┐
+              │   INITIALIZING      │
+              │ Load voice library  │
+              │ config              │
+              └──────────┬──────────┘
+                         │
+                         ▼
+              ┌─────────────────────┐
+              │   READY             │
+              │ Waiting for text    │ ◄─────────┐
+              │ from response       │           │
+              └──────────┬──────────┘           │
+                         │                     │
+                    Text arrives               │
+                         │                     │
+                         ▼                     │
+              ┌─────────────────────┐           │
+              │  DETECTING TYPE     │           │
+              │ Analyze response    │           │
+              │ text                │           │
+              └──────────┬──────────┘           │
+                         │                     │
+                         ▼                     │
+              ┌─────────────────────┐           │
+              │  SELECTING VOICE    │           │
+              │ Get voice config    │           │
+              │ from library        │           │
+              └──────────┬──────────┘           │
+                         │                     │
+                         ▼                     │
+              ┌─────────────────────┐           │
+              │  VERIFYING FILE     │           │
+              │ Check if audio      │           │
+              │ file exists         │           │
+              └──┬──────────────┬───┘           │
+                 │              │               │
+                 ▼ YES          ▼ NO            │
+              ┌─────┐      ┌──────────┐        │
+              │PLAY │      │ FALLBACK │        │
+              │VOICE│      │ CHAIN    │        │
+              └──┬──┘      └────┬─────┘        │
+                 │              │               │
+                 └──────┬───────┘               │
+                        │                      │
+                        ▼                      │
+              ┌─────────────────────┐           │
+              │   PLAYING AUDIO     │           │
+              │ Speaker output      │           │
+              └──────────┬──────────┘           │
+                         │                     │
+                    Audio finished              │
+                         │                     │
+                         ▼                     │
+              ┌─────────────────────┐           │
+              │   CLEANUP           │           │
+              │ Release audio obj   │           │
+              │ Update state        │           │
+              └──────────┬──────────┘           │
+                         │                     │
+                         └─────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+API QUICK REFERENCE
+
+PlayVoice():
+  await window.voiceLibraryManager.playVoice(responseType, text)
+
+SelectVoice():
+  window.voiceLibraryManager.selectVoice(responseType)
+
+GetAvailableVoices():
+  window.voiceLibraryManager.getAvailableVoices()
+
+SetVoiceForType():
+  window.voiceLibraryManager.setVoiceForType(type, voiceKey)
+
+Stop():
+  window.voiceLibraryManager.stop()
+
+═══════════════════════════════════════════════════════════════════════════════
+                    System Ready for Production ✅
+═══════════════════════════════════════════════════════════════════════════════
