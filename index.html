@@ -38,6 +38,9 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script>tailwind.config={theme:{extend:{fontFamily:{sans:['Outfit','system-ui','sans-serif'],serif:['Playfair Display','Georgia','serif']}}}}</script>
 
+  <!-- Voice Library Manager -->
+  <script src="/assets/js/voice-library-manager.js" defer></script>
+
   <style>
     :root{--primary:#2563EB;--accent:#3B82F6;--accent-light:#60A5FA;--accent-lighter:#93C5FD;--accent-dark:#1E40AF;--glass-bg:rgba(255,255,255,0.98);--glass-dark-bg:rgba(37,99,235,0.85);--text-primary:#0F172A;--text-secondary:#334155;--bg-light:#FFFFFF;--bg-section:#F8FAFC;--bg-accent:#EFF6FF}
     body{font-family:'Outfit',system-ui,sans-serif;background:var(--bg-light);color:var(--text-primary);overflow-x:hidden;margin:0;padding:0}
@@ -1226,9 +1229,39 @@
 
           const playFallback = async (text) => {
             if (!text) return;
-            // FIX 5: Reproducir archivo de audio nativo (Sandra voice) sin Cartesia
             try {
-              console.log('[REALTIME] Reproduciendo audio nativo de Sandra...');
+              // Use Voice Library Manager for intelligent voice selection
+              if (window.voiceLibraryManager && window.voiceLibraryManager.initialized) {
+                console.log('[REALTIME] Using Voice Library Manager for native audio playback...');
+
+                // Detect response type from text content
+                let responseType = 'general';
+                if (text.toLowerCase().includes('bienvenid')) responseType = 'welcome';
+                else if (text.toLowerCase().includes('lujo') || text.toLowerCase().includes('premium')) responseType = 'luxury';
+                else if (text.toLowerCase().includes('error') || text.toLowerCase().includes('problema')) responseType = 'error';
+                else if (text.toLowerCase().includes('ayuda') || text.toLowerCase().includes('soporte')) responseType = 'support';
+
+                const result = await window.voiceLibraryManager.playVoice(responseType, text);
+                if (result) {
+                  console.log('[REALTIME] ✅ Audio nativo reproduciéndose via Voice Library');
+                  if (callStatus) callStatus.textContent = 'En llamada';
+                } else {
+                  console.warn('[REALTIME] Voice Library playback failed, using fallback');
+                  await playFallbackAudio();
+                }
+              } else {
+                console.log('[REALTIME] Voice Library not ready, using fallback audio...');
+                await playFallbackAudio();
+              }
+            } catch (err) {
+              console.warn('[REALTIME] Error in playFallback:', err);
+              await playFallbackAudio();
+            }
+          };
+
+          const playFallbackAudio = async () => {
+            try {
+              console.log('[REALTIME] Reproduciendo audio nativo de Sandra (fallback)...');
               const audio = new Audio('/assets/audio/sandra-voice.mp3');
               audio.volume = 1;
               await audio.play();
