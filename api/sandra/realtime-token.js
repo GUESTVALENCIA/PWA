@@ -105,7 +105,7 @@ module.exports = async function handler(req, res) {
     // Simplificado al máximo para evitar errores de validación
     // FASE 1: Mini Realtime sin parámetro voice (para evitar generación de audio)
     const sessionBody = {
-      model: 'gpt-realtime-mini-2025-12-15',
+      model: 'gpt-realtime-mini',
       instructions: systemInstructions || 'Eres Sandra, asistente de GuestsValencia. Responde brevemente en español.',
       // IMPORTANTE: Solo generar TEXTO, no audio de OpenAI
       // Esto evita que OpenAI genere audio - usaremos la voz nativa de Sandra
