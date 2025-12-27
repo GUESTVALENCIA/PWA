@@ -113,17 +113,9 @@ module.exports = async function handler(req, res) {
         temperature: sceneState?.priority === 'event' ? 0.9 : 0.8, // Más creatividad en eventos
         max_response_output_tokens: 4096,
         modalities: ['audio', 'text'], // Audio primero para priorizar
-        // Configurar transcripción de audio de entrada (requerido para WebRTC)
-        // ESTRUCTURA CORRECTA según documentación OpenAI - MULTILINGÜE
-        audio: {
-          input: {
-            transcription: {
-              model: 'gpt-4o-transcribe',
-              language: detectedLanguage // Idioma detectado automáticamente
-            }
-          }
-        },
-        // Nota: input_audio_format y output_audio_format no se usan con WebRTC
+        // Nota: Con WebRTC, la transcripción se maneja automáticamente
+        // No se necesita el objeto 'audio' explícito - OpenAI lo maneja internamente
+        // El idioma se detecta automáticamente desde el audio del usuario
         turn_detection: {
           type: 'server_vad',
           threshold: 0.5,
