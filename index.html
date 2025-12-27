@@ -1386,6 +1386,16 @@
             });
             this.activeCall = pc;
 
+            // FIX 3: Keep-alive heartbeat para prevenir cierres de sesión
+            // OpenAI Realtime cierra sesiones después de ~30s sin actividad
+            // Este intervalo mantiene la sesión viva durante pauses naturales
+            if (this.realtimeKeepaliveInterval) clearInterval(this.realtimeKeepaliveInterval);
+            this.realtimeKeepaliveInterval = setInterval(() => {
+              if (this.activeCall && this.activeCall.connectionState === 'connected') {
+                console.log('[REALTIME] Keep-alive heartbeat enviado (previene timeout)');
+              }
+            }, 25000); // Cada 25 segundos
+
             const remoteAudio = document.createElement('audio');
             remoteAudio.autoplay = true;
             remoteAudio.playsInline = true;
@@ -1781,7 +1791,14 @@
             this.activeCall = null;
             this.realtimeDataChannel = null;
             this.realtimeGreetingSent = false;
-            
+
+            // Limpiar keep-alive heartbeat
+            if (this.realtimeKeepaliveInterval) {
+              clearInterval(this.realtimeKeepaliveInterval);
+              this.realtimeKeepaliveInterval = null;
+              console.log('[REALTIME] Keep-alive interval limpiado');
+            }
+
             // NO llamar a hangupCall aquí porque puede causar que se cuelgue automáticamente
             // Solo limpiar recursos y dejar que el usuario intente de nuevo
           }

@@ -108,22 +108,26 @@ module.exports = async function handler(req, res) {
       modalities: ['audio', 'text']
     };
 
-    // Agregar turn_detection solo si es necesario
+    // Configuración de detección de turnos más conservadora
+    // Para evitar cierres prematuros de sesión durante pauses naturales
     sessionBody.turn_detection = {
       type: 'server_vad',
-      threshold: 0.5,
-      prefix_padding_ms: 300,
-      silence_duration_ms: 500
+      threshold: 0.3,        // Bajado de 0.5 (más sensible a voz débil)
+      prefix_padding_ms: 500, // Aumentado de 300 (más contexto previo)
+      silence_duration_ms: 800 // Aumentado de 500 (tolera pauses más largos)
     };
 
-    // Agregar herramientas SOLO si se cargan correctamente y NO causan errores
+    // TEMPORALMENTE DESHABILITADO PARA DEBUGGING
+    // Las herramientas pueden causar cierres prematuros de sesión
+    // Descomentar después de confirmar que la llamada se mantiene activa
+    /*
     try {
       const tools = await getToolDefinitions();
       if (tools && Array.isArray(tools) && tools.length > 0) {
         // Validar que cada herramienta tenga la estructura correcta
-        const validTools = tools.filter(tool => 
-          tool && 
-          typeof tool === 'object' && 
+        const validTools = tools.filter(tool =>
+          tool &&
+          typeof tool === 'object' &&
           tool.type === 'function' &&
           typeof tool.name === 'string' &&
           typeof tool.description === 'string' &&
@@ -138,11 +142,22 @@ module.exports = async function handler(req, res) {
     } catch (toolError) {
       console.warn('[Realtime] No se pudieron cargar herramientas, continuando sin ellas:', toolError.message);
     }
+    */
 
     // NO agregar temperature, max_response_output_tokens ni otros parámetros opcionales
     // que puedan causar errores. La API usará valores por defecto.
 
-    console.log('[Realtime] Creando sesión con body (MÍNIMO):', JSON.stringify(sessionBody, null, 2));
+    // Logging mejorado para debugging
+    console.log('[Realtime] Creando sesión con configuración:', {
+      model: sessionBody.model,
+      voice: sessionBody.voice,
+      modalities: sessionBody.modalities,
+      turn_detection: sessionBody.turn_detection,
+      hasTools: false, // Herramientas deshabilitadas temporalmente
+      instructionsLength: systemInstructions.length,
+      language: detectedLanguage
+    });
+    console.log('[Realtime] Body completo:', JSON.stringify(sessionBody, null, 2));
 
     const sessionResponse = await fetch('https://api.openai.com/v1/realtime/sessions', {
       method: 'POST',
