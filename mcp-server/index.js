@@ -542,9 +542,17 @@ async function handleAudioRoute(action, payload, services, ws) {
 
       
 
-      console.log(' [MCP] Respuesta de IA:', aiResponse);
+      // QwenService (y fallbacks) pueden devolver un objeto { text, model, usage }
+      const aiTextRaw = (aiResponse && typeof aiResponse === 'object')
+        ? String(aiResponse.text || '')
+        : String(aiResponse || '');
+      const aiModel = (aiResponse && typeof aiResponse === 'object') ? aiResponse.model : undefined;
 
-      const responseAudio = await services.cartesia.textToSpeech(aiResponse, payload.voiceId);
+      const aiText = aiTextRaw.trim() || 'Lo siento, no he podido procesar tu mensaje. ¿Puedes repetirlo?';
+
+      console.log(' [MCP] Respuesta de IA (texto):', aiText);
+
+      const responseAudio = await services.cartesia.textToSpeech(aiText, payload.voiceId);
 
       
 
@@ -564,7 +572,8 @@ async function handleAudioRoute(action, payload, services, ws) {
 
           format: 'mp3',
 
-          text: aiResponse,
+          text: aiText,
+          model: aiModel,
 
           isWelcome: payload.isWelcome || false
 
@@ -578,7 +587,8 @@ async function handleAudioRoute(action, payload, services, ws) {
 
         transcript,
 
-        text: aiResponse,
+        text: aiText,
+        model: aiModel,
 
         audioSent: true
 
@@ -668,7 +678,12 @@ async function handleConserjeRoute(action, payload, services, ws) {
 
       });
 
-      return { response };
+      const responseText = (response && typeof response === 'object')
+        ? String(response.text || '').trim()
+        : String(response || '').trim();
+      const responseModel = (response && typeof response === 'object') ? response.model : undefined;
+
+      return { response: responseText, model: responseModel };
 
     case 'stream':
 
