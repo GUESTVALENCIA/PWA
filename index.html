@@ -1559,14 +1559,27 @@
 
             pc.oniceconnectionstatechange = () => {
               console.log('[REALTIME] ICE state:', pc.iceConnectionState);
-              if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+              // Solo colgar si realmente falló después de estar conectado
+              // No colgar en estados transitorios como 'checking' o 'connecting'
+              if (pc.iceConnectionState === 'failed') {
+                console.warn('[REALTIME] ICE connection failed, colgando llamada');
+                this.hangupCall('webrtc_error');
+              } else if (pc.iceConnectionState === 'disconnected' && this.activeCall) {
+                // Solo colgar si ya estaba conectado y se desconectó
+                console.warn('[REALTIME] ICE disconnected, colgando llamada');
                 this.hangupCall('webrtc_error');
               }
             };
 
             pc.onconnectionstatechange = () => {
               console.log('[REALTIME] Connection state:', pc.connectionState);
-              if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+              // Solo colgar si realmente falló después de estar conectado
+              if (pc.connectionState === 'failed') {
+                console.warn('[REALTIME] Connection failed, colgando llamada');
+                this.hangupCall('webrtc_error');
+              } else if (pc.connectionState === 'disconnected' && this.activeCall) {
+                // Solo colgar si ya estaba conectado y se desconectó
+                console.warn('[REALTIME] Connection disconnected, colgando llamada');
                 this.hangupCall('webrtc_error');
               }
             };
@@ -1722,11 +1735,32 @@
             if (callStatus) callStatus.textContent = 'Conectada';
           } catch (error) {
             console.error('[REALTIME] Error iniciando llamada:', error);
+            
+            // Limpiar recursos sin colgar si aún no se estableció la conexión
+            try {
+              if (this.stream) {
+                this.stream.getTracks().forEach(track => track.stop());
+                this.stream = null;
+              }
+              if (this.activeCall && this.activeCall !== pc) {
+                // Solo limpiar si no es el peer connection actual
+                try { this.activeCall.close(); } catch (_) {}
+              }
+            } catch (_) {}
+            
+            // Solo mostrar mensaje de error, no colgar automáticamente
+            // El usuario puede intentar de nuevo
             try {
               this.addMessage('No pude iniciar la llamada de voz ahora mismo. Inténtalo de nuevo.', 'bot');
             } catch (_) {}
-            this.hangupCall('webrtc_error');
-            throw error;
+            
+            // Resetear estado
+            this.activeCall = null;
+            this.realtimeDataChannel = null;
+            this.realtimeGreetingSent = false;
+            
+            // NO llamar a hangupCall aquí porque puede causar que se cuelgue automáticamente
+            // Solo limpiar recursos y dejar que el usuario intente de nuevo
           }
         }
 
