@@ -101,20 +101,12 @@ module.exports = async function handler(req, res) {
     // OpenAI Realtime API: crear sesión y obtener token efímero
     // NO incluir NINGÚN parámetro que no esté 100% documentado
     
+    // CONFIGURACIÓN MÍNIMA - Solo parámetros esenciales
+    // Simplificado al máximo para evitar errores de validación
     const sessionBody = {
       model: 'gpt-4o-realtime-preview-2024-12-17',
       voice: 'alloy',
-      instructions: systemInstructions,
-      modalities: ['audio', 'text']
-    };
-
-    // Configuración de detección de turnos más conservadora
-    // Para evitar cierres prematuros de sesión durante pauses naturales
-    sessionBody.turn_detection = {
-      type: 'server_vad',
-      threshold: 0.3,        // Bajado de 0.5 (más sensible a voz débil)
-      prefix_padding_ms: 500, // Aumentado de 300 (más contexto previo)
-      silence_duration_ms: 800 // Aumentado de 500 (tolera pauses más largos)
+      instructions: systemInstructions || 'Eres Sandra, asistente de GuestsValencia. Responde brevemente en español.'
     };
 
     // TEMPORALMENTE DESHABILITADO PARA DEBUGGING
