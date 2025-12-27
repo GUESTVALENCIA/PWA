@@ -160,7 +160,9 @@
 
       this.responseWatchdogTimeout = null;
 
-
+      // OpenAI Realtime (WebRTC)
+      this.realtimePC = null;
+      this.realtimeAudio = null;
 
       if (this.isEnabled) {
 
@@ -1590,9 +1592,7 @@
         return this.endCall('user_hangup');
       }
 
-
-
-      console.log(' [CALLFLOW] Iniciando llamada conversacional con Sandra...');
+      console.log(' [CALLFLOW] Iniciando llamada conversacional con OpenAI Realtime (WebRTC)...');
 
       this.toggleChat(true);
 
@@ -1600,83 +1600,141 @@
 
       this.sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-
-
       try {
-
-        // Asegurar MCP_SERVER_URL correcto antes de warmup/WS
-        await this.loadConfigFromApi();
-
-        const warmupPromise = this.warmup();
-
+        // Reproducir ringtone y saludo
+        await this.transitionToVideo();
         const greetingPromise = this.playGreetingOnce();
 
+        // Iniciar llamada Realtime (WebRTC)
+        await this.startRealtimeCall();
 
-
-        await this.transitionToVideo();
-
-        this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-        console.log(' [CALLFLOW] Micrófono accedido');
-
-
-
-        // WS/MCP es opcional: si no est  disponible, usamos pipeline HTTP /api/sandra/*
-
-        try {
-
-          await this.connectWebSocketWithTimeout();
-
-          try {
-
-            await this.reserveVoiceChannel();
-
-          } catch (error) {
-
-            console.warn('[CALLFLOW] Canal de voz no disponible, usando fallback HTTP.', error);
-
-            try { this.ws?.close?.(); } catch (_) {}
-
-            this.ws = null;
-
-          }
-
-        } catch (error) {
-
-          console.warn('[CALLFLOW] WebSocket no disponible, usando fallback HTTP.', error);
-
-          this.ws = null;
-
-        }
-
-        await Promise.allSettled([warmupPromise, greetingPromise]);
-
-
+        await Promise.allSettled([greetingPromise]);
 
         this.isCallActive = true;
-
         this.setChatLocked(true);
-
-        this.startTranscription();
-
         this.updateUI('active');
-
         this.startInactivityTimer();
 
-
-
-        console.log(' [CALLFLOW] Llamada iniciada correctamente');
-
-
+        console.log(' [CALLFLOW] Llamada Realtime iniciada correctamente');
 
       } catch (error) {
-
-        console.error(' [CALLFLOW] Error iniciando llamada:', error);
-
+        console.error(' [CALLFLOW] Error iniciando llamada Realtime:', error);
         this.handleCallError(error);
-
       }
+    }
 
+    /**
+     * Iniciar llamada con OpenAI Realtime API (WebRTC)
+     * Conexión directa bidireccional de audio en tiempo real
+     */
+    async startRealtimeCall() {
+      try {
+        // 1. Obtener token efímero del servidor
+        console.log(' [REALTIME] Obteniendo token efímero...');
+        const tokenResponse = await fetch('/api/sandra/realtime-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (!tokenResponse.ok) {
+          throw new Error(`Error obteniendo token: ${tokenResponse.status}`);
+        }
+
+        const { token, session_id } = await tokenResponse.json();
+        console.log(' [REALTIME] Token obtenido, sesión:', session_id);
+
+        // 2. Obtener stream de micrófono
+        this.stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            sampleRate: 24000
+          }
+        });
+        console.log(' [REALTIME] Micrófono accedido');
+
+        // 3. Crear RTCPeerConnection
+        const pc = new RTCPeerConnection({
+          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        });
+
+        this.realtimePC = pc;
+
+        // 4. Agregar track de audio local
+        this.stream.getTracks().forEach(track => {
+          pc.addTrack(track, this.stream);
+        });
+
+        // 5. Manejar audio remoto (respuesta de Sandra)
+        const remoteAudio = document.createElement('audio');
+        remoteAudio.autoplay = true;
+        remoteAudio.style.display = 'none';
+        document.body.appendChild(remoteAudio);
+        this.realtimeAudio = remoteAudio;
+
+        pc.ontrack = (event) => {
+          console.log(' [REALTIME] Audio remoto recibido');
+          remoteAudio.srcObject = event.streams[0];
+        };
+
+        // 6. Crear oferta SDP
+        const offer = await pc.createOffer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: false
+        });
+        await pc.setLocalDescription(offer);
+
+        // 7. Enviar oferta a OpenAI Realtime API (endpoint de llamadas WebRTC)
+        console.log(' [REALTIME] Enviando oferta SDP a OpenAI...');
+        const sdpResponse = await fetch('https://api.openai.com/v1/realtime/calls', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/sdp',
+            'OpenAI-Beta': 'realtime=v1'
+          },
+          body: offer.sdp
+        });
+
+        if (!sdpResponse.ok) {
+          const errorText = await sdpResponse.text();
+          throw new Error(`OpenAI Realtime error: ${sdpResponse.status} - ${errorText}`);
+        }
+
+        // 8. Establecer respuesta SDP
+        const answerSdp = await sdpResponse.text();
+        const answer = {
+          type: 'answer',
+          sdp: answerSdp
+        };
+        await pc.setRemoteDescription(answer);
+
+        console.log(' [REALTIME] Conexión WebRTC establecida');
+
+        // 9. Manejar eventos de conexión
+        pc.oniceconnectionstatechange = () => {
+          console.log(' [REALTIME] ICE state:', pc.iceConnectionState);
+          if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+            if (this.isCallActive) {
+              this.endCall('webrtc_error');
+            }
+          }
+        };
+
+        pc.onconnectionstatechange = () => {
+          console.log(' [REALTIME] Connection state:', pc.connectionState);
+          if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+            if (this.isCallActive) {
+              this.endCall('webrtc_error');
+            }
+          }
+        };
+
+      } catch (error) {
+        console.error(' [REALTIME] Error en conexión WebRTC:', error);
+        throw error;
+      }
     }
 
 
@@ -2924,7 +2982,33 @@
 
       }
 
-      // Cerrar WebSocket si está abierto
+      // Cerrar conexión WebRTC de Realtime si está activa
+      if (this.realtimePC) {
+        try {
+          this.realtimePC.getSenders().forEach(sender => {
+            if (sender.track) sender.track.stop();
+          });
+          this.realtimePC.getReceivers().forEach(receiver => {
+            if (receiver.track) receiver.track.stop();
+          });
+          this.realtimePC.close();
+        } catch (_) {}
+        this.realtimePC = null;
+      }
+
+      // Limpiar audio remoto de Realtime
+      if (this.realtimeAudio) {
+        try {
+          this.realtimeAudio.pause();
+          this.realtimeAudio.srcObject = null;
+          if (this.realtimeAudio.parentNode) {
+            this.realtimeAudio.parentNode.removeChild(this.realtimeAudio);
+          }
+        } catch (_) {}
+        this.realtimeAudio = null;
+      }
+
+      // Cerrar WebSocket si está abierto (fallback)
       if (this.ws) {
         try {
           if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {

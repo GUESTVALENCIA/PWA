@@ -24,6 +24,10 @@
       "destination": "/api/sandra/assistant"
     },
     {
+      "source": "/api/sandra/realtime-token",
+      "destination": "/api/sandra/realtime-token"
+    },
+    {
       "source": "/api/sandra/:path*",
       "destination": "/api/api-gateway?endpoint=sandra/:path*"
     },
