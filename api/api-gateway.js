@@ -1180,10 +1180,45 @@ const handler = async (req, res) => {
             const systemPrompt = `${GLOBAL_CONVERSATION_RULES}\nRole: ${role}`;
 
             let replyText = '';
+            let modelUsed = 'gpt-4o-mini';
             const originalModel = orchestrator.providers.openai.model;
             try {
               orchestrator.providers.openai.model = 'gpt-4o-mini';
               replyText = await orchestrator.callOpenAI(chatBody.message, systemPrompt);
+            } catch (openaiError) {
+              console.warn(' [API Gateway] OpenAI chat falló, usando MCP como fallback:', openaiError.message);
+
+              const mcpServerUrlRaw = (process.env.MCP_SERVER_URL || 'https://pwa-imbf.onrender.com');
+              const mcpServerUrl = String(mcpServerUrlRaw || '').trim().replace(/\/+$/, '');
+              const timezone = chatBody.timezone || 'Europe/Madrid';
+
+              const headers = { 'Content-Type': 'application/json' };
+              if (process.env.MCP_TOKEN) {
+                headers['Authorization'] = `Bearer ${process.env.MCP_TOKEN}`;
+              }
+
+              const mcpRes = await fetch(`${mcpServerUrl}/api/conserje/message`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                  message: chatBody.message,
+                  context: role,
+                  timezone
+                })
+              });
+
+              if (!mcpRes.ok) {
+                const errText = await mcpRes.text();
+                throw new Error(`MCP chat fallback failed: ${mcpRes.status} - ${mcpRes.statusText}. Response: ${errText}`);
+              }
+
+              const mcpData = await mcpRes.json().catch(() => ({}));
+              replyText = String(mcpData?.response || '').trim();
+              modelUsed = String(mcpData?.model || 'mcp');
+
+              if (!replyText) {
+                throw new Error('MCP chat fallback returned empty response');
+              }
             } finally {
               orchestrator.providers.openai.model = originalModel;
             }
@@ -1194,7 +1229,7 @@ const handler = async (req, res) => {
 
               textLength: replyText ? replyText.length : 0,
 
-              model: 'gpt-4o-mini'
+              model: modelUsed
 
             });
 
@@ -1206,7 +1241,7 @@ const handler = async (req, res) => {
 
               reply: replyText,
 
-              model: 'gpt-4o-mini'
+              model: modelUsed
 
             });
 
