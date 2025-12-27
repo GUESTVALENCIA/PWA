@@ -2373,6 +2373,9 @@
         this.audioQueue = [];
         this.currentAudio = null;
         this.activeCall = null;
+        this.realtimeAudioEl = null;
+        this.realtimeDataChannel = null;
+        this.realtimeGreetingSent = false;
         this.mediaRecorder = null;
 	        this.stream = null;
 	        this.recordingSliceMs = 900;
@@ -2483,6 +2486,8 @@
         const sendBtn = document.getElementById('sandra-send-btn');
         const input = document.getElementById('sandra-input');
         const acceptCallBtn = document.getElementById('sandra-accept-call');
+        const sandraHangupBtn = document.getElementById('sandra-hangup-btn');
+        const sandraMuteBtn = document.getElementById('sandra-mute-btn');
         const declineCallBtn = document.getElementById('sandra-decline-call');
         const callPrompt = document.getElementById('sandra-call-prompt');
 
@@ -2537,6 +2542,18 @@
         if (declineCallBtn) {
           declineCallBtn.addEventListener('click', () => {
             if (callPrompt) callPrompt.style.display = 'none';
+          });
+        }
+
+        if (sandraHangupBtn) {
+          sandraHangupBtn.addEventListener('click', () => {
+            this.hangupCall('user');
+          });
+        }
+
+        if (sandraMuteBtn) {
+          sandraMuteBtn.addEventListener('click', () => {
+            this.setMicrophoneMuted(!this.isMicrophoneMuted);
           });
         }
       }
@@ -2655,6 +2672,12 @@
 		          heroMicIcon.classList.toggle('hidden', this.isMicrophoneMuted);
 		          heroMicMutedIcon.classList.toggle('hidden', !this.isMicrophoneMuted);
 		        }
+
+            if (this.stream) {
+              try {
+                this.stream.getAudioTracks().forEach(t => { t.enabled = !this.isMicrophoneMuted; });
+              } catch (_) {}
+            }
 		      }
 
 		      togglePause() {
@@ -2759,6 +2782,18 @@
 		        this.stopAudioCapture();
 		        this.isPaused = false;
 		        this.setMicrophoneMuted(false);
+
+            try { if (this.realtimeDataChannel) this.realtimeDataChannel.close(); } catch (_) {}
+            this.realtimeDataChannel = null;
+            try {
+              if (this.realtimeAudioEl) {
+                this.realtimeAudioEl.pause();
+                this.realtimeAudioEl.srcObject = null;
+                if (this.realtimeAudioEl.parentNode) this.realtimeAudioEl.parentNode.removeChild(this.realtimeAudioEl);
+              }
+            } catch (_) {}
+            this.realtimeAudioEl = null;
+            this.realtimeGreetingSent = false;
 
 		        const pauseIcon = document.getElementById('hero-pause-icon');
 		        const resumeIcon = document.getElementById('hero-resume-icon');
@@ -3005,7 +3040,192 @@
 	        }
 	      }
 
+        async startOpenAIRealtimeCall() {
+          if (this.activeCall) return;
+
+          console.log('[REALTIME] Iniciando llamada WebRTC con OpenAI...');
+
+          const waitForIceGatheringComplete = (pc, timeoutMs = 3000) => {
+            try {
+              if (!pc || pc.iceGatheringState === 'complete') return Promise.resolve();
+            } catch (_) {
+              return Promise.resolve();
+            }
+
+            return new Promise((resolve) => {
+              let settled = false;
+              const done = () => {
+                if (settled) return;
+                settled = true;
+                try { pc.removeEventListener('icegatheringstatechange', onState); } catch (_) {}
+                try { pc.removeEventListener('icecandidate', onCandidate); } catch (_) {}
+                resolve();
+              };
+              const onState = () => {
+                try {
+                  if (pc.iceGatheringState === 'complete') done();
+                } catch (_) {
+                  done();
+                }
+              };
+              const onCandidate = (event) => {
+                if (!event || !event.candidate) done();
+              };
+              try { pc.addEventListener('icegatheringstatechange', onState); } catch (_) {}
+              try { pc.addEventListener('icecandidate', onCandidate); } catch (_) {}
+              setTimeout(done, timeoutMs);
+            });
+          };
+
+          try {
+            const tokenResponse = await fetch('/api/sandra/realtime-token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' }
+            });
+
+            if (!tokenResponse.ok) {
+              const errorText = await tokenResponse.text().catch(() => '');
+              throw new Error(`Token error: ${tokenResponse.status} ${errorText}`);
+            }
+
+            const { token, session_id } = await tokenResponse.json();
+            console.log('[REALTIME] Token obtenido, sesión:', session_id);
+
+            const stream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+                sampleRate: 24000
+              }
+            });
+
+            this.stream = stream;
+            try {
+              stream.getAudioTracks().forEach(t => { t.enabled = !this.isMicrophoneMuted; });
+            } catch (_) {}
+
+            const pc = new RTCPeerConnection({
+              iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+            });
+            this.activeCall = pc;
+
+            const remoteAudio = document.createElement('audio');
+            remoteAudio.autoplay = true;
+            remoteAudio.playsInline = true;
+            remoteAudio.style.display = 'none';
+            document.body.appendChild(remoteAudio);
+            this.realtimeAudioEl = remoteAudio;
+
+            pc.ontrack = (event) => {
+              remoteAudio.srcObject = event.streams[0];
+            };
+
+            pc.oniceconnectionstatechange = () => {
+              console.log('[REALTIME] ICE state:', pc.iceConnectionState);
+              if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+                this.hangupCall('webrtc_error');
+              }
+            };
+
+            pc.onconnectionstatechange = () => {
+              console.log('[REALTIME] Connection state:', pc.connectionState);
+              if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+                this.hangupCall('webrtc_error');
+              }
+            };
+
+            const dc = pc.createDataChannel('oai-events');
+            this.realtimeDataChannel = dc;
+
+            dc.onmessage = (event) => {
+              try {
+                const msg = JSON.parse(event.data);
+                if (msg && msg.type) console.log('[REALTIME]', msg.type, msg);
+              } catch (_) {
+                console.log('[REALTIME] event:', event.data);
+              }
+            };
+
+            dc.onopen = () => {
+              if (this.realtimeGreetingSent) return;
+              this.realtimeGreetingSent = true;
+
+              try {
+                const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                const destination = (document.getElementById('search-destination')?.value || '').trim();
+                const guests = Number(document.getElementById('search-guests')?.value || 0) || 0;
+                const nights = Number(document.getElementById('search-nights')?.value || 0) || 0;
+
+                const ctxParts = [];
+                if (timezone) ctxParts.push(`Zona horaria: ${timezone}.`);
+                if (destination) ctxParts.push(`Destino: ${destination}.`);
+                if (guests) ctxParts.push(`Personas: ${guests}.`);
+                if (nights) ctxParts.push(`Noches: ${nights}.`);
+                const contextText = ctxParts.length ? `Contexto: ${ctxParts.join(' ')}` : '';
+
+                const prompt = `Inicia la llamada con un saludo breve y profesional en español. Preséntate como Sandra y pregunta en qué puedes ayudar. ${contextText}`.trim();
+
+                dc.send(JSON.stringify({
+                  type: 'conversation.item.create',
+                  item: {
+                    type: 'message',
+                    role: 'user',
+                    content: [{ type: 'input_text', text: prompt }]
+                  }
+                }));
+                dc.send(JSON.stringify({ type: 'response.create' }));
+              } catch (err) {
+                console.warn('[REALTIME] No se pudo enviar saludo:', err);
+              }
+            };
+
+            stream.getTracks().forEach(track => {
+              pc.addTrack(track, stream);
+            });
+
+            const offer = await pc.createOffer({
+              offerToReceiveAudio: true,
+              offerToReceiveVideo: false
+            });
+            await pc.setLocalDescription(offer);
+            await waitForIceGatheringComplete(pc);
+
+            const localSdp = (pc.localDescription && pc.localDescription.sdp) ? pc.localDescription.sdp : offer.sdp;
+
+            console.log('[REALTIME] Enviando SDP a OpenAI...');
+            const sdpResponse = await fetch('https://api.openai.com/v1/realtime/calls', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/sdp',
+                'OpenAI-Beta': 'realtime=v1'
+              },
+              body: localSdp
+            });
+
+            if (!sdpResponse.ok) {
+              const errorText = await sdpResponse.text().catch(() => '');
+              throw new Error(`OpenAI Realtime error: ${sdpResponse.status} - ${errorText}`);
+            }
+
+            const answerSdp = await sdpResponse.text();
+            await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+
+            this.stopRingtone && this.stopRingtone();
+            console.log('[REALTIME] Conexión WebRTC establecida');
+          } catch (error) {
+            console.error('[REALTIME] Error iniciando llamada:', error);
+            try {
+              this.addMessage('No pude iniciar la llamada de voz ahora mismo. Inténtalo de nuevo.', 'bot');
+            } catch (_) {}
+            this.hangupCall('webrtc_error');
+            throw error;
+          }
+        }
+
 	      async startRealTimeCall() {
+	        return this.startOpenAIRealtimeCall();
 	        const cfg = await this.getMcpConfig();
 	        const wsUrl = this.buildWebSocketUrl(cfg.MCP_SERVER_URL, cfg.MCP_TOKEN);
 	        const ws = new WebSocket(wsUrl);
