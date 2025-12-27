@@ -155,6 +155,10 @@
       this.selectedProvider = this.safeGetStorage('SANDRA_PROVIDER') || 'gemini'; // 'gpt4', 'gemini', 'groq'
       this.conversationHistory = []; // Historial para llamadas conversacionales
 
+      // Conversation buffer limits - prevenir memory leaks en llamadas largas
+      this.maxConversationMessages = 50; // Mantener últimos 50 mensajes
+      this.maxConversationMemoryMB = 100; // Máximo 100MB de memoria para history
+
 
       this.recordingSliceMs = 5500;
 
@@ -169,6 +173,13 @@
       // OpenAI Realtime (WebRTC)
       this.realtimePC = null;
       this.realtimeAudio = null;
+
+      // Reconnection Management
+      this.reconnectAttempts = 0;
+      this.maxReconnectAttempts = 5;
+      this.reconnectTimer = null;
+      this.baseReconnectDelay = 1000; // 1s initial backoff
+      this.lastReconnectReason = null;
 
       if (this.isEnabled) {
 
@@ -326,7 +337,183 @@
       return null; // Audio pregrabado deshabilitado
     }
 
+    /**
+     * Tracker para monitorear latencia y telemetría de llamadas
+     */
+    initLatencyTracker() {
+      this.latencyMetrics = {
+        startTime: Date.now(),
+        sessionId: this.sessionId,
+        iceGatheringTime: null,
+        offerCreationTime: null,
+        answerReceptionTime: null,
+        connectionEstablishedTime: null,
+        measurements: []
+      };
+    }
 
+    /**
+     * Registra una medida de latencia
+     */
+    recordLatency(eventName, duration) {
+      if (!this.latencyMetrics) return;
+
+      this.latencyMetrics.measurements.push({
+        event: eventName,
+        duration: duration,
+        timestamp: Date.now()
+      });
+
+      // Log console para debug
+      if (duration > 500) {
+        console.warn(` [LATENCY] 🔴 HIGH: ${eventName} took ${duration}ms`);
+      } else if (duration > 200) {
+        console.warn(` [LATENCY] 🟡 MEDIUM: ${eventName} took ${duration}ms`);
+      } else {
+        console.log(` [LATENCY] 🟢 GOOD: ${eventName} took ${duration}ms`);
+      }
+
+      // Enviar a backend cada 10 mediciones
+      if (this.latencyMetrics.measurements.length % 10 === 0) {
+        this.sendLatencyMetricsToBackend();
+      }
+    }
+
+    /**
+     * Envía métricas de latencia al backend para análisis
+     */
+    async sendLatencyMetricsToBackend() {
+      try {
+        if (!this.latencyMetrics || !this.latencyMetrics.measurements.length) return;
+
+        const metricsUrl = this.apiOrigin
+          ? `${this.apiOrigin}/api/sandra/metrics`
+          : `${window.location.origin}/api/sandra/metrics`;
+
+        // Cálculos de estadísticas
+        const durations = this.latencyMetrics.measurements
+          .filter(m => m.event === 'openai_latency')
+          .map(m => m.duration);
+
+        if (!durations.length) return;
+
+        const stats = {
+          count: durations.length,
+          avg: Math.round(durations.reduce((a, b) => a + b) / durations.length),
+          min: Math.min(...durations),
+          max: Math.max(...durations),
+          p95: this.calculatePercentile(durations, 0.95),
+          p99: this.calculatePercentile(durations, 0.99)
+        };
+
+        await fetch(metricsUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'realtime_latency',
+            sessionId: this.latencyMetrics.sessionId,
+            timestamp: new Date().toISOString(),
+            metrics: stats,
+            rawMeasurements: this.latencyMetrics.measurements.slice(-20) // Últimas 20
+          })
+        }).catch(e => console.error(' [LATENCY] Failed to send metrics:', e));
+
+      } catch (error) {
+        console.error(' [LATENCY] Error sending metrics:', error);
+      }
+    }
+
+    /**
+     * Calcula percentil de un array de números
+     */
+    calculatePercentile(arr, percentile) {
+      const sorted = arr.sort((a, b) => a - b);
+      const index = Math.ceil(sorted.length * percentile) - 1;
+      return sorted[Math.max(0, index)];
+    }
+
+    /**
+     * Agrega un mensaje al historial de conversación con límites de memoria
+     */
+    addToConversationHistory(role, content) {
+      this.conversationHistory.push({
+        role: role,
+        content: content,
+        timestamp: Date.now()
+      });
+
+      // FIFO cleanup - si excedemos max mensajes
+      if (this.conversationHistory.length > this.maxConversationMessages) {
+        const removed = this.conversationHistory.shift();
+        console.log(` [HISTORY] Removed oldest message to stay within limit. History now: ${this.conversationHistory.length}/${this.maxConversationMessages}`);
+      }
+
+      // Memory pressure cleanup - si excedemos límite de memoria
+      const memoryUsage = this.getConversationMemoryUsage();
+      if (memoryUsage > this.maxConversationMemoryMB) {
+        console.warn(` [HISTORY] ⚠️ Memory pressure detected (${memoryUsage}MB). Trimming history to last 30 messages.`);
+        this.conversationHistory = this.conversationHistory.slice(-30);
+      }
+    }
+
+    /**
+     * Obtiene el uso de memoria del historial en MB
+     */
+    getConversationMemoryUsage() {
+      const jsonSize = JSON.stringify(this.conversationHistory).length;
+      return jsonSize / 1024 / 1024;
+    }
+
+    /**
+     * Limpia el historial de conversación
+     */
+    clearConversationHistory() {
+      const oldSize = this.conversationHistory.length;
+      this.conversationHistory = [];
+      console.log(` [HISTORY] Cleared ${oldSize} messages from history`);
+    }
+
+    /**
+     * Intenta reconectar con exponential backoff
+     * Reintenta hasta maxReconnectAttempts veces
+     */
+    async attemptReconnect(reason = 'unknown') {
+      if (!this.isCallActive) return;
+
+      this.lastReconnectReason = reason;
+
+      if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+        console.error(' [REALTIME] ❌ Max reconnection attempts reached. Ending call.', reason);
+        this.endCall(`reconnect_failed_${reason}`);
+        return;
+      }
+
+      // Exponential backoff: 1s, 2s, 4s, 8s, 16s
+      const delay = Math.min(
+        this.baseReconnectDelay * Math.pow(2, this.reconnectAttempts),
+        30000 // Max 30s
+      );
+
+      this.reconnectAttempts++;
+
+      console.warn(` [REALTIME] 🔄 Reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}. Retrying in ${delay}ms. Reason: ${reason}`);
+
+      if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+
+      this.reconnectTimer = setTimeout(async () => {
+        try {
+          console.log(` [REALTIME] 🔌 Attempting reconnect...`);
+          await this.startRealtimeCall();
+          console.log(` [REALTIME] ✅ Reconnection successful!`);
+          this.reconnectAttempts = 0; // Reset on success
+        } catch (error) {
+          console.error(` [REALTIME] Reconnection attempt failed:`, error);
+          if (this.isCallActive) {
+            this.attemptReconnect(`error_${error.message}`);
+          }
+        }
+      }, delay);
+    }
 
     /**
      * Cargar configuración remota desde /api/config (misma origin) para fijar MCP_SERVER_URL correcto.
@@ -1665,8 +1852,12 @@
      */
     async startRealtimeCall() {
       try {
+        // Inicializar tracking de latencia
+        this.initLatencyTracker();
+
         // 1. Obtener token efímero del servidor
         console.log(' [REALTIME] Obteniendo token efímero...');
+        const tokenStart = Date.now();
         const tokenResponse = await fetch(this.realtimeTokenApiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
@@ -1677,6 +1868,7 @@
         }
 
         const { token, session_id } = await tokenResponse.json();
+        this.recordLatency('token_acquisition', Date.now() - tokenStart);
         console.log(' [REALTIME] Token obtenido, sesión:', session_id);
 
         // 2. Obtener stream de micrófono
@@ -1690,9 +1882,41 @@
         });
         console.log(' [REALTIME] Micrófono accedido');
 
-        // 3. Crear RTCPeerConnection
+        // 3. Crear RTCPeerConnection con múltiples servidores STUN/TURN para mejorar NAT traversal
+        const iceServers = [
+          // STUN Servers (sin autenticación) - para NAT mapping
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun3.l.google.com:19302' },
+          { urls: 'stun:stun4.l.google.com:19302' },
+          { urls: 'stun:stunserver.org:3478' },
+          { urls: 'stun:stun.stunprotocol.org:3478' }
+        ];
+
+        // TURN Server (si está configurado) - para NAT restrictivo
+        const turnUsername = window.SANDRA_TURN_USERNAME || process.env.REACT_APP_TURN_USERNAME;
+        const turnPassword = window.SANDRA_TURN_PASSWORD || process.env.REACT_APP_TURN_PASSWORD;
+        const turnServer = window.SANDRA_TURN_SERVER || process.env.REACT_APP_TURN_SERVER;
+
+        if (turnServer && turnUsername && turnPassword) {
+          iceServers.push({
+            urls: [
+              `turn:${turnServer}:3478?transport=udp`,
+              `turn:${turnServer}:3478?transport=tcp`,
+              `turns:${turnServer}:5349?transport=tcp`
+            ],
+            username: turnUsername,
+            credential: turnPassword
+          });
+          console.log(' [REALTIME] TURN server configurado');
+        }
+
         const pc = new RTCPeerConnection({
-          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+          iceServers: iceServers,
+          iceCandidatePoolSize: 10,
+          bundlePolicy: 'max-bundle',
+          rtcpMuxPolicy: 'require'
         });
 
         this.realtimePC = pc;
@@ -1753,19 +1977,34 @@
         // 9. Manejar eventos de conexión
         pc.oniceconnectionstatechange = () => {
           console.log(' [REALTIME] ICE state:', pc.iceConnectionState);
-          if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+          if (pc.iceConnectionState === 'failed') {
             if (this.isCallActive) {
-              this.endCall('webrtc_error');
+              console.warn(' [REALTIME] ICE connection failed - attempting reconnect');
+              this.attemptReconnect('ice_failed');
+            }
+          } else if (pc.iceConnectionState === 'disconnected') {
+            if (this.isCallActive && this.reconnectAttempts === 0) {
+              console.warn(' [REALTIME] ICE disconnected - attempting reconnect');
+              this.attemptReconnect('ice_disconnected');
             }
           }
         };
 
         pc.onconnectionstatechange = () => {
           console.log(' [REALTIME] Connection state:', pc.connectionState);
-          if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+          if (pc.connectionState === 'failed') {
             if (this.isCallActive) {
-              this.endCall('webrtc_error');
+              console.warn(' [REALTIME] Peer connection failed - attempting reconnect');
+              this.attemptReconnect('peer_connection_failed');
             }
+          } else if (pc.connectionState === 'disconnected') {
+            if (this.isCallActive && this.reconnectAttempts === 0) {
+              console.warn(' [REALTIME] Peer connection disconnected - attempting reconnect');
+              this.attemptReconnect('peer_connection_disconnected');
+            }
+          } else if (pc.connectionState === 'connected') {
+            // Reset reconnection counter on successful connection
+            this.reconnectAttempts = 0;
           }
         };
 
@@ -2910,6 +3149,16 @@
         this.recordingStopTimeout = null;
 
       }
+
+      if (this.reconnectTimer) {
+
+        clearTimeout(this.reconnectTimer);
+
+        this.reconnectTimer = null;
+
+      }
+
+      this.reconnectAttempts = 0;
 
 
 
