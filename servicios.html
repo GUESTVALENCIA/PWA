@@ -3171,10 +3171,36 @@
             });
           };
 
+          // Detectar idioma del navegador/usuario
+          const detectLanguage = () => {
+            const savedLang = localStorage.getItem('sandra_language');
+            if (savedLang) return savedLang;
+            const browserLang = navigator.language || navigator.userLanguage || 'es';
+            const langCode = browserLang.split('-')[0].toLowerCase();
+            const supportedMap = {
+              'es': 'es', 'en': 'en', 'fr': 'fr', 'nl': 'nl', 'de': 'de',
+              'ca': 'ca', 'gl': 'gl', 'eu': 'eu', 'pt': 'pt'
+            };
+            if (browserLang.toLowerCase().includes('valencia') || browserLang.toLowerCase().includes('val')) {
+              return 'ca';
+            }
+            return supportedMap[langCode] || 'es';
+          };
+          const detectedLanguage = detectLanguage();
+          console.log('[REALTIME] Idioma detectado:', detectedLanguage);
+
+          const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          const location = 'Valencia';
+
           try {
             const tokenResponse = await fetch('/api/sandra/realtime-token', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' }
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                language: detectedLanguage,
+                timezone: timezone,
+                location: location
+              })
             });
 
             if (!tokenResponse.ok) {
@@ -3182,8 +3208,12 @@
               throw new Error(`Token error: ${tokenResponse.status} ${errorText}`);
             }
 
-            const { token, session_id } = await tokenResponse.json();
+            const { token, session_id, context } = await tokenResponse.json();
             console.log('[REALTIME] Token obtenido, sesión:', session_id);
+            if (context && context.scene) {
+              this.realtimeSceneContext = context;
+              console.log('[REALTIME] Contexto de escena:', context.scene.id);
+            }
 
             const stream = await navigator.mediaDevices.getUserMedia({
               audio: {
