@@ -1300,10 +1300,21 @@
                 const content = Array.isArray(item.content) ? item.content : [];
                 for (const part of content) {
                   const type = String(part && part.type ? part.type : '');
+
+                  // IMPORTANTE: El texto está en transcript cuando type === 'audio'
+                  if (type === 'audio' && part.transcript) {
+                    const t = String(part.transcript).trim();
+                    if (t) {
+                      console.log('[REALTIME] Texto encontrado (audio transcript):', t);
+                      parts.push(t);
+                    }
+                  }
+
+                  // También busca en type === 'text'
                   if (type === 'output_text' || type === 'text') {
                     const t = String(part.text || part.transcript || '').trim();
                     if (t) {
-                      console.log('[REALTIME] Texto encontrado (content array):', t);
+                      console.log('[REALTIME] Texto encontrado (text/output_text):', t);
                       parts.push(t);
                     }
                   }
