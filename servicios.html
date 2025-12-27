@@ -2459,8 +2459,10 @@
               <div class="p-3 bg-white border-t border-slate-100">
                 <!-- Call Controls (Hidden by default) -->
                 <div id="sandra-call-controls" class="hidden mb-2 flex justify-center items-center gap-2 bg-slate-50 rounded-full px-3 py-2 shadow-sm border border-slate-200">
+                  <span id="sandra-call-status" class="text-[10px] text-slate-600 font-medium">Llamando...</span>
                   <button id="sandra-hangup-btn" class="p-2 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors shadow-sm"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12a9 9 0 1018 0 9 9 0 00-18 0z" /></svg></button>
                   <button id="sandra-mute-btn" class="p-2 rounded-full bg-slate-400 text-white hover:bg-slate-500 transition-colors shadow-sm"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg></button>
+                  <button id="sandra-audio-unlock-btn" type="button" class="hidden px-2 py-1 text-[10px] bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors shadow-sm">Activar audio</button>
                 </div>
                 <!-- Input Area -->
                 <div class="relative flex items-center gap-1.5">
@@ -2536,6 +2538,11 @@
             if (callPrompt) callPrompt.style.display = 'none';
             const callControls = document.getElementById('sandra-call-controls');
             if (callControls) callControls.classList.remove('hidden');
+
+            const callStatus = document.getElementById('sandra-call-status');
+            if (callStatus) callStatus.textContent = 'Llamando...';
+            const unlockBtn = document.getElementById('sandra-audio-unlock-btn');
+            if (unlockBtn) unlockBtn.classList.add('hidden');
 
             if (input) input.disabled = true;
             if (sendBtn) sendBtn.disabled = true;
@@ -2819,6 +2826,11 @@
             const callPrompt = document.getElementById('sandra-call-prompt');
             if (callPrompt) callPrompt.style.display = '';
 
+            const callStatus = document.getElementById('sandra-call-status');
+            if (callStatus) callStatus.textContent = 'Llamando...';
+            const unlockBtn = document.getElementById('sandra-audio-unlock-btn');
+            if (unlockBtn) unlockBtn.classList.add('hidden');
+
             const inputEl = document.getElementById('sandra-input');
             if (inputEl) inputEl.disabled = false;
             const sendEl = document.getElementById('sandra-send-btn');
@@ -3063,6 +3075,11 @@
 
           console.log('[REALTIME] Iniciando llamada WebRTC con OpenAI...');
 
+          const callStatus = document.getElementById('sandra-call-status');
+          if (callStatus) callStatus.textContent = 'Conectando...';
+          const unlockBtn = document.getElementById('sandra-audio-unlock-btn');
+          if (unlockBtn) unlockBtn.classList.add('hidden');
+
           const waitForIceGatheringComplete = (pc, timeoutMs = 3000) => {
             try {
               if (!pc || pc.iceGatheringState === 'complete') return Promise.resolve();
@@ -3141,11 +3158,24 @@
             remoteAudio.style.height = '1px';
             remoteAudio.style.opacity = '0';
             remoteAudio.style.pointerEvents = 'none';
-            remoteAudio.onplaying = () => console.log('[REALTIME] Audio reproduci?ndose');
+            remoteAudio.onplaying = () => {
+              console.log('[REALTIME] Audio reproduciéndose');
+              if (callStatus) callStatus.textContent = 'En llamada';
+              if (unlockBtn) unlockBtn.classList.add('hidden');
+            };
             remoteAudio.onpause = () => console.log('[REALTIME] Audio pausado');
             remoteAudio.onerror = (e) => console.warn('[REALTIME] Audio error', e);
             document.body.appendChild(remoteAudio);
             this.realtimeAudioEl = remoteAudio;
+
+            if (unlockBtn) {
+              unlockBtn.onclick = () => {
+                const playPromise = remoteAudio.play();
+                if (playPromise && typeof playPromise.catch === 'function') {
+                  playPromise.catch((err) => console.warn('[REALTIME] No se pudo reproducir audio', err));
+                }
+              };
+            }
 
             pc.ontrack = (event) => {
               console.log('[REALTIME] Audio remoto recibido');
@@ -3156,6 +3186,8 @@
               if (playPromise && typeof playPromise.catch === 'function') {
                 playPromise.catch((err) => {
                   console.warn('[REALTIME] Audio autoplay bloqueado', err);
+                  if (unlockBtn) unlockBtn.classList.remove('hidden');
+                  if (callStatus) callStatus.textContent = 'Pulsa Activar audio';
                 });
               }
             };
@@ -3256,6 +3288,7 @@
 
             this.stopRingtone && this.stopRingtone();
             console.log('[REALTIME] Conexión WebRTC establecida');
+            if (callStatus) callStatus.textContent = 'Conectada';
           } catch (error) {
             console.error('[REALTIME] Error iniciando llamada:', error);
             try {
