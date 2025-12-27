@@ -104,7 +104,7 @@ module.exports = async function handler(req, res) {
     // CONFIGURACIÓN MÍNIMA - Solo parámetros esenciales
     // Simplificado al máximo para evitar errores de validación
     const sessionBody = {
-      model: 'gpt-4o-realtime-preview-2024-12-17',
+      model: 'gpt-4o-realtime-preview-2024-10-01',
       voice: 'alloy',
       instructions: systemInstructions || 'Eres Sandra, asistente de GuestsValencia. Responde brevemente en español.'
     };
