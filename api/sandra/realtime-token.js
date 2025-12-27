@@ -97,8 +97,53 @@ module.exports = async function handler(req, res) {
       contextData
     );
 
-    // Crear sesión de Realtime con configuración de Sandra
+    // CONFIGURACIÓN ABSOLUTAMENTE MÍNIMA - Solo lo esencial
     // OpenAI Realtime API: crear sesión y obtener token efímero
+    // NO incluir NINGÚN parámetro que no esté 100% documentado
+    
+    const sessionBody = {
+      model: 'gpt-4o-realtime-preview-2024-12-17',
+      voice: 'alloy',
+      instructions: systemInstructions,
+      modalities: ['audio', 'text']
+    };
+
+    // Agregar turn_detection solo si es necesario
+    sessionBody.turn_detection = {
+      type: 'server_vad',
+      threshold: 0.5,
+      prefix_padding_ms: 300,
+      silence_duration_ms: 500
+    };
+
+    // Agregar herramientas SOLO si se cargan correctamente y NO causan errores
+    try {
+      const tools = await getToolDefinitions();
+      if (tools && Array.isArray(tools) && tools.length > 0) {
+        // Validar que cada herramienta tenga la estructura correcta
+        const validTools = tools.filter(tool => 
+          tool && 
+          typeof tool === 'object' && 
+          tool.type === 'function' &&
+          typeof tool.name === 'string' &&
+          typeof tool.description === 'string' &&
+          tool.parameters &&
+          typeof tool.parameters === 'object'
+        );
+        if (validTools.length > 0) {
+          sessionBody.tools = validTools;
+          sessionBody.tool_choice = 'auto';
+        }
+      }
+    } catch (toolError) {
+      console.warn('[Realtime] No se pudieron cargar herramientas, continuando sin ellas:', toolError.message);
+    }
+
+    // NO agregar temperature, max_response_output_tokens ni otros parámetros opcionales
+    // que puedan causar errores. La API usará valores por defecto.
+
+    console.log('[Realtime] Creando sesión con body (MÍNIMO):', JSON.stringify(sessionBody, null, 2));
+
     const sessionResponse = await fetch('https://api.openai.com/v1/realtime/sessions', {
       method: 'POST',
       headers: {
@@ -106,25 +151,7 @@ module.exports = async function handler(req, res) {
         'Content-Type': 'application/json',
         'OpenAI-Beta': 'realtime=v1'
       },
-      body: JSON.stringify({
-        model: 'gpt-4o-realtime-preview-2024-12-17',
-        voice: sceneState?.voice === 'festive' ? 'nova' : (sceneState?.voice === 'energetic' ? 'shimmer' : 'alloy'), // Voz según contexto
-        instructions: systemInstructions,
-        temperature: sceneState?.priority === 'event' ? 0.9 : 0.8, // Más creatividad en eventos
-        max_response_output_tokens: 4096,
-        modalities: ['audio', 'text'], // Audio primero para priorizar
-        // Nota: Con WebRTC, la transcripción se maneja automáticamente
-        // No se necesita el objeto 'audio' explícito - OpenAI lo maneja internamente
-        // El idioma se detecta automáticamente desde el audio del usuario
-        turn_detection: {
-          type: 'server_vad',
-          threshold: 0.5,
-          prefix_padding_ms: 300,
-          silence_duration_ms: 500
-        },
-        tools: await getToolDefinitions(), // Todas las herramientas del sistema
-        tool_choice: 'auto'
-      })
+      body: JSON.stringify(sessionBody)
     });
 
     if (!sessionResponse.ok) {
