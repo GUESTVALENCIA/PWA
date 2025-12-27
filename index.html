@@ -1584,13 +1584,13 @@
                 const prompt = `Inicia la llamada con un saludo breve y profesional en español. Preséntate como Sandra y pregunta en qué puedes ayudar. ${contextText}`.trim();
 
                 // Configurar sesión para asegurar audio
+                // Nota: input_audio_transcription se configura en la creación de la sesión, no aquí
                 try {
                   dc.send(JSON.stringify({
                     type: 'session.update',
                     session: { 
                       voice: 'alloy', 
-                      modalities: ['audio', 'text'],
-                      input_audio_transcription: { model: 'whisper-1' }
+                      modalities: ['audio', 'text']
                     }
                   }));
                   console.log('[REALTIME] Sesión actualizada para audio');
