@@ -3243,28 +3243,81 @@
 
             pc.ontrack = (event) => {
               console.log('[REALTIME] Audio remoto recibido');
-              try { if (event.track) event.track.enabled = true; } catch (_) {}
-              try {
+              try { 
                 if (event.track) {
-                  event.track.onmute = () => console.log('[REALTIME] Track remoto muteado');
-                  event.track.onunmute = () => console.log('[REALTIME] Track remoto activo');
-                  event.track.onended = () => console.log('[REALTIME] Track remoto finalizado');
+                  event.track.enabled = true;
+                  console.log('[REALTIME] Track remoto habilitado, kind:', event.track.kind, 'id:', event.track.id);
                 }
               } catch (_) {}
+              
+              try {
+                if (event.track) {
+                  event.track.onmute = () => {
+                    console.log('[REALTIME] Track remoto muteado');
+                    this.realtimeHasAudio = false;
+                  };
+                  event.track.onunmute = () => {
+                    console.log('[REALTIME] Track remoto activo');
+                    this.realtimeHasAudio = true;
+                    if (callStatus) callStatus.textContent = 'En llamada';
+                  };
+                  event.track.onended = () => {
+                    console.log('[REALTIME] Track remoto finalizado');
+                    this.realtimeHasAudio = false;
+                  };
+                  
+                  // Escuchar cambios en el estado del track
+                  if (event.track.readyState === 'live') {
+                    console.log('[REALTIME] Track remoto está en vivo');
+                    this.realtimeHasAudio = true;
+                    if (callStatus) callStatus.textContent = 'En llamada';
+                  }
+                }
+              } catch (_) {}
+              
               const remoteStream = (event.streams && event.streams[0]) ? event.streams[0] : new MediaStream([event.track]);
+              
+              // Asegurar que el stream tenga audio tracks
+              const audioTracks = remoteStream.getAudioTracks();
+              if (audioTracks.length === 0) {
+                console.warn('[REALTIME] Stream remoto no tiene tracks de audio');
+                return;
+              }
+              
+              console.log('[REALTIME] Configurando audio remoto, tracks:', audioTracks.length);
               remoteAudio.srcObject = remoteStream;
+              
+              // Forzar reproducción inmediata
               const playPromise = remoteAudio.play();
               if (playPromise && typeof playPromise.catch === 'function') {
-                playPromise.catch((err) => {
+                playPromise.then(() => {
+                  console.log('[REALTIME] Audio remoto reproduciéndose');
+                  this.realtimeHasAudio = true;
+                  if (callStatus) callStatus.textContent = 'En llamada';
+                  if (unlockBtn) unlockBtn.classList.add('hidden');
+                  if (this.realtimeGreetingFallbackTimer) {
+                    clearTimeout(this.realtimeGreetingFallbackTimer);
+                    this.realtimeGreetingFallbackTimer = null;
+                  }
+                }).catch((err) => {
                   console.warn('[REALTIME] Audio autoplay bloqueado', err);
                   if (unlockBtn) unlockBtn.classList.remove('hidden');
                   if (callStatus) callStatus.textContent = 'Pulsa Activar audio';
                 });
               }
 
+              // Análisis de audio para detectar si hay señal real
               try {
                 if (!audioCtx || !audioCtx.createMediaStreamSource) return;
-                try { if (audioCtx.state === 'suspended') audioCtx.resume(); } catch (_) {}
+                try { 
+                  if (audioCtx.state === 'suspended') {
+                    audioCtx.resume().then(() => {
+                      console.log('[REALTIME] AudioContext resumido');
+                    }).catch(err => {
+                      console.warn('[REALTIME] Error resumiendo AudioContext:', err);
+                    });
+                  }
+                } catch (_) {}
 
                 try {
                   if (this.realtimeAudioNodes) {
@@ -3278,9 +3331,11 @@
                 const source = audioCtx.createMediaStreamSource(remoteStream);
                 const analyser = audioCtx.createAnalyser();
                 analyser.fftSize = 2048;
+                analyser.smoothingTimeConstant = 0.8;
                 source.connect(analyser);
 
                 const data = new Uint8Array(analyser.fftSize);
+                let audioDetectedCount = 0;
                 const tick = () => {
                   if (!this.realtimeAudioNodes || this.realtimeAudioNodes.analyser !== analyser) return;
                   try {
@@ -3291,8 +3346,12 @@
                       sum += v * v;
                     }
                     const rms = Math.sqrt(sum / data.length);
-                    if (rms > 0.004) {
-                      if (!this.realtimeHasAudio) {
+                    
+                    // Detectar audio real (umbral más bajo para detectar mejor)
+                    if (rms > 0.002) {
+                      audioDetectedCount++;
+                      if (audioDetectedCount > 5 && !this.realtimeHasAudio) {
+                        console.log('[REALTIME] Audio real detectado (RMS:', rms.toFixed(4), ')');
                         this.realtimeHasAudio = true;
                         try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (_) {}
                         if (this.realtimeGreetingFallbackTimer) {
@@ -3300,7 +3359,10 @@
                           this.realtimeGreetingFallbackTimer = null;
                         }
                         if (callStatus) callStatus.textContent = 'En llamada';
+                        if (unlockBtn) unlockBtn.classList.add('hidden');
                       }
+                    } else {
+                      audioDetectedCount = Math.max(0, audioDetectedCount - 1);
                     }
                   } catch (_) {}
                   this.realtimeAudioNodes.rafId = requestAnimationFrame(tick);
@@ -3335,6 +3397,20 @@
                 const msg = JSON.parse(event.data);
                 if (msg && msg.type) console.log('[REALTIME]', msg.type, msg);
 
+                // Detectar cuando OpenAI está generando audio
+                if (msg && (msg.type === 'response.audio_transcript.delta' || 
+                            msg.type === 'response.audio_transcript.done' ||
+                            msg.type === 'response.output_item.added' ||
+                            (msg.type === 'response.output_item.done' && msg.output_item && msg.output_item.type === 'audio'))) {
+                  console.log('[REALTIME] Audio siendo generado por OpenAI');
+                  this.realtimeHasAudio = true;
+                  if (this.realtimeGreetingFallbackTimer) {
+                    clearTimeout(this.realtimeGreetingFallbackTimer);
+                    this.realtimeGreetingFallbackTimer = null;
+                  }
+                  if (callStatus) callStatus.textContent = 'En llamada';
+                }
+
                 if (msg && msg.type === 'response.done') {
                   const respId = (msg.response && msg.response.id) ? msg.response.id : (msg.response_id || '');
                   if (respId && this.realtimeLastResponseId === respId) return;
@@ -3344,7 +3420,14 @@
                   if (text) {
                     console.log('[REALTIME] Assistant:', text);
                     try { this.addMessage(text, 'bot'); } catch (_) {}
-                    void playFallback(text);
+                    
+                    // Solo usar fallback TTS si no hemos detectado audio real en los últimos 2 segundos
+                    setTimeout(() => {
+                      if (!this.realtimeHasAudio) {
+                        console.log('[REALTIME] Usando fallback TTS porque no se detectó audio real');
+                        void playFallback(text);
+                      }
+                    }, 2000);
                   }
                 }
               } catch (_) {
@@ -3371,13 +3454,22 @@
 
                 const prompt = `Inicia la llamada con un saludo breve y profesional en español. Preséntate como Sandra y pregunta en qué puedes ayudar. ${contextText}`.trim();
 
+                // Configurar sesión para asegurar audio
                 try {
                   dc.send(JSON.stringify({
                     type: 'session.update',
-                    session: { voice: 'alloy', modalities: ['audio', 'text'] }
+                    session: { 
+                      voice: 'alloy', 
+                      modalities: ['audio', 'text'],
+                      input_audio_transcription: { model: 'whisper-1' }
+                    }
                   }));
-                } catch (_) {}
+                  console.log('[REALTIME] Sesión actualizada para audio');
+                } catch (err) {
+                  console.warn('[REALTIME] Error actualizando sesión:', err);
+                }
 
+                // Crear mensaje de usuario
                 dc.send(JSON.stringify({
                   type: 'conversation.item.create',
                   item: {
@@ -3386,11 +3478,18 @@
                     content: [{ type: 'input_text', text: prompt }]
                   }
                 }));
+                console.log('[REALTIME] Mensaje de usuario enviado');
 
+                // Crear respuesta con audio explícito
                 dc.send(JSON.stringify({
                   type: 'response.create',
-                  response: { modalities: ['audio', 'text'], voice: 'alloy' }
+                  response: { 
+                    modalities: ['audio', 'text'], 
+                    voice: 'alloy',
+                    instructions: 'Responde siempre con audio. Habla de forma natural y clara.'
+                  }
                 }));
+                console.log('[REALTIME] Respuesta con audio solicitada');
 
                 if (this.realtimeGreetingFallbackTimer) {
                   clearTimeout(this.realtimeGreetingFallbackTimer);
