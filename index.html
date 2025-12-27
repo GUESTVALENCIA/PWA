@@ -1666,9 +1666,10 @@
                   if (respId && this.realtimeLastResponseId === respId) return;
                   if (respId) this.realtimeLastResponseId = respId;
 
-                  console.log('[REALTIME] response.done recibido, estructura completa:');
-                  console.log('[REALTIME] msg.response:', msg.response);
-                  console.log('[REALTIME] msg.response.output:', msg.response?.output);
+                  console.log('[REALTIME] response.done recibido:');
+                  console.log('[REALTIME] status:', msg.response?.status);
+                  console.log('[REALTIME] status_details:', msg.response?.status_details);
+                  console.log('[REALTIME] output:', msg.response?.output);
 
                   const text = extractAssistantTextFromDone(msg);
                   console.log('[REALTIME] Texto extraído:', text ? `"${text}"` : '(vacío)');
