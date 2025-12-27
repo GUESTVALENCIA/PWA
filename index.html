@@ -1258,15 +1258,11 @@
           const playFallback = async (text) => {
             if (!text) return;
             try {
-              // MUTE OpenAI audio while playing native voice
-              if (this.realtimeAudioEl) {
-                console.log('[REALTIME] Muteando audio de OpenAI...');
-                this.realtimeAudioEl.muted = true;
-              }
+              // OpenAI Realtime configurado con modalities: ["text"] SOLO
+              // No genera audio, por lo que solo reproducimos voz nativa de Sandra
 
-              // Use Voice Library Manager for intelligent voice selection
               if (window.voiceLibraryManager && window.voiceLibraryManager.initialized) {
-                console.log('[REALTIME] Using Voice Library Manager for native audio playback...');
+                console.log('[REALTIME] Reproduciendo voz nativa de Sandra...');
 
                 // Detect response type from text content
                 let responseType = 'general';
@@ -1277,7 +1273,7 @@
 
                 const result = await window.voiceLibraryManager.playVoice(responseType, text);
                 if (result) {
-                  console.log('[REALTIME] ✅ Audio nativo reproduciéndose via Voice Library');
+                  console.log('[REALTIME] ✅ Voz nativa de Sandra reproduciéndose correctamente');
                   if (callStatus) callStatus.textContent = 'En llamada';
                 } else {
                   console.warn('[REALTIME] Voice Library playback failed, using fallback');
@@ -1288,18 +1284,8 @@
                 await playFallbackAudio();
               }
 
-              // UNMUTE OpenAI audio when done
-              setTimeout(() => {
-                if (this.realtimeAudioEl) {
-                  console.log('[REALTIME] Desmutando audio de OpenAI...');
-                  this.realtimeAudioEl.muted = false;
-                }
-              }, 500);
-
             } catch (err) {
               console.warn('[REALTIME] Error in playFallback:', err);
-              // Ensure OpenAI audio is unmuted on error
-              if (this.realtimeAudioEl) this.realtimeAudioEl.muted = false;
               await playFallbackAudio();
             }
           };

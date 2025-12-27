@@ -106,7 +106,10 @@ module.exports = async function handler(req, res) {
     const sessionBody = {
       model: 'gpt-4o-realtime-preview-2024-12-17',
       voice: 'alloy',
-      instructions: systemInstructions || 'Eres Sandra, asistente de GuestsValencia. Responde brevemente en español.'
+      instructions: systemInstructions || 'Eres Sandra, asistente de GuestsValencia. Responde brevemente en español.',
+      // IMPORTANTE: Solo generar TEXTO, no audio de OpenAI
+      // Esto evita que OpenAI genere audio - usaremos la voz nativa de Sandra
+      modalities: ['text']
     };
 
     // TEMPORALMENTE DESHABILITADO PARA DEBUGGING
