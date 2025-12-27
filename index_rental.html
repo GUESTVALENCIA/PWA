@@ -125,7 +125,6 @@
 
   <main class="flex-1">
     <!-- Fallback para el widget de Sandra: se reemplaza dinámicamente al inicializar -->
-    <div id="sandra-widget-root" class="hidden" aria-live="polite"></div>
 
     <!-- HOME -->
     <section id="home-page" class="page active">
@@ -624,6 +623,7 @@
 
         // Toggle Chat
         const toggleChat = () => {
+          if ((this.activeCall || this.chatLocked) && this.isOpen) return;
           this.isOpen = !this.isOpen;
           if (this.isOpen) {
             chatWindow.classList.remove('hidden');
@@ -663,12 +663,15 @@
         // Call Buttons Logic
         if (acceptCallBtn) {
           acceptCallBtn.addEventListener('click', () => {
-            this.startConversationalCall();
+            this.startConversationalCall('widget');
             if (callPrompt) callPrompt.style.display = 'none';
             const callControls = document.getElementById('sandra-call-controls');
             if (callControls) callControls.classList.remove('hidden');
-            // Hide chat window when starting call
-            toggleChat();
+
+            if (input) input.disabled = true;
+            if (sendBtn) sendBtn.disabled = true;
+            const micButton = document.getElementById('sandra-mic-btn');
+            if (micButton) micButton.disabled = true;
           });
         }
 
@@ -888,6 +891,19 @@
 		        this.activeCall = null;
 		        this.setHeroCallActive(false);
 		        if (this.cameraStream) this.toggleCamera();
+
+            const callControls = document.getElementById('sandra-call-controls');
+            if (callControls) callControls.classList.add('hidden');
+
+            const callPrompt = document.getElementById('sandra-call-prompt');
+            if (callPrompt) callPrompt.style.display = '';
+
+            const inputEl = document.getElementById('sandra-input');
+            if (inputEl) inputEl.disabled = false;
+            const sendEl = document.getElementById('sandra-send-btn');
+            if (sendEl) sendEl.disabled = false;
+            const micButton = document.getElementById('sandra-mic-btn');
+            if (micButton) micButton.disabled = false;
 		      }
 
 		      ensureAudioContext() {
@@ -912,11 +928,11 @@
 		        }
 		      }
 
-		      startConversationalCall() {
+		      startConversationalCall(source = 'hero') {
 		        console.log('Iniciando llamada conversacional...');
 		        if (this.chatLocked || this.activeCall || this.ringTimeout) return;
 		        this.chatLocked = true;
-		        this.setHeroCallActive(true);
+		        if (source === 'hero') this.setHeroCallActive(true);
 		        this.playRingtone();
 		      }
 
