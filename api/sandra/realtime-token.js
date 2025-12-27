@@ -102,11 +102,11 @@ module.exports = async function handler(req, res) {
     // NO incluir NINGÚN parámetro que no esté 100% documentado
     
     // CONFIGURACIÓN REALTIME TEXT-ONLY CORRECTA
-    // Usando gpt-realtime-mini (7x más económico)
+    // Usando gpt-realtime (nuevo modelo, 20% más barato que gpt-4o-realtime)
     // output_modalities: ['text'] para evitar generación de audio
     // SIN campos input_audio_format ni output_audio_format
     const sessionBody = {
-      model: 'gpt-realtime-mini',
+      model: 'gpt-realtime',
       instructions: systemInstructions || 'Eres Sandra, asistente de GuestsValencia. Responde brevemente en español.',
       output_modalities: ['text']  // ← PARÁMETRO CORRECTO para text-only
       // ← NO incluimos input_audio_format ni output_audio_format
