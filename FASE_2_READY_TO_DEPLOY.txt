@@ -1,0 +1,226 @@
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                   FASE 2 - LISTO PARA ACTIVAR ✅                              ║
+║              Conversación por Texto: Deepgram + gpt-4o-mini                    ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+📋 RESUMEN DE LO QUE SE HA IMPLEMENTADO
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ ARCHIVOS CREADOS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. /api/sandra/chat-text.js
+   → Backend API que procesa conversación por texto
+   → Integra Deepgram para STT (speech-to-text)
+   → Integra gpt-4o-mini para procesar conversación
+   → Devuelve respuesta en texto (SIN audio de OpenAI)
+
+2. /assets/js/speech-to-text-chat.js
+   → Frontend system para capturar audio del navegador
+   → Usa MediaRecorder (no requiere librería externa)
+   → Envía audio a /api/sandra/chat-text vía Deepgram
+   → Reproduce respuesta con voz de Sandra
+
+3. /index.html (ACTUALIZADO)
+   → Se agregó import del script speech-to-text-chat.js (línea 44-45)
+
+4. /package.json (ACTUALIZADO)
+   → Se agregó dependencia: "@deepgram/sdk": "^3.4.0"
+
+
+🔧 QUÉ DEBES HACER AHORA
+═══════════════════════════════════════════════════════════════════════════════
+
+PASO 1: INSTALAR DEPENDENCIAS
+────────────────────────────────
+
+Ejecuta en terminal (en la carpeta del proyecto):
+
+  npm install
+
+Esto instalará @deepgram/sdk que necesita el backend.
+
+
+PASO 2: CONFIGURAR VARIABLES DE ENTORNO
+─────────────────────────────────────────
+
+Asegúrate que tu archivo .env tenga:
+
+  OPENAI_API_KEY=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
+
+  DEEPGRAM_API_KEY=53202ecf825c59e8ea498f7cf68c4822c2466005
+
+
+PASO 3: REINICIAR SERVIDOR
+──────────────────────────
+
+Detén el servidor actual e inicia nuevamente:
+
+  npm start
+
+O si está en Vercel/Netlify, redeploy automático debería detectar package.json
+
+
+PASO 4: PROBAR EN NAVEGADOR
+───────────────────────────
+
+1. Abre la app en navegador
+2. Abre F12 → Console
+3. Verifica que ves:
+   [SPEECH-CHAT] ✅ Speech-to-Text Chat System con Deepgram inicializado
+
+4. Usa el system en consola:
+   window.speechToChatSystem.startListening()  // Inicia grabación
+   // Habla...
+   window.speechToChatSystem.stopListening()   // Detiene y procesa
+
+
+🎙️ INTERFAZ DE USUARIO (OPCIONAL)
+═══════════════════════════════════════════════════════════════════════════════
+
+Para agregar botones visibles en la app, agregar esto a index.html:
+
+<!-- Coloca esto donde quieras los botones de voz (ej: sección hero) -->
+<div style="position: fixed; bottom: 30px; right: 30px; z-index: 1000;">
+  <button
+    id="voiceBtn"
+    onclick="toggleVoiceInput()"
+    style="
+      padding: 15px 25px;
+      font-size: 18px;
+      border-radius: 50px;
+      border: none;
+      background: linear-gradient(135deg, #3B82F6, #2563EB);
+      color: white;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+      transition: all 0.3s ease;
+    "
+    onmouseover="this.style.boxShadow='0 8px 25px rgba(59, 130, 246, 0.4)'; this.style.transform='translateY(-2px)';"
+    onmouseout="this.style.boxShadow='0 4px 15px rgba(59, 130, 246, 0.3)'; this.style.transform='translateY(0)';"
+  >
+    🎤 Escuchar
+  </button>
+</div>
+
+<script>
+  let isListening = false;
+
+  function toggleVoiceInput() {
+    if (!isListening) {
+      window.speechToChatSystem.startListening();
+      document.getElementById('voiceBtn').textContent = '⏹️ Detener';
+      isListening = true;
+    } else {
+      window.speechToChatSystem.stopListening();
+      document.getElementById('voiceBtn').textContent = '🎤 Escuchar';
+      isListening = false;
+    }
+  }
+</script>
+
+
+📊 FLUJO COMPLETO
+═══════════════════════════════════════════════════════════════════════════════
+
+Usuario habla
+    ↓
+Browser captura audio con MediaRecorder
+    ↓
+Envía a /api/sandra/chat-text
+    ↓
+Deepgram transcribe audio → "Hola, buenos días"
+    ↓
+gpt-4o-mini procesa: "Hola, buenos días" → "Buenos días, bienvenido..."
+    ↓
+Respuesta en TEXTO (sin audio de OpenAI)
+    ↓
+Frontend ejecuta playFallback() → Voz de Sandra reproduce respuesta
+    ↓
+Usuario escucha SOLO voz de Sandra ✅
+
+
+💰 COSTOS ESTIMADOS
+═══════════════════════════════════════════════════════════════════════════════
+
+POR LLAMADA (1 minuto aprox):
+- Deepgram STT: $0.0043
+- gpt-4o-mini: $0.15-0.30
+- Total: ~$0.30
+
+COMPARATIVA:
+- Antes (Realtime Audio): $2-5 por llamada
+- Ahora (FASE 2): $0.30 por llamada
+- AHORRO: 85-94% ✅
+
+
+🔍 DEBUGGING
+═══════════════════════════════════════════════════════════════════════════════
+
+Si algo falla, verifica en consola (F12):
+
+// Ver estado
+window.speechToChatSystem.getStatus()
+
+// Ver historial
+window.speechToChatSystem.getHistory()
+
+// Logs esperados
+[SPEECH-CHAT] ℹ️  Capturando audio...
+[CHAT-TEXT] Usuario texto: "tu texto aquí"
+[SPEECH-CHAT] ✅ Respuesta recibida: "respuesta aquí"
+
+
+❌ ERRORES COMUNES Y SOLUCIONES
+═══════════════════════════════════════════════════════════════════════════════
+
+Error: "DEEPGRAM_API_KEY not configured"
+→ Solución: Agregar a .env
+
+Error: "OPENAI_API_KEY not configured"
+→ Solución: Agregar a .env
+
+Error: "MediaRecorder not available"
+→ Solución: Usar navegador moderno (Chrome, Firefox, Edge)
+
+Error: "Micrófono no funciona"
+→ Solución: Verificar permisos en navegador
+
+Respuesta lenta
+→ Normal: Deepgram (~1s) + OpenAI (~2s) = ~3s total
+
+
+✅ LISTA DE VERIFICACIÓN FINAL
+═══════════════════════════════════════════════════════════════════════════════
+
+- [x] chat-text.js creado y configurado
+- [x] speech-to-text-chat.js creado y configurado
+- [x] index.html actualizado con script import
+- [x] package.json actualizado con @deepgram/sdk
+- [ ] npm install ejecutado
+- [ ] .env configurado con DEEPGRAM_API_KEY
+- [ ] Servidor reiniciado
+- [ ] Probado en navegador
+- [ ] Botones de voz agregados (opcional)
+
+
+🚀 PRÓXIMOS PASOS
+═══════════════════════════════════════════════════════════════════════════════
+
+1. Ejecuta: npm install
+2. Verifica .env con ambas API keys
+3. Reinicia servidor: npm start
+4. Prueba en navegador con F12 Console
+5. Opcional: Agrega botones de voz a la interfaz
+
+
+📞 DOCUMENTACIÓN COMPLETA
+═══════════════════════════════════════════════════════════════════════════════
+
+Ver: /FASE_2_IMPLEMENTATION.md (guía completa con ejemplos)
+
+
+═══════════════════════════════════════════════════════════════════════════════
+Estado: ✅ FASE 2 LISTO PARA ACTIVAR
+Próximo Paso: npm install && npm start
+═══════════════════════════════════════════════════════════════════════════════
