@@ -108,19 +108,23 @@ class GeminiService {
 
       const response = await this.callGemini(message, fullContext);
 
-      // Return simple string if caller expects it, or object if needed.
-
-      // Existing Qwen service seemed to return object with .text sometimes or direct string?
-
-      // Checking audio.js: it expects `aiResponse` to be text string from `services.qwen.processMessage`.
-
-      return response.text;
+      // Devolver objeto consistente { text, model, usage } (compat con rutas /api/conserje/*)
+      return {
+        text: response.text,
+        model: response.model || this.model,
+        usage: response.usage || response.usageMetadata || null
+      };
 
     } catch (error) {
 
       console.error('Gemini Error:', error);
 
-      return "Lo siento, tuve un problema conectando con mi cerebro central. ¿Podrías repetirlo?";
+      return {
+        text: "Lo siento, tuve un problema conectando con mi cerebro central. ¿Podrías repetirlo?",
+        model: this.model,
+        usage: null,
+        error: error.message
+      };
 
     }
 

@@ -22,7 +22,7 @@ module.exports = (services) => {
       const bridgeDataContext = await services.bridgeData.getContext();
       const ambientation = await services.ambientation.getCurrentAmbientation(timezone);
       
-      // Procesar con Qwen (rol Conserje)
+      // Procesar con IA (rol Conserje)
       const response = await services.qwen.processMessage(message, {
         role: 'conserje',
         context: context || 'Eres Sandra, la conserje virtual de GuestsValencia. Eres amable, profesional y siempre disponible para ayudar.',
@@ -30,19 +30,23 @@ module.exports = (services) => {
         ambientation,
         timestamp: new Date().toISOString()
       });
+
+      const responseText = (response && typeof response === 'object') ? response.text : String(response || '');
+      const responseModel = (response && typeof response === 'object') ? response.model : (services.qwen?.model || 'unknown');
+      const responseUsage = (response && typeof response === 'object') ? response.usage : null;
       
       // Emitir evento de mensaje para subagentes
       eventBus.emit('conserje.message', {
         message,
-        response: response.text,
+        response: responseText,
         timestamp: new Date().toISOString()
       });
       
       res.json({
         success: true,
-        response: response.text,
-        model: response.model,
-        usage: response.usage,
+        response: responseText,
+        model: responseModel,
+        usage: responseUsage,
         timestamp: new Date().toISOString()
       });
     } catch (error) {
@@ -95,15 +99,17 @@ module.exports = (services) => {
         bridgeData: bridgeDataContext,
         ambientation
       });
+
+      const llmText = (llmResponse && typeof llmResponse === 'object') ? llmResponse.text : String(llmResponse || '');
       
       // 3. Text-to-Speech (TTS)
-      const audioResponse = await services.cartesia.textToSpeech(llmResponse.text);
+      const audioResponse = await services.cartesia.textToSpeech(llmText);
       
       res.json({
         success: true,
         flow: {
           transcript,
-          response: llmResponse.text,
+          response: llmText,
           audio: audioResponse
         },
         timestamp: new Date().toISOString()
