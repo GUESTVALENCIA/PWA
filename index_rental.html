@@ -514,7 +514,6 @@
 	        this._ringNodes = [];
 	        this.cameraStream = null;
 	        this.chatLocked = false;
-	        this.lastAudioSentTime = null; // Para medir latencia
 	        this.init();
 	      }
 
@@ -527,7 +526,7 @@
         const widgetHTML = `
           <div id="sandra-widget-root" class="fixed bottom-4 right-4 z-50 font-sans">
             <button id="sandra-toggle-btn" class="w-14 h-14 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xl hover:scale-105 transition-transform flex items-center justify-center group overflow-hidden border-2 border-white/20">
-              <span class="text-2xl group-hover:hidden"></span>
+              <span class="text-2xl group-hover:hidden">💬</span>
               <img src="assets/images/sandra-avatar.png" onerror="this.style.display='none'" class="hidden group-hover:block w-full h-full object-cover rounded-full">
               <span class="absolute top-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
             </button>
@@ -545,7 +544,7 @@
                     <p class="text-[10px] text-blue-200">Asistente Virtual 24/7</p>
                   </div>
                 </div>
-                <button id="sandra-close-btn" class="text-white/60 hover:text-white transition-colors text-lg leading-none"></button>
+                <button id="sandra-close-btn" class="text-white/60 hover:text-white transition-colors text-lg leading-none">✕</button>
               </div>
 
               <!-- Messages -->
@@ -564,7 +563,7 @@
                     <p class="mb-2">¿Prefieres una llamada de voz conversacional para entendernos mejor?</p>
                     <div class="flex gap-2 mt-2">
                       <button id="sandra-accept-call" class="px-3 py-1.5 bg-green-600 text-white text-[10px] rounded-lg hover:bg-green-700 transition-colors font-semibold">
-                         Aceptar llamada
+                        ✓ Aceptar llamada
                       </button>
                       <button id="sandra-decline-call" class="px-3 py-1.5 bg-slate-200 text-slate-700 text-[10px] rounded-lg hover:bg-slate-300 transition-colors">
                         Continuar por chat
@@ -885,6 +884,19 @@
             } catch (_) {}
             this.realtimeAudioEl = null;
             this.realtimeGreetingSent = false;
+            try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (_) {}
+            try {
+              if (this.realtimeAudioNodes) {
+                const n = this.realtimeAudioNodes;
+                if (n.rafId) cancelAnimationFrame(n.rafId);
+                try { n.source && n.source.disconnect(); } catch (_) {}
+                try { n.analyser && n.analyser.disconnect(); } catch (_) {}
+                try { n.gain && n.gain.disconnect(); } catch (_) {}
+              }
+            } catch (_) {}
+            this.realtimeAudioNodes = null;
+            this.realtimeHasAudio = false;
+            this.realtimeLastResponseId = null;
 
 		        const pauseIcon = document.getElementById('hero-pause-icon');
 		        const resumeIcon = document.getElementById('hero-resume-icon');
@@ -1023,7 +1035,7 @@
       }
 
       transitionHeroToVideo() {
-        console.log(' Transición: Imagen estática → Video');
+        console.log('🎥 Transición: Imagen estática → Video');
         if (!this.useVideo) return;
         const heroImage = document.getElementById('hero-background-image');
         const heroVideo = document.getElementById('hero-video');
@@ -1051,7 +1063,7 @@
       }
 
       startVideoStream() {
-        console.log(' Iniciando stream de video...');
+        console.log('🎬 Iniciando stream de video...');
         if (!this.useVideo) {
           this.startRealTimeCall();
           return;
@@ -1158,6 +1170,62 @@
           if (callStatus) callStatus.textContent = 'Conectando...';
           const unlockBtn = document.getElementById('sandra-audio-unlock-btn');
           if (unlockBtn) unlockBtn.classList.add('hidden');
+          this.realtimeHasAudio = false;
+          this.realtimeLastResponseId = null;
+
+          const ttsFallback = (text) => {
+            try {
+              if (!text) return;
+              if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') return;
+
+              const utter = new SpeechSynthesisUtterance(text);
+              utter.lang = 'es-ES';
+              utter.rate = 1.02;
+              utter.pitch = 1.0;
+              utter.volume = 1.0;
+
+              try {
+                const voices = window.speechSynthesis.getVoices ? window.speechSynthesis.getVoices() : [];
+                const esVoice = voices.find(v => String(v.lang || '').toLowerCase().startsWith('es'));
+                if (esVoice) utter.voice = esVoice;
+              } catch (_) {}
+
+              try { window.speechSynthesis.cancel(); } catch (_) {}
+              window.speechSynthesis.speak(utter);
+            } catch (err) {
+              console.warn('[REALTIME] Fallback TTS fallo', err);
+            }
+          };
+
+          const extractAssistantTextFromDone = (msg) => {
+            try {
+              const response = msg && msg.response ? msg.response : {};
+              const output = Array.isArray(response.output) ? response.output : [];
+              const parts = [];
+
+              for (const item of output) {
+                if (!item) continue;
+                const content = Array.isArray(item.content) ? item.content : [];
+                for (const part of content) {
+                  const type = String(part && part.type ? part.type : '');
+                  if (type === 'output_text' || type === 'text') {
+                    const t = String(part.text || part.transcript || '').trim();
+                    if (t) parts.push(t);
+                  }
+                }
+                if (typeof item.text === 'string' && item.text.trim()) parts.push(item.text.trim());
+              }
+
+              if (typeof response.text === 'string' && response.text.trim()) parts.push(response.text.trim());
+
+              return parts.join(' ').replace(/\s+/g, ' ').trim();
+            } catch (_) {
+              return '';
+            }
+          };
+
+          const audioCtx = this.ensureAudioContext();
+          try { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); } catch (_) {}
 
           const waitForIceGatheringComplete = (pc, timeoutMs = 3000) => {
             try {
@@ -1227,8 +1295,8 @@
             const remoteAudio = document.createElement('audio');
             remoteAudio.autoplay = true;
             remoteAudio.playsInline = true;
-            remoteAudio.muted = false;
-            remoteAudio.volume = 1;
+            remoteAudio.muted = true;
+            remoteAudio.volume = 0;
             remoteAudio.setAttribute('playsinline', 'true');
             remoteAudio.style.position = 'fixed';
             remoteAudio.style.left = '-9999px';
@@ -1249,6 +1317,7 @@
 
             if (unlockBtn) {
               unlockBtn.onclick = () => {
+                try { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); } catch (_) {}
                 const playPromise = remoteAudio.play();
                 if (playPromise && typeof playPromise.catch === 'function') {
                   playPromise.catch((err) => console.warn('[REALTIME] No se pudo reproducir audio', err));
@@ -1259,6 +1328,13 @@
             pc.ontrack = (event) => {
               console.log('[REALTIME] Audio remoto recibido');
               try { if (event.track) event.track.enabled = true; } catch (_) {}
+              try {
+                if (event.track) {
+                  event.track.onmute = () => console.log('[REALTIME] Track remoto muteado');
+                  event.track.onunmute = () => console.log('[REALTIME] Track remoto activo');
+                  event.track.onended = () => console.log('[REALTIME] Track remoto finalizado');
+                }
+              } catch (_) {}
               const remoteStream = (event.streams && event.streams[0]) ? event.streams[0] : new MediaStream([event.track]);
               remoteAudio.srcObject = remoteStream;
               const playPromise = remoteAudio.play();
@@ -1268,6 +1344,57 @@
                   if (unlockBtn) unlockBtn.classList.remove('hidden');
                   if (callStatus) callStatus.textContent = 'Pulsa Activar audio';
                 });
+              }
+
+              try {
+                if (!audioCtx || !audioCtx.createMediaStreamSource) return;
+                try { if (audioCtx.state === 'suspended') audioCtx.resume(); } catch (_) {}
+
+                try {
+                  if (this.realtimeAudioNodes) {
+                    const n = this.realtimeAudioNodes;
+                    if (n.rafId) cancelAnimationFrame(n.rafId);
+                    try { n.source && n.source.disconnect(); } catch (_) {}
+                    try { n.analyser && n.analyser.disconnect(); } catch (_) {}
+                    try { n.gain && n.gain.disconnect(); } catch (_) {}
+                  }
+                } catch (_) {}
+
+                const source = audioCtx.createMediaStreamSource(remoteStream);
+                const analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 2048;
+                const gain = audioCtx.createGain();
+                gain.gain.value = 2.2;
+
+                source.connect(analyser);
+                analyser.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                const data = new Uint8Array(analyser.fftSize);
+                const tick = () => {
+                  if (!this.realtimeAudioNodes || this.realtimeAudioNodes.analyser !== analyser) return;
+                  try {
+                    analyser.getByteTimeDomainData(data);
+                    let sum = 0;
+                    for (let i = 0; i < data.length; i++) {
+                      const v = (data[i] - 128) / 128;
+                      sum += v * v;
+                    }
+                    const rms = Math.sqrt(sum / data.length);
+                    if (rms > 0.004) {
+                      if (!this.realtimeHasAudio) {
+                        this.realtimeHasAudio = true;
+                        try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (_) {}
+                      }
+                    }
+                  } catch (_) {}
+                  this.realtimeAudioNodes.rafId = requestAnimationFrame(tick);
+                };
+
+                this.realtimeAudioNodes = { source, analyser, gain, rafId: null };
+                tick();
+              } catch (err) {
+                console.warn('[REALTIME] Error conectando audio a altavoz', err);
               }
             };
 
@@ -1292,6 +1419,22 @@
               try {
                 const msg = JSON.parse(event.data);
                 if (msg && msg.type) console.log('[REALTIME]', msg.type, msg);
+
+                if (msg && msg.type === 'response.done') {
+                  const respId = (msg.response && msg.response.id) ? msg.response.id : (msg.response_id || '');
+                  if (respId && this.realtimeLastResponseId === respId) return;
+                  if (respId) this.realtimeLastResponseId = respId;
+
+                  const text = extractAssistantTextFromDone(msg);
+                  if (text) {
+                    console.log('[REALTIME] Assistant:', text);
+                    try { this.addMessage(text, 'bot'); } catch (_) {}
+                    if (!this.realtimeHasAudio) {
+                      ttsFallback(text);
+                      if (callStatus) callStatus.textContent = 'Voz local (fallback)';
+                    }
+                  }
+                }
               } catch (_) {
                 console.log('[REALTIME] event:', event.data);
               }
@@ -1316,17 +1459,16 @@
 
                 const prompt = `Inicia la llamada con un saludo breve y profesional en español. Preséntate como Sandra y pregunta en qué puedes ayudar. ${contextText}`.trim();
 
-                dc.send(JSON.stringify({
-                  type: 'conversation.item.create',
-                  item: {
-                    type: 'message',
-                    role: 'user',
-                    content: [{ type: 'input_text', text: prompt }]
-                  }
-                }));
+                try {
+                  dc.send(JSON.stringify({
+                    type: 'session.update',
+                    session: { voice: 'alloy', modalities: ['audio', 'text'] }
+                  }));
+                } catch (_) {}
+
                 dc.send(JSON.stringify({
                   type: 'response.create',
-                  response: { modalities: ['audio', 'text'], voice: 'alloy' }
+                  response: { modalities: ['audio', 'text'], voice: 'alloy', instructions: prompt }
                 }));
               } catch (err) {
                 console.warn('[REALTIME] No se pudo enviar saludo:', err);
@@ -1386,20 +1528,11 @@
 	        this.activeCall = ws;
 
         ws.onopen = async () => {
-            console.log(' WebSocket conectado');
+            console.log('✅ WebSocket conectado');
             ws.send(JSON.stringify({
               route: 'conserje',
               action: 'message',
-              payload: { 
-                type: 'ready', 
-                message: 'Cliente listo',
-                config: {
-                  llm_provider: 'gemini',      // Cerebro: Google Gemini
-                  tts_provider: 'cartesia',    // Voz: Cartesia Sonic
-                  voice_id: '2d5b0e6cf361460aa7fc47e3cee4b30c', // Tu ID de voz configurado
-                  latency_optimization: true
-                }
-              }
+              payload: { type: 'ready', message: 'Cliente listo' }
             }));
 
             // Start Microphone Capture
@@ -1448,14 +1581,12 @@
                         const guests = Number(document.getElementById('search-guests')?.value || 0) || 0;
                         const nights = Number(document.getElementById('search-nights')?.value || 0) || 0;
 
-                        this.lastAudioSentTime = Date.now(); // ⏱ Iniciar cronómetro de latencia
                         ws.send(JSON.stringify({
                           route: 'audio',
                           action: 'stt',
                           payload: {
                             audio: base64Audio,
-                            context: { timezone, destination, guests, nights },
-                            timestamp: this.lastAudioSentTime
+                            context: { timezone, destination, guests, nights }
                           }
                         }));
                       } catch (err) {
@@ -1471,7 +1602,7 @@
                 };
 
                 this.mediaRecorder.start(this.recordingSliceMs);
-                console.log(" Microphone recording started");
+                console.log("🎤 Microphone recording started");
 
             } catch (err) {
                 console.error("Error accessing microphone:", err);
@@ -1493,14 +1624,6 @@
             if (data.route === 'audio' && data.action === 'tts' && data.payload && data.payload.audio) {
               this.clearResponseWatchdog();
               this.awaitingResponse = false;
-              
-              // ⏱ Calcular y mostrar latencia
-              if (this.lastAudioSentTime) {
-                const latency = Date.now() - this.lastAudioSentTime;
-                console.log(` [LATENCIA] Gemini + Cartesia: ${latency}ms`);
-                this.lastAudioSentTime = null;
-              }
-              
               this.playAudioResponse(data.payload.audio);
               return;
             }
@@ -1508,13 +1631,13 @@
             if (data.route === 'conserje' && data.action === 'message' && data.payload && data.payload.type === 'noSpeech' && data.payload.message) {
               this.clearResponseWatchdog();
               this.awaitingResponse = false;
-              if (ws.readyState === WebSocket.OPEN) {
+              try {
                 ws.send(JSON.stringify({
-                  route: 'conserje',
+                  route: 'audio',
                   action: 'tts',
                   payload: { text: data.payload.message }
                 }));
-              }
+              } catch (_) {}
             }
         };
 
