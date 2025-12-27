@@ -1668,7 +1668,7 @@
 
                   console.log('[REALTIME] response.done recibido:');
                   console.log('[REALTIME] status:', msg.response?.status);
-                  console.log('[REALTIME] status_details:', msg.response?.status_details);
+                  console.log('[REALTIME] status_details:', JSON.stringify(msg.response?.status_details, null, 2));
                   console.log('[REALTIME] output:', msg.response?.output);
 
                   const text = extractAssistantTextFromDone(msg);
