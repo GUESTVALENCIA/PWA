@@ -101,15 +101,16 @@ module.exports = async function handler(req, res) {
     // OpenAI Realtime API: crear sesión y obtener token efímero
     // NO incluir NINGÚN parámetro que no esté 100% documentado
     
-    // CONFIGURACIÓN MÍNIMA - Solo parámetros esenciales
-    // Simplificado al máximo para evitar errores de validación
-    // FASE 1: Mini Realtime sin parámetro voice (para evitar generación de audio)
+    // CONFIGURACIÓN REALTIME TEXT-ONLY CORRECTA
+    // Usando gpt-realtime-mini (7x más económico)
+    // output_modalities: ['text'] para evitar generación de audio
+    // SIN campos input_audio_format ni output_audio_format
     const sessionBody = {
       model: 'gpt-realtime-mini',
       instructions: systemInstructions || 'Eres Sandra, asistente de GuestsValencia. Responde brevemente en español.',
-      // IMPORTANTE: Solo generar TEXTO, no audio de OpenAI
-      // Esto evita que OpenAI genere audio - usaremos la voz nativa de Sandra
-      modalities: ['text']
+      output_modalities: ['text']  // ← PARÁMETRO CORRECTO para text-only
+      // ← NO incluimos input_audio_format ni output_audio_format
+      // Esto asegura que OpenAI NO genere audio, solo texto
     };
 
     // TEMPORALMENTE DESHABILITADO PARA DEBUGGING
