@@ -1192,11 +1192,20 @@
             remoteAudio.autoplay = true;
             remoteAudio.playsInline = true;
             remoteAudio.style.display = 'none';
+            remoteAudio.muted = false;
+            remoteAudio.volume = 1;
             document.body.appendChild(remoteAudio);
             this.realtimeAudioEl = remoteAudio;
 
             pc.ontrack = (event) => {
+              console.log('[REALTIME] Audio remoto recibido');
               remoteAudio.srcObject = event.streams[0];
+              const playPromise = remoteAudio.play();
+              if (playPromise && typeof playPromise.catch === 'function') {
+                playPromise.catch((err) => {
+                  console.warn('[REALTIME] Audio autoplay bloqueado', err);
+                });
+              }
             };
 
             pc.oniceconnectionstatechange = () => {
@@ -1252,7 +1261,10 @@
                     content: [{ type: 'input_text', text: prompt }]
                   }
                 }));
-                dc.send(JSON.stringify({ type: 'response.create' }));
+                dc.send(JSON.stringify({
+                  type: 'response.create',
+                  response: { modalities: ['audio', 'text'] }
+                }));
               } catch (err) {
                 console.warn('[REALTIME] No se pudo enviar saludo:', err);
               }
