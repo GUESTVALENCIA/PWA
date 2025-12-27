@@ -1435,7 +1435,15 @@
 
             pc.ontrack = (event) => {
               console.log('[REALTIME] Audio remoto recibido');
-              try { 
+              console.log('[REALTIME] ontrack event:', {
+                trackKind: event.track?.kind,
+                trackId: event.track?.id,
+                readyState: event.track?.readyState,
+                enabled: event.track?.enabled,
+                hasStreams: !!event.streams,
+                streamCount: event.streams?.length || 0
+              });
+              try {
                 if (event.track) {
                   event.track.enabled = true;
                   console.log('[REALTIME] Track remoto habilitado, kind:', event.track.kind, 'id:', event.track.id);
@@ -1496,17 +1504,30 @@
               }
               
               console.log('[REALTIME] Configurando audio remoto, tracks activos:', audioTracks.length);
-              
+              console.log('[REALTIME] remoteAudio element:', {
+                tagName: remoteAudio.tagName,
+                autoplay: remoteAudio.autoplay,
+                muted: remoteAudio.muted,
+                volume: remoteAudio.volume,
+                srcObject: !!remoteAudio.srcObject,
+                readyState: remoteAudio.readyState,
+                networkState: remoteAudio.networkState,
+                currentSrc: remoteAudio.currentSrc
+              });
+
               // Solo actualizar srcObject si el stream cambió o si no está configurado
               if (remoteAudio.srcObject !== remoteStream) {
+                console.log('[REALTIME] Asignando stream remoto al elemento audio');
                 remoteAudio.srcObject = remoteStream;
+                console.log('[REALTIME] Stream asignado. srcObject ahora:', !!remoteAudio.srcObject);
               }
-              
+
               // Forzar reproducción inmediata
+              console.log('[REALTIME] Intentando reproducir audio...');
               const playPromise = remoteAudio.play();
               if (playPromise && typeof playPromise.catch === 'function') {
                 playPromise.then(() => {
-                  console.log('[REALTIME] Audio remoto reproduciéndose');
+                  console.log('[REALTIME] ✅ Audio remoto reproduciéndose correctamente');
                   this.realtimeHasAudio = true;
                   if (callStatus) callStatus.textContent = 'En llamada';
                   if (unlockBtn) unlockBtn.classList.add('hidden');
@@ -1515,7 +1536,7 @@
                     this.realtimeGreetingFallbackTimer = null;
                   }
                 }).catch((err) => {
-                  console.warn('[REALTIME] Audio autoplay bloqueado', err);
+                  console.warn('[REALTIME] ❌ Audio autoplay bloqueado:', err.name, err.message);
                   if (unlockBtn) unlockBtn.classList.remove('hidden');
                   if (callStatus) callStatus.textContent = 'Pulsa Activar audio';
                 });
