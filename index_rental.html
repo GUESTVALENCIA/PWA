@@ -1202,7 +1202,9 @@
 
             pc.ontrack = (event) => {
               console.log('[REALTIME] Audio remoto recibido');
-              remoteAudio.srcObject = event.streams[0];
+              try { if (event.track) event.track.enabled = true; } catch (_) {}
+              const remoteStream = (event.streams && event.streams[0]) ? event.streams[0] : new MediaStream([event.track]);
+              remoteAudio.srcObject = remoteStream;
               const playPromise = remoteAudio.play();
               if (playPromise && typeof playPromise.catch === 'function') {
                 playPromise.catch((err) => {
@@ -1266,7 +1268,7 @@
                 }));
                 dc.send(JSON.stringify({
                   type: 'response.create',
-                  response: { modalities: ['audio', 'text'] }
+                  response: { modalities: ['audio', 'text'], voice: 'alloy' }
                 }));
               } catch (err) {
                 console.warn('[REALTIME] No se pudo enviar saludo:', err);

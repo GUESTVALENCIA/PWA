@@ -42,8 +42,6 @@ module.exports = async function handler(req, res) {
         temperature: 0.8,
         max_response_output_tokens: 4096,
         modalities: ['text', 'audio'],
-        input_audio_format: 'pcm16',
-        output_audio_format: 'pcm16',
         turn_detection: {
           type: 'server_vad',
           threshold: 0.5,
