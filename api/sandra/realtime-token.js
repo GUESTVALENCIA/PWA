@@ -41,7 +41,8 @@ module.exports = async function handler(req, res) {
         instructions: await getSandraInstructions(),
         temperature: 0.8,
         max_response_output_tokens: 4096,
-        modalities: ['text', 'audio'],
+        modalities: ['audio', 'text'], // Audio primero para priorizar
+        // Nota: input_audio_format y output_audio_format no se usan con WebRTC
         turn_detection: {
           type: 'server_vad',
           threshold: 0.5,
