@@ -1666,15 +1666,25 @@
                   if (respId && this.realtimeLastResponseId === respId) return;
                   if (respId) this.realtimeLastResponseId = respId;
 
+                  console.log('[REALTIME] response.done recibido, extrayendo texto...');
                   const text = extractAssistantTextFromDone(msg);
+                  console.log('[REALTIME] Texto extraído:', text ? `"${text}"` : '(vacío)');
+
                   if (text) {
                     console.log('[REALTIME] Assistant:', text);
                     try { this.addMessage(text, 'bot'); } catch (_) {}
 
-                    // FIX 5: Llamar INMEDIATAMENTE a Cartesia para convertir el texto de OpenAI a audio
-                    // No esperar a detectar audio, Cartesia es quien debe dar la voz
-                    console.log('[REALTIME] Enviando texto a Cartesia para síntesis de voz...');
-                    void playFallback(text);
+                    // FIX 5: Reproducir audio nativo de Sandra inmediatamente
+                    console.log('[REALTIME] Llamando a playFallback con texto...');
+                    (async () => {
+                      try {
+                        await playFallback(text);
+                      } catch (err) {
+                        console.error('[REALTIME] Error en playFallback:', err);
+                      }
+                    })();
+                  } else {
+                    console.warn('[REALTIME] No se extrajo texto de response.done');
                   }
                 }
               } catch (_) {
