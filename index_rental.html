@@ -1302,10 +1302,46 @@
             });
           };
 
+          // Detectar idioma del navegador/usuario
+          const detectLanguage = () => {
+            // Intentar desde localStorage primero
+            const savedLang = localStorage.getItem('sandra_language');
+            if (savedLang) return savedLang;
+            
+            // Detectar desde el navegador
+            const browserLang = navigator.language || navigator.userLanguage || 'es';
+            const langCode = browserLang.split('-')[0].toLowerCase();
+            
+            // Mapeo de idiomas soportados
+            const supportedMap = {
+              'es': 'es', 'en': 'en', 'fr': 'fr', 'nl': 'nl', 'de': 'de',
+              'ca': 'ca', 'gl': 'gl', 'eu': 'eu', 'pt': 'pt'
+            };
+            
+            // Si es valenciano (es-ES-valencia o similar)
+            if (browserLang.toLowerCase().includes('valencia') || browserLang.toLowerCase().includes('val')) {
+              return 'ca'; // Valenciano usa catalán
+            }
+            
+            return supportedMap[langCode] || 'es'; // Fallback a español
+          };
+          
+          const detectedLanguage = detectLanguage();
+          console.log('[REALTIME] Idioma detectado:', detectedLanguage);
+
+          // Obtener contexto del entorno (timezone, location)
+          const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          const location = 'Valencia';
+
           try {
             const tokenResponse = await fetch('/api/sandra/realtime-token', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' }
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                language: detectedLanguage,
+                timezone: timezone,
+                location: location
+              })
             });
 
             if (!tokenResponse.ok) {
@@ -1313,8 +1349,13 @@
               throw new Error(`Token error: ${tokenResponse.status} ${errorText}`);
             }
 
-            const { token, session_id } = await tokenResponse.json();
+            const { token, session_id, context } = await tokenResponse.json();
             console.log('[REALTIME] Token obtenido, sesión:', session_id);
+            
+            if (context && context.scene) {
+              this.realtimeSceneContext = context;
+              console.log('[REALTIME] Contexto de escena:', context.scene.id);
+            }
 
             const stream = await navigator.mediaDevices.getUserMedia({
               audio: {
