@@ -1434,8 +1434,9 @@
                     if (callStatus) callStatus.textContent = 'En llamada';
                   };
                   event.track.onended = () => {
-                    console.log('[REALTIME] Track remoto finalizado');
-                    this.realtimeHasAudio = false;
+                    console.log('[REALTIME] Track remoto finalizado (esto es normal en WebRTC, no colgar)');
+                    // NO establecer realtimeHasAudio = false aquí porque el track puede recrearse
+                    // Solo registrar el evento, pero no colgar la llamada
                   };
                   
                   // Escuchar cambios en el estado del track
@@ -1447,17 +1448,27 @@
                 }
               } catch (_) {}
               
-              const remoteStream = (event.streams && event.streams[0]) ? event.streams[0] : new MediaStream([event.track]);
-              
-              // Asegurar que el stream tenga audio tracks
-              const audioTracks = remoteStream.getAudioTracks();
+              let remoteStream = (event.streams && event.streams[0]) ? event.streams[0] : null;
+              if (!remoteStream) {
+                if (!this.realtimeRemoteStream) {
+                  this.realtimeRemoteStream = new MediaStream();
+                }
+                remoteStream = this.realtimeRemoteStream;
+                if (event.track && !remoteStream.getTracks().includes(event.track)) {
+                  remoteStream.addTrack(event.track);
+                }
+              } else {
+                this.realtimeRemoteStream = remoteStream;
+              }
+              const audioTracks = remoteStream.getAudioTracks().filter(t => t.readyState !== 'ended');
               if (audioTracks.length === 0) {
-                console.warn('[REALTIME] Stream remoto no tiene tracks de audio');
+                console.warn('[REALTIME] Stream remoto no tiene tracks de audio activos (esperando...)');
                 return;
               }
-              
-              console.log('[REALTIME] Configurando audio remoto, tracks:', audioTracks.length);
-              remoteAudio.srcObject = remoteStream;
+              console.log('[REALTIME] Configurando audio remoto, tracks activos:', audioTracks.length);
+              if (remoteAudio.srcObject !== remoteStream) {
+                remoteAudio.srcObject = remoteStream;
+              }
               
               // Forzar reproducción inmediata
               const playPromise = remoteAudio.play();
