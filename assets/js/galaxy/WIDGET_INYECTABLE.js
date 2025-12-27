@@ -250,10 +250,10 @@
 
 
 
+    // FUNCIÓN ELIMINADA: getGreetingAudioUrl()
+    // Ya no se usa audio pregrabado
     getGreetingAudioUrl() {
-
-      return `${this.scriptOrigin}/assets/audio/welcome.mp3`;
-
+      return null; // Audio pregrabado deshabilitado
     }
 
 
@@ -306,10 +306,18 @@
 
 
 
-    /**
-     * Reproducir ringtone estilo call center (2 tonos largos → descolgar)
-     */
+    // FUNCIÓN ELIMINADA: playCallCenterRingtone()
+    // Ya no se usa ringtone - Realtime WebRTC inicia directamente
     async playCallCenterRingtone() {
+      // Suprimido - sin ringtone pregrabado
+      return Promise.resolve();
+    }
+    
+    /**
+     * [DEPRECATED] Reproducir ringtone estilo call center (2 tonos largos → descolgar)
+     * Ya no se usa - WebRTC inicia directamente
+     */
+    async _playCallCenterRingtone_DEPRECATED() {
       return new Promise((resolve) => {
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         const oscillator = audioContext.createOscillator();
@@ -368,62 +376,11 @@
       });
     }
 
+    // FUNCIÓN ELIMINADA: playGreetingOnce()
+    // Ya no se usa audio pregrabado - Realtime WebRTC inicia directamente
     async playGreetingOnce() {
-
-      if (this.greetingPlayed) return;
-
-      this.greetingPlayed = true;
-
-
-
-      try {
-
-        // Reproducir ringtone estilo call center primero
-        console.log(' [CALLFLOW] Reproduciendo ringtone estilo call center...');
-        await this.playCallCenterRingtone();
-        console.log(' [CALLFLOW] Ringtone completado, reproduciendo saludo...');
-
-        // Mensaje pregrabado inicial para dar tiempo a estabilizar servidores
-        const greetingText = 'Hola, soy Sandra, tu asistente de GuestsValencia. ¿En qué puedo ayudarte hoy?';
-        
-        // Generar TTS del saludo con Cartesia
-        try {
-          const greetingAudio = await this.generateVoiceAudio(greetingText);
-          if (greetingAudio) {
-            await this.playAudioBase64(greetingAudio, 'mp3');
-            console.log(' [CALLFLOW] Saludo pregrabado reproducido');
-            
-            // Actualizar historial de conversación
-            this.conversationHistory.push({
-              role: 'assistant',
-              content: greetingText
-            });
-            
-            return;
-          }
-        } catch (ttsError) {
-          console.warn(' [CALLFLOW] Error generando TTS del saludo, usando fallback:', ttsError);
-        }
-
-        // Fallback: intentar reproducir audio local
-        await this.playAudioUrl(this.getGreetingAudioUrl());
-
-      } catch (error) {
-
-        console.warn(' [CALLFLOW] No se pudo reproducir saludo local, usando fallback remoto:', error);
-
-        try {
-
-          await this.playWelcomeMessage();
-
-        } catch (_) {
-
-          // ignore
-
-        }
-
-      }
-
+      // Suprimido - sin audio pregrabado ni ringtone
+      return Promise.resolve();
     }
 
 
@@ -1557,7 +1514,16 @@
 
 
 
-      callBtn?.addEventListener('click', () => this.startCall());
+      // Botón de llamada/colgar: toggle según estado
+      callBtn?.addEventListener('click', () => {
+        if (this.isCallActive) {
+          console.log(' [CALLFLOW] Usuario presionó botón de colgar');
+          this.endCall('user_hangup');
+        } else {
+          console.log(' [CALLFLOW] Usuario presionó botón de llamar');
+          this.startCall();
+        }
+      });
 
 
 
@@ -1603,7 +1569,7 @@
       try {
         // Reproducir ringtone y saludo
         await this.transitionToVideo();
-        const greetingPromise = this.playGreetingOnce();
+        const greetingPromise = Promise.resolve(); // Greeting suprimido - sin audio pregrabado
 
         // Iniciar llamada Realtime (WebRTC)
         await this.startRealtimeCall();
@@ -1964,64 +1930,11 @@
 
 
 
+    // FUNCIÓN ELIMINADA: playWelcomeMessage()
+    // Ya no se usa mensaje de bienvenida pregrabado
     async playWelcomeMessage() {
-
-      try {
-
-        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-
-
-        console.log(' [CALLFLOW] Solicitando mensaje de bienvenida...');
-
-        const response = await fetch(`${this.mcpServerUrl}/api/audio/welcome`, {
-
-          method: 'POST',
-
-          headers: { 'Content-Type': 'application/json' },
-
-          body: JSON.stringify({ timezone })
-
-        });
-
-
-
-        const data = await response.json();
-
-
-
-        if (data.audio) {
-
-          this.enqueueAudio(data.audio, 'mp3', { text: data.text, isWelcome: true });
-
-          console.log(' [CALLFLOW] Mensaje de bienvenida reproducido');
-
-        }
-
-
-
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-
-          this.ws.send(JSON.stringify({
-
-            route: 'conserje',
-
-            action: 'welcome_complete',
-
-            payload: { sessionId: this.sessionId }
-
-          }));
-
-        }
-
-
-
-      } catch (error) {
-
-        console.error(' [CALLFLOW] Error en mensaje de bienvenida:', error);
-
-      }
-
+      // Suprimido - sin mensajes pregrabados
+      return Promise.resolve();
     }
 
 
@@ -3132,47 +3045,14 @@
 
       console.error(' [CALLFLOW] Error en llamada:', error);
 
+      // Usar endCall() para limpiar TODO correctamente (incluye Realtime)
+      this.endCall('error');
 
-
-      // Limpiar estado y llamar a endCall para resetear todo correctamente
-      this.isCallActive = false;
-      this.awaitingResponse = false;
-      this.isSpeaking = false;
-
-      if (this.stream) {
-
-        this.stream.getTracks().forEach(track => track.stop());
-
-        this.stream = null;
-
+      // Mensaje de error solo si no fue un cuelgue del usuario
+      if (error && !error.message?.includes('user') && !error.message?.includes('cancel')) {
+        this.addChatMessage('Lo siento, hubo un error al conectar. Por favor, intenta de nuevo.', 'bot');
       }
-
-
-
-      if (this.ws) {
-
-        try {
-          if (this.ws.readyState === WebSocket.OPEN) {
-            this.ws.close();
-          }
-        } catch (_) {}
-        this.ws = null;
-
-      }
-
-      if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
-        try {
-          this.mediaRecorder.stop();
-        } catch (_) {}
-      }
-
-      this.clearInactivityTimer();
-      this.setChatLocked(false);
-      this.transitionToImage();
-      this.updateUI('inactive');
-
-      // Mostrar mensaje de error en el chat en lugar de alert
-      this.addChatMessage('Lo siento, hubo un error al conectar. Por favor, intenta de nuevo.', 'bot');
+      
       console.error(' [CALLFLOW] Error detalles:', error.message || error);
 
     }
