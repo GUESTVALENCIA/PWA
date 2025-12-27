@@ -42,6 +42,10 @@ module.exports = async function handler(req, res) {
         temperature: 0.8,
         max_response_output_tokens: 4096,
         modalities: ['audio', 'text'], // Audio primero para priorizar
+        // Configurar transcripción de audio de entrada (requerido para WebRTC)
+        input_audio_transcription: {
+          model: 'whisper-1'
+        },
         // Nota: input_audio_format y output_audio_format no se usan con WebRTC
         turn_detection: {
           type: 'server_vad',
