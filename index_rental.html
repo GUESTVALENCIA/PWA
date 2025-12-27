@@ -900,6 +900,7 @@
             this.realtimeAudioNodes = null;
             this.realtimeHasAudio = false;
             this.realtimeLastResponseId = null;
+            this.realtimeFallbackUsed = false;
 
 		        const pauseIcon = document.getElementById('hero-pause-icon');
 		        const resumeIcon = document.getElementById('hero-resume-icon');
@@ -1176,6 +1177,7 @@
           this.realtimeHasAudio = false;
           this.realtimeLastResponseId = null;
           this.realtimeGreetingFallbackTimer = null;
+          this.realtimeFallbackUsed = false;
 
           const ttsFallback = (text) => {
             try {
@@ -1199,6 +1201,43 @@
             } catch (err) {
               console.warn('[REALTIME] Fallback TTS fallo', err);
             }
+          };
+
+          const playServerTts = async (text) => {
+            if (!text) return false;
+            try {
+              const resp = await fetch('/api/sandra/voice', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text })
+              });
+              if (!resp.ok) {
+                const errText = await resp.text().catch(() => '');
+                throw new Error(`TTS server error: ${resp.status} ${errText}`);
+              }
+              const data = await resp.json().catch(() => ({}));
+              const audioBase64 = data.audioContent || data.audio || '';
+              if (!audioBase64) throw new Error('TTS server no audio');
+              this.playAudioResponse(audioBase64);
+              return true;
+            } catch (err) {
+              console.warn('[REALTIME] TTS server fallo', err);
+              return false;
+            }
+          };
+
+          const playFallback = async (text) => {
+            if (!text) return;
+            if (this.realtimeHasAudio) return;
+            if (this.realtimeFallbackUsed) return;
+            this.realtimeFallbackUsed = true;
+            const ok = await playServerTts(text);
+            if (ok) {
+              if (callStatus) callStatus.textContent = 'Voz IA (TTS)';
+              return;
+            }
+            ttsFallback(text);
+            if (callStatus) callStatus.textContent = 'Voz local (fallback)';
           };
 
           const extractAssistantTextFromDone = (msg) => {
@@ -1387,6 +1426,11 @@
                       if (!this.realtimeHasAudio) {
                         this.realtimeHasAudio = true;
                         try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (_) {}
+                        if (this.realtimeGreetingFallbackTimer) {
+                          clearTimeout(this.realtimeGreetingFallbackTimer);
+                          this.realtimeGreetingFallbackTimer = null;
+                        }
+                        if (callStatus) callStatus.textContent = 'En llamada';
                       }
                     }
                   } catch (_) {}
@@ -1431,10 +1475,7 @@
                   if (text) {
                     console.log('[REALTIME] Assistant:', text);
                     try { this.addMessage(text, 'bot'); } catch (_) {}
-                    if (!this.realtimeHasAudio) {
-                      ttsFallback(text);
-                      if (callStatus) callStatus.textContent = 'Voz local (fallback)';
-                    }
+                    void playFallback(text);
                   }
                 }
               } catch (_) {
@@ -1487,8 +1528,7 @@
                 }
                 this.realtimeGreetingFallbackTimer = setTimeout(() => {
                   if (this.realtimeHasAudio) return;
-                  ttsFallback('Hola, soy Sandra, tu asistente virtual. ¿En qué puedo ayudarte?');
-                  if (callStatus) callStatus.textContent = 'Voz local (fallback)';
+                  void playFallback('Hola, soy Sandra, tu asistente virtual. ¿En qué puedo ayudarte?');
                 }, 1200);
               } catch (err) {
                 console.warn('[REALTIME] No se pudo enviar saludo:', err);

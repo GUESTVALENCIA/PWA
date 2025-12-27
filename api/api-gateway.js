@@ -559,71 +559,71 @@ class AIOrchestrator {
 
 
   async generateVoice(text, voiceId) {
-
-    if (!process.env.CARTESIA_API_KEY) throw new Error("Missing Cartesia Key");
-
-
-
+    const cartesiaKey = process.env.CARTESIA_API_KEY;
     const selectedVoice = voiceId || this.providers.cartesia.defaultVoice;
 
+    if (cartesiaKey) {
+      try {
+        const response = await fetch(this.providers.cartesia.url, {
+          method: "POST",
+          headers: {
+            "Cartesia-Version": "2024-06-10",
+            "X-API-Key": cartesiaKey,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model_id: this.providers.cartesia.model,
+            transcript: text,
+            voice: {
+              mode: "id",
+              id: selectedVoice
+            },
+            output_format: {
+              container: "mp3",
+              sample_rate: 44100
+            }
+          })
+        });
 
-
-    const response = await fetch(this.providers.cartesia.url, {
-
-      method: "POST",
-
-      headers: {
-
-        "Cartesia-Version": "2024-06-10",
-
-        "X-API-Key": process.env.CARTESIA_API_KEY,
-
-        "Content-Type": "application/json"
-
-      },
-
-      body: JSON.stringify({
-
-        model_id: this.providers.cartesia.model,
-
-        transcript: text,
-
-        voice: {
-
-          mode: "id",
-
-          id: selectedVoice
-
-        },
-
-        output_format: {
-
-          container: "mp3",
-
-          sample_rate: 44100
-
+        if (!response.ok) {
+          const err = await response.text();
+          throw new Error(`Cartesia Error: ${err}`);
         }
 
-      })
-
-    });
-
-
-
-    if (!response.ok) {
-
-      const err = await response.text();
-
-      throw new Error(`Cartesia Error: ${err}`);
-
+        const arrayBuffer = await response.arrayBuffer();
+        return Buffer.from(arrayBuffer).toString('base64');
+      } catch (err) {
+        console.warn("[TTS] Cartesia fallo, usando OpenAI TTS:", err.message);
+      }
+    } else {
+      console.warn("[TTS] Cartesia key missing, usando OpenAI TTS");
     }
 
+    if (!process.env.OPENAI_API_KEY) throw new Error("Missing OpenAI API key for TTS");
 
+    const openAiModel = process.env.OPENAI_TTS_MODEL || "gpt-4o-mini-tts";
+    const openAiVoice = process.env.OPENAI_TTS_VOICE || "alloy";
+
+    const response = await fetch("https://api.openai.com/v1/audio/speech", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: openAiModel,
+        voice: openAiVoice,
+        input: text
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`OpenAI TTS Error: ${err}`);
+    }
 
     const arrayBuffer = await response.arrayBuffer();
-
     return Buffer.from(arrayBuffer).toString('base64');
-
   }
 
 
