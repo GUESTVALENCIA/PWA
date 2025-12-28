@@ -1809,40 +1809,64 @@
 
 
     async startCall() {
-
       if (this.isCallActive) {
         console.log(' [CALLFLOW] Llamada ya activa, finalizando...');
         return this.endCall('user_hangup');
       }
 
-      console.log(' [CALLFLOW] Iniciando llamada conversacional con OpenAI Realtime (WebRTC)...');
+      console.log(' [CALLFLOW] Iniciando llamada conversacional con WebSocket Enterprise Stream...');
 
-      this.toggleChat(true);
+      // Verificar que el cliente WebSocket esté disponible
+      if (!window.websocketStreamClient) {
+        console.error(' [CALLFLOW] ❌ WebSocket client no está disponible');
+        this.addChatMessage('Error: Sistema de llamadas no disponible', 'bot');
+        return;
+      }
 
-      this.callStartTime = Date.now();
+      const wsClient = window.websocketStreamClient;
 
-      this.sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      // Verificar conexión
+      if (!wsClient.isConnected) {
+        console.log(' [CALLFLOW] ⏳ Esperando conexión WebSocket...');
+        let attempts = 0;
+        while (!wsClient.isConnected && attempts < 50) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          attempts++;
+        }
+
+        if (!wsClient.isConnected) {
+          console.error(' [CALLFLOW] ❌ No se pudo conectar al servidor WebSocket');
+          this.addChatMessage('Error: No se pudo conectar al servidor', 'bot');
+          return;
+        }
+      }
 
       try {
-        // Reproducir ringtone y saludo
-        await this.transitionToVideo();
-        const greetingPromise = Promise.resolve(); // Greeting suprimido - sin audio pregrabado
-
-        // Iniciar llamada Realtime (WebRTC)
-        await this.startRealtimeCall();
-
-        await Promise.allSettled([greetingPromise]);
-
+        this.toggleChat(true);
+        this.callStartTime = Date.now();
+        this.sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         this.isCallActive = true;
         this.setChatLocked(true);
         this.updateUI('active');
-        this.startInactivityTimer();
 
-        console.log(' [CALLFLOW] Llamada Realtime iniciada correctamente');
+        // Iniciar grabación de audio con WebSocket
+        console.log(' [CALLFLOW] Iniciando grabación de audio...');
+        await wsClient.startListening();
+
+        // Enviar mensaje "ready" para recibir saludo inicial
+        wsClient.sendMCP('conserje', 'message', {
+          type: 'ready',
+          message: 'Cliente listo para recibir saludo'
+        });
+
+        this.startInactivityTimer();
+        console.log(' [CALLFLOW] ✅ Llamada WebSocket iniciada correctamente');
 
       } catch (error) {
-        console.error(' [CALLFLOW] Error iniciando llamada Realtime:', error);
-        this.handleCallError(error);
+        console.error(' [CALLFLOW] ❌ Error iniciando llamada:', error);
+        this.isCallActive = false;
+        this.setChatLocked(false);
+        this.addChatMessage('Error iniciando llamada: ' + error.message, 'bot');
       }
     }
 
@@ -3098,7 +3122,7 @@
 
 
 
-    endCall(reason = 'user') {
+    async endCall(reason = 'user') {
 
       if (!this.isCallActive) return;
 
@@ -3172,20 +3196,26 @@
 
 
 
-      if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
-
-        this.mediaRecorder.stop();
-
+      // Cerrar WebSocket Enterprise Stream
+      if (window.websocketStreamClient) {
+        const wsClient = window.websocketStreamClient;
+        try {
+          console.log(' [CALLFLOW] Cerrando WebSocket Enterprise Stream...');
+          await wsClient.disconnect();
+          console.log(' [CALLFLOW] ✅ WebSocket cerrado correctamente');
+        } catch (err) {
+          console.error(' [CALLFLOW] ❌ Error cerrando WebSocket:', err);
+        }
       }
 
-
+      // Limpiar MediaRecorder legacy si existe
+      if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+        this.mediaRecorder.stop();
+      }
 
       if (this.stream) {
-
         this.stream.getTracks().forEach(track => track.stop());
-
         this.stream = null;
-
       }
 
 
