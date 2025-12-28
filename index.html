@@ -38,17 +38,6 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script>tailwind.config={theme:{extend:{fontFamily:{sans:['Outfit','system-ui','sans-serif'],serif:['Playfair Display','Georgia','serif']}}}}</script>
 
-  <!-- Voice Library Manager -->
-  <script src="/assets/js/voice-library-manager.js" defer></script>
-
-  <!-- FASE 2: Speech-to-Text Chat System (Deepgram + gpt-4o-mini) -->
-  <script src="/assets/js/speech-to-text-chat.js" defer></script>
-
-  <!-- WebSocket Enterprise Stream Client -->
-  <script src="/assets/js/websocket-stream-client.js" defer></script>
-
-  <!-- LLM Provider Selector Widget - ELIMINADO: Los modelos se seleccionan desde el backend, no desde la UI -->
-
   <style>
     :root{--primary:#2563EB;--accent:#3B82F6;--accent-light:#60A5FA;--accent-lighter:#93C5FD;--accent-dark:#1E40AF;--glass-bg:rgba(255,255,255,0.98);--glass-dark-bg:rgba(37,99,235,0.85);--text-primary:#0F172A;--text-secondary:#334155;--bg-light:#FFFFFF;--bg-section:#F8FAFC;--bg-accent:#EFF6FF}
     body{font-family:'Outfit',system-ui,sans-serif;background:var(--bg-light);color:var(--text-primary);overflow-x:hidden;margin:0;padding:0}
@@ -134,6 +123,7 @@
 
   <main class="flex-1">
     <!-- Fallback para el widget de Sandra: se reemplaza dinámicamente al inicializar -->
+    <div id="sandra-widget-root" class="hidden" aria-live="polite"></div>
 
     <!-- HOME -->
     <section id="home-page" class="page active">
@@ -463,73 +453,273 @@
     })();
   </script>
 
-  <!-- SANDRA WIDGET GALAXY (DESACTIVADO para evitar conflictos con llamadas del hero) -->
-  <!-- <script src="/assets/js/galaxy/WIDGET_INYECTABLE.js" defer></script> -->
-  
-  <!-- SISTEMA DE LLAMADAS CONVERSACIONALES DESDE HERO (RESTAURADO) -->
+  <!-- SANDRA WIDGET SCRIPT -->
   <script>
-    (function() {
-      'use strict';
-      
-      class HeroConversationalCall {
+    // Sandra Gateway Client
+    class SandraGateway {
       constructor() {
-          this.activeCall = null;
-          this.chatLocked = false;
+        // Dynamic base URL detection
+        if (window.location.hostname === 'localhost' || window.location.port === '4040') {
+          this.baseUrl = '/api';
+        } else {
+          this.baseUrl = '/api';
+        }
+      }
+
+      async sendMessage(message, role = 'hospitality') {
+        try {
+          const response = await fetch(`${this.baseUrl}/sandra/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message, role })
+          });
+
+          if (!response.ok) throw new Error('Gateway Error');
+          const data = await response.json();
+          return data.reply;
+        } catch (error) {
+          console.error('Conversation Error:', error);
+          throw error;
+        }
+      }
+    }
+
+    // Sandra Widget
+    class SandraWidget {
+      constructor() {
+        this.gateway = new SandraGateway();
+        // Forzamos modo estático (sin video). Cuando tengas el mp4 de Sora, pon esto a true.
+        this.useVideo = false;
         this.ringTimeout = null;
-          this.mediaRecorder = null;
-          this.stream = null;
+        this.isOpen = false;
+        this.isRecording = false;
         this.isMicrophoneMuted = false;
         this.isSpeaking = false;
         this.awaitingResponse = false;
+        this.audioQueue = [];
+        this.currentAudio = null;
+        this.activeCall = null;
+        this.mediaRecorder = null;
+	        this.stream = null;
+	        this.recordingSliceMs = 2500;
+	        this.minRecordedBytes = 6000;
 	        this.responseWatchdogTimeout = null;
-          this.currentAudio = null;
-          this.useVideo = true; // Activar video del hero
-          this.recordingSliceMs = 1000; // 1 segundo de chunks
-          this.minRecordedBytes = 1000; // Mínimo de bytes para enviar
 	        this._mcpConfigPromise = null;
-          this.audioCtx = null; // AudioContext para ringtone
-          this._ringNodes = []; // Nodos de audio para ringtone
-        }
+	        this.isPaused = false;
+	        this.audioCtx = null;
+	        this._ringNodes = [];
+	        this.cameraStream = null;
+	        this.chatLocked = false;
+	        this.init();
+	      }
 
-        async getMcpConfig() {
-          if (this._mcpConfigPromise) return this._mcpConfigPromise;
-          this._mcpConfigPromise = (async () => {
-            try {
-              const res = await fetch('/api/config', { cache: 'no-store' });
-              if (!res.ok) throw new Error(`config ${res.status}`);
-              const cfg = await res.json();
-              return {
-                MCP_SERVER_URL: cfg && cfg.MCP_SERVER_URL ? cfg.MCP_SERVER_URL : 'https://pwa-imbf.onrender.com',
-                MCP_TOKEN: cfg && cfg.MCP_TOKEN ? cfg.MCP_TOKEN : null
-              };
-            } catch (err) {
-              console.warn('[MCP] No se pudo cargar /api/config, usando fallback', err);
-              return { MCP_SERVER_URL: 'https://pwa-imbf.onrender.com', MCP_TOKEN: null };
-            }
-          })();
-          return this._mcpConfigPromise;
-        }
+      init() {
+        this.createWidgetUI();
+        this.bindEvents();
+      }
 
-        buildWebSocketUrl(mcpServerUrl, token) {
-          let url;
+      createWidgetUI() {
+        const widgetHTML = `
+          <div id="sandra-widget-root" class="fixed bottom-4 right-4 z-50 font-sans">
+            <button id="sandra-toggle-btn" class="w-14 h-14 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xl hover:scale-105 transition-transform flex items-center justify-center group overflow-hidden border-2 border-white/20">
+              <span class="text-2xl group-hover:hidden">💬</span>
+              <img src="assets/images/sandra-avatar.png" onerror="this.style.display='none'" class="hidden group-hover:block w-full h-full object-cover rounded-full">
+              <span class="absolute top-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
+            </button>
+
+            <div id="sandra-chat-window" class="hidden absolute bottom-16 right-0 w-[320px] h-[450px] bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 transform origin-bottom-right transition-all duration-300 scale-95 opacity-0">
+              <!-- Header -->
+              <div class="p-3 bg-gradient-to-r from-[#0F172A] to-[#1E293B] text-white flex justify-between items-center">
+                <div class="flex items-center gap-2 flex-1">
+                  <div class="relative">
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-400 to-purple-500 flex items-center justify-center text-sm font-bold">S</div>
+                    <div class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 border-2 border-[#0F172A] rounded-full animate-pulse"></div>
+                  </div>
+                  <div>
+                    <h3 class="font-bold text-xs">Sandra IA</h3>
+                    <p class="text-[10px] text-blue-200">Asistente Virtual 24/7</p>
+                  </div>
+                </div>
+                <button id="sandra-close-btn" class="text-white/60 hover:text-white transition-colors text-lg leading-none">✕</button>
+              </div>
+
+              <!-- Messages -->
+              <div id="sandra-messages" class="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50 scroll-smooth">
+                <div class="flex gap-2">
+                  <div class="w-6 h-6 rounded-full bg-gradient-to-tr from-blue-400 to-purple-500 flex-shrink-0 flex items-center justify-center text-[10px] text-white font-bold">S</div>
+                  <div class="bg-white p-2.5 rounded-xl rounded-tl-none shadow-sm border border-slate-100 text-xs text-slate-700 max-w-[85%]">
+                    <p>¡Hola! Soy Sandra. Bienvenido a GuestsValencia. ¿En qué puedo ayudarte hoy?</p>
+                  </div>
+                </div>
+
+                <!-- Botón de llamada conversacional (se muestra después del primer mensaje) -->
+                <div id="sandra-call-prompt" class="flex gap-2 mt-2">
+                  <div class="w-6 h-6 rounded-full bg-gradient-to-tr from-blue-400 to-purple-500 flex-shrink-0 flex items-center justify-center text-[10px] text-white font-bold">S</div>
+                  <div class="bg-white p-2.5 rounded-xl rounded-tl-none shadow-sm border border-slate-100 text-xs text-slate-700 max-w-[85%]">
+                    <p class="mb-2">¿Prefieres una llamada de voz conversacional para entendernos mejor?</p>
+                    <div class="flex gap-2 mt-2">
+                      <button id="sandra-accept-call" class="px-3 py-1.5 bg-green-600 text-white text-[10px] rounded-lg hover:bg-green-700 transition-colors font-semibold">
+                        ✓ Aceptar llamada
+                      </button>
+                      <button id="sandra-decline-call" class="px-3 py-1.5 bg-slate-200 text-slate-700 text-[10px] rounded-lg hover:bg-slate-300 transition-colors">
+                        Continuar por chat
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Typing Indicator -->
+              <div id="sandra-typing" class="hidden px-3 py-1.5 text-[10px] text-slate-400 italic">Sandra está escribiendo...</div>
+
+              <!-- Controls -->
+              <div class="p-3 bg-white border-t border-slate-100">
+                <!-- Call Controls (Hidden by default) -->
+                <div id="sandra-call-controls" class="hidden mb-2 flex justify-center items-center gap-2 bg-slate-50 rounded-full px-3 py-2 shadow-sm border border-slate-200">
+                  <button id="sandra-hangup-btn" class="p-2 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors shadow-sm"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12a9 9 0 1018 0 9 9 0 00-18 0z" /></svg></button>
+                  <button id="sandra-mute-btn" class="p-2 rounded-full bg-slate-400 text-white hover:bg-slate-500 transition-colors shadow-sm"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg></button>
+                </div>
+                <!-- Input Area -->
+                <div class="relative flex items-center gap-1.5">
+                  <input type="text" id="sandra-input" placeholder="Escribe tu mensaje..." class="flex-1 bg-slate-100 border-0 rounded-full px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all">
+                  <button id="sandra-mic-btn" class="p-2 rounded-full bg-slate-100 text-slate-600 hover:bg-blue-100 hover:text-blue-600 transition-colors">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                  </button>
+                  <button id="sandra-send-btn" class="p-2 rounded-full bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-blue-500/30 transition-all">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>`;
+
+        document.body.insertAdjacentHTML('beforeend', widgetHTML);
+      }
+
+      bindEvents() {
+        const toggleBtn = document.getElementById('sandra-toggle-btn');
+        const closeBtn = document.getElementById('sandra-close-btn');
+        const chatWindow = document.getElementById('sandra-chat-window');
+        const sendBtn = document.getElementById('sandra-send-btn');
+        const input = document.getElementById('sandra-input');
+        const micBtn = document.getElementById('sandra-mic-btn');
+        const acceptCallBtn = document.getElementById('sandra-accept-call');
+	        const declineCallBtn = document.getElementById('sandra-decline-call');
+	        const callPrompt = document.getElementById('sandra-call-prompt');
+	        const btnCallToggle = document.getElementById('btn-call-toggle');
+	        const btnMuteToggle = document.getElementById('btn-mute-toggle');
+	        const btnSearchAi = document.getElementById('btn-search-ai');
+	        const heroHangupBtn = document.getElementById('hero-hangup-btn');
+	        const heroPauseBtn = document.getElementById('hero-pause-btn');
+	        const heroMuteBtn = document.getElementById('hero-mute-btn');
+	        const heroCameraBtn = document.getElementById('hero-camera-btn');
+
+        // Toggle Chat
+        const toggleChat = () => {
+          this.isOpen = !this.isOpen;
+          if (this.isOpen) {
+            chatWindow.classList.remove('hidden');
+            setTimeout(() => {
+              chatWindow.classList.remove('scale-95', 'opacity-0');
+              chatWindow.classList.add('scale-100', 'opacity-100');
+              input.focus();
+            }, 10);
+          } else {
+            chatWindow.classList.remove('scale-100', 'opacity-100');
+            chatWindow.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => chatWindow.classList.add('hidden'), 300);
+          }
+        };
+        toggleBtn.addEventListener('click', toggleChat);
+        closeBtn.addEventListener('click', toggleChat);
+
+        // Send Message
+        const sendMessage = async () => {
+          const text = input.value.trim();
+          if (!text) return;
+          this.addMessage(text, 'user');
+          input.value = '';
+          this.showTyping(true);
           try {
-            url = new URL(String(mcpServerUrl || ''));
-          } catch (_) {
-            url = new URL('https://pwa-imbf.onrender.com');
+            const response = await this.gateway.sendMessage(text);
+            this.showTyping(false);
+            this.addMessage(response, 'bot');
+          } catch (error) {
+            this.showTyping(false);
+            this.addMessage("Lo siento, tuve un problema. Inténtalo de nuevo.", 'bot');
           }
+        };
+        sendBtn.addEventListener('click', sendMessage);
+        input.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
 
-          const isRender = url.hostname.includes('onrender.com');
-          url.protocol = (url.protocol === 'https:') ? 'wss:' : 'ws:';
-          url.pathname = '/';
+        // Call Buttons Logic
+        if (acceptCallBtn) {
+          acceptCallBtn.addEventListener('click', () => {
+            this.startConversationalCall();
+            if (callPrompt) callPrompt.style.display = 'none';
+            const callControls = document.getElementById('sandra-call-controls');
+            if (callControls) callControls.classList.remove('hidden');
+            // Hide chat window when starting call
+            toggleChat();
+          });
+        }
 
-          if (isRender) {
-            url.port = '';
-          } else if (!url.port) {
-            url.port = '4042';
-          }
+        if (declineCallBtn) {
+          declineCallBtn.addEventListener('click', () => {
+            if (callPrompt) callPrompt.style.display = 'none';
+            // Logic to continue chat only
+          });
+        }
 
-          url.search = token ? `?token=${encodeURIComponent(String(token))}` : '';
-          return url.toString();
+		        if (btnCallToggle) {
+		            btnCallToggle.addEventListener('click', () => {
+		                // Toggle logic: for now, it starts call if not started
+		                if (!this.activeCall) {
+		                    this.startConversationalCall();
+			                } else {
+			                    // Hang up
+			                    this.hangupCall('user');
+			                    console.log("Call ended by user");
+		                    // Optionally reset UI to idle state
+		                }
+		            });
+		        }
+
+	        if (btnMuteToggle) {
+	          btnMuteToggle.addEventListener('click', () => {
+	            this.setMicrophoneMuted(!this.isMicrophoneMuted);
+	          });
+	        }
+
+	        if (heroHangupBtn) {
+	          heroHangupBtn.addEventListener('click', () => {
+	            this.hangupCall('user');
+	          });
+	        }
+
+	        if (heroPauseBtn) {
+	          heroPauseBtn.addEventListener('click', () => {
+	            this.togglePause();
+	          });
+	        }
+
+	        if (heroMuteBtn) {
+	          heroMuteBtn.addEventListener('click', () => {
+	            this.setMicrophoneMuted(!this.isMicrophoneMuted);
+	          });
+	        }
+
+	        if (heroCameraBtn) {
+	          heroCameraBtn.addEventListener('click', () => {
+	            this.toggleCamera();
+	          });
+	        }
+
+		        if (btnSearchAi) {
+		            btnSearchAi.addEventListener('click', () => {
+		                this.startConversationalCall();
+		            });
+		        }
 	      }
 
 	      setHeroCallActive(active) {
@@ -539,17 +729,17 @@
 	        const callControlsBar = document.getElementById('call-controls-bar');
 
 	        if (searchContainer) {
-            searchContainer.classList.toggle('call-hidden', active);
+	          searchContainer.classList.toggle('call-hidden', !!active);
+	          // Limpieza por si quedaran estilos inline de versiones previas
+	          searchContainer.style.opacity = '';
+	          searchContainer.style.pointerEvents = '';
 	        }
 
 	        if (callControlsBar) {
-            callControlsBar.classList.toggle('active', active);
+	          callControlsBar.classList.toggle('active', !!active);
 	        }
 
-          if (heroBg) {
-            heroBg.classList.toggle('hero-motion', !!active);
-          }
-
+	        // En modo sin video, aseguramos que el <video> no se muestre ni cargue.
 	        if (heroVideo && !this.useVideo) {
 	          try {
 	            heroVideo.pause();
@@ -564,21 +754,102 @@
 
 		        if (!active) {
 		          this.chatLocked = false;
-            if (this.ringTimeout) {
-              clearTimeout(this.ringTimeout);
-              this.ringTimeout = null;
-            }
-          }
-        }
+		          this.stopRingtone && this.stopRingtone();
+		        }
+		      }
 
-        startConversationalCall() {
-          console.log('[HERO-CALL] Iniciando llamada conversacional...');
-          if (this.chatLocked || this.activeCall || this.ringTimeout) {
-            console.warn('[HERO-CALL] Llamada ya en curso o bloqueada');
+		      setMicrophoneMuted(muted) {
+		        this.isMicrophoneMuted = !!muted;
+
+		        const micIcon = document.getElementById('mic-icon');
+		        const micMutedIcon = document.getElementById('mic-muted-icon');
+		        if (micIcon && micMutedIcon) {
+		          micIcon.classList.toggle('hidden', this.isMicrophoneMuted);
+		          micMutedIcon.classList.toggle('hidden', !this.isMicrophoneMuted);
+		        }
+
+		        const heroMicIcon = document.getElementById('hero-mic-icon');
+		        const heroMicMutedIcon = document.getElementById('hero-mic-muted-icon');
+		        if (heroMicIcon && heroMicMutedIcon) {
+		          heroMicIcon.classList.toggle('hidden', this.isMicrophoneMuted);
+		          heroMicMutedIcon.classList.toggle('hidden', !this.isMicrophoneMuted);
+		        }
+		      }
+
+		      togglePause() {
+		        this.isPaused = !this.isPaused;
+
+		        const pauseIcon = document.getElementById('hero-pause-icon');
+		        const resumeIcon = document.getElementById('hero-resume-icon');
+		        if (pauseIcon && resumeIcon) {
+		          pauseIcon.classList.toggle('hidden', this.isPaused);
+		          resumeIcon.classList.toggle('hidden', !this.isPaused);
+		        }
+
+		        if (this.mediaRecorder) {
+		          try {
+		            if (this.isPaused && this.mediaRecorder.state === 'recording') this.mediaRecorder.pause();
+		            if (!this.isPaused && this.mediaRecorder.state === 'paused') this.mediaRecorder.resume();
+		          } catch (_) {}
+		        }
+		      }
+
+		      async toggleCamera() {
+		        const preview = document.getElementById('hero-camera-preview');
+		        const videoEl = document.getElementById('hero-camera-video');
+		        const iconOn = document.getElementById('hero-camera-icon');
+		        const iconOff = document.getElementById('hero-camera-off-icon');
+
+		        const stop = () => {
+		          if (this.cameraStream) {
+		            try { this.cameraStream.getTracks().forEach(t => t.stop()); } catch (_) {}
+		            this.cameraStream = null;
+		          }
+		          if (videoEl) videoEl.srcObject = null;
+		          preview && preview.classList.add('hidden');
+		          iconOn && iconOn.classList.remove('hidden');
+		          iconOff && iconOff.classList.add('hidden');
+		        };
+
+		        if (this.cameraStream) {
+		          stop();
 		          return;
 		        }
-          this.chatLocked = true;
-          this.playRingtone();
+
+		        try {
+		          const stream = await navigator.mediaDevices.getUserMedia({
+		            video: { facingMode: { ideal: 'environment' } },
+		            audio: false
+		          });
+		          this.cameraStream = stream;
+		          if (videoEl) videoEl.srcObject = stream;
+		          preview && preview.classList.remove('hidden');
+		          iconOn && iconOn.classList.add('hidden');
+		          iconOff && iconOff.classList.remove('hidden');
+		        } catch (err) {
+		          console.error('Error abriendo cámara:', err);
+		          stop();
+		        }
+		      }
+
+		      hangupCall(reason = 'user') {
+		        this.stopRingtone && this.stopRingtone();
+		        this.stopAudioCapture();
+		        this.isPaused = false;
+		        this.setMicrophoneMuted(false);
+
+		        const pauseIcon = document.getElementById('hero-pause-icon');
+		        const resumeIcon = document.getElementById('hero-resume-icon');
+		        if (pauseIcon && resumeIcon) {
+		          pauseIcon.classList.remove('hidden');
+		          resumeIcon.classList.add('hidden');
+		        }
+
+		        try { if (this.currentAudio) this.currentAudio.pause(); } catch (_) {}
+		        try { if (this.activeCall) this.activeCall.close(); } catch (_) {}
+		        this.activeCall = null;
+		        this.setHeroCallActive(false);
+		        if (this.cameraStream) this.toggleCamera();
 		      }
 
 		      ensureAudioContext() {
@@ -603,8 +874,15 @@
 		        }
 		      }
 
+		      startConversationalCall() {
+		        console.log('Iniciando llamada conversacional...');
+		        if (this.chatLocked || this.activeCall || this.ringTimeout) return;
+		        this.chatLocked = true;
+		        this.setHeroCallActive(true);
+		        this.playRingtone();
+		      }
+
       playRingtone() {
-          console.log('[HERO-CALL] 🔔 Iniciando ringtone...');
         this.stopRingtone();
 
         const ctx = this.ensureAudioContext();
@@ -616,7 +894,7 @@
               this.transitionHeroToVideo();
               this.startVideoStream();
             } else {
-                this.startRealTimeCall();
+              this.startRealTimeCall();
             }
           }, 3000);
           return;
@@ -669,24 +947,24 @@
         this.ringTimeout = setTimeout(() => {
           this.ringTimeout = null;
           if (!this.chatLocked) return;
-            console.log('[HERO-CALL] ✅ Ringtone completado, descolgando llamada...');
-            this.setHeroCallActive(true);
           if (this.useVideo) {
             this.transitionHeroToVideo();
             this.startVideoStream();
           } else {
-              this.startRealTimeCall();
+            this.startRealTimeCall();
           }
         }, totalMs);
       }
 
       transitionHeroToVideo() {
-          console.log('[HERO-CALL] 🎬 Transición: Imagen estática → Video');
+        console.log('🎥 Transición: Imagen estática → Video');
         if (!this.useVideo) return;
         const heroImage = document.getElementById('hero-background-image');
         const heroVideo = document.getElementById('hero-video');
 
         if (heroImage && heroVideo) {
+          // Crossfade SIN "cortina blanca": mantenemos la imagen visible y hacemos fade-in del vídeo encima.
+          // Además, igualamos el poster del vídeo al fondo actual para que el cambio sea casi imperceptible.
           try {
             const bg = window.getComputedStyle(heroImage).backgroundImage || '';
             const m = bg.match(/url\(["']?(.*?)["']?\)/i);
@@ -707,9 +985,9 @@
       }
 
       startVideoStream() {
-          console.log('[HERO-CALL] 🎥 Iniciando stream de video...');
+        console.log('🎬 Iniciando stream de video...');
         if (!this.useVideo) {
-            this.startRealTimeCall();
+          this.startRealTimeCall();
           return;
         }
         const heroVideo = document.getElementById('hero-video');
@@ -718,11 +996,52 @@
         if (heroVideo && videoSource) {
           videoSource.src = 'assets/videos/sandra-call-1.mp4';
           heroVideo.load();
-            heroVideo.currentTime = 0;
-            heroVideo.play().catch(e => console.log('[HERO-CALL] Error al reproducir video:', e));
+          heroVideo.play().catch(e => console.log('Error al reproducir video:', e));
         }
-          this.startRealTimeCall();
-      }
+	        // Start Real Time Call (WebSocket + Audio Capture)
+	        this.startRealTimeCall();
+	      }
+
+	      async getMcpConfig() {
+	        if (this._mcpConfigPromise) return this._mcpConfigPromise;
+	        this._mcpConfigPromise = (async () => {
+	          try {
+	            const res = await fetch('/api/config', { cache: 'no-store' });
+	            if (!res.ok) throw new Error(`config ${res.status}`);
+	            const cfg = await res.json();
+	            return {
+	              MCP_SERVER_URL: cfg && cfg.MCP_SERVER_URL ? cfg.MCP_SERVER_URL : 'https://pwa-imbf.onrender.com',
+	              MCP_TOKEN: cfg && cfg.MCP_TOKEN ? cfg.MCP_TOKEN : null
+	            };
+	          } catch (err) {
+	            console.warn('[MCP] No se pudo cargar /api/config, usando fallback', err);
+	            return { MCP_SERVER_URL: 'https://pwa-imbf.onrender.com', MCP_TOKEN: null };
+	          }
+	        })();
+	        return this._mcpConfigPromise;
+	      }
+
+	      buildWebSocketUrl(mcpServerUrl, token) {
+	        let url;
+	        try {
+	          url = new URL(String(mcpServerUrl || ''));
+	        } catch (_) {
+	          url = new URL('https://pwa-imbf.onrender.com');
+	        }
+
+	        const isRender = url.hostname.includes('onrender.com');
+	        url.protocol = (url.protocol === 'https:') ? 'wss:' : 'ws:';
+	        url.pathname = '/';
+
+	        if (isRender) {
+	          url.port = '';
+	        } else if (!url.port) {
+	          url.port = '4042';
+	        }
+
+	        url.search = token ? `?token=${encodeURIComponent(String(token))}` : '';
+	        return url.toString();
+	      }
 
 	      clearResponseWatchdog() {
 	        if (this.responseWatchdogTimeout) {
@@ -737,7 +1056,7 @@
 	          this.responseWatchdogTimeout = null;
 	          if (!this.activeCall) return;
 	          if (!this.awaitingResponse) return;
-            console.warn('[HERO-CALL] ⚠️ Watchdog: sin respuesta, reanudando escucha');
+	          console.warn('[MCP] Watchdog: sin respuesta, reanudando escucha');
 	          this.awaitingResponse = false;
 	        }, 12000);
 	      }
@@ -764,104 +1083,103 @@
 	        }
 	      }
 
-        async startRealTimeCall() {
-          const cfg = await this.getMcpConfig();
-          const wsUrl = this.buildWebSocketUrl(cfg.MCP_SERVER_URL, cfg.MCP_TOKEN);
-          console.log('[HERO-CALL] 🔌 Conectando WebSocket:', wsUrl);
-          const ws = new WebSocket(wsUrl);
-          this.activeCall = ws;
+	      async startRealTimeCall() {
+	        const cfg = await this.getMcpConfig();
+	        const wsUrl = this.buildWebSocketUrl(cfg.MCP_SERVER_URL, cfg.MCP_TOKEN);
+	        const ws = new WebSocket(wsUrl);
+	        this.activeCall = ws;
 
-          ws.onopen = async () => {
-            console.log('[HERO-CALL] ✅ WebSocket conectado');
+        ws.onopen = async () => {
+            console.log('✅ WebSocket conectado');
             ws.send(JSON.stringify({
               route: 'conserje',
               action: 'message',
               payload: { type: 'ready', message: 'Cliente listo' }
             }));
 
+            // Start Microphone Capture
             try {
-              const stream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                  echoCancellation: true,
-                  noiseSuppression: true,
-                  autoGainControl: true
-                }
-              });
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                });
 
-              this.stream = stream;
+                this.stream = stream;
 
-              const preferredMime = 'audio/webm;codecs=opus';
-              try {
-                if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(preferredMime)) {
-                  this.mediaRecorder = new MediaRecorder(stream, { mimeType: preferredMime });
-                } else {
+                const preferredMime = 'audio/webm;codecs=opus';
+                try {
+                  if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(preferredMime)) {
+                    this.mediaRecorder = new MediaRecorder(stream, { mimeType: preferredMime });
+                  } else {
+                    this.mediaRecorder = new MediaRecorder(stream);
+                  }
+                } catch (_) {
                   this.mediaRecorder = new MediaRecorder(stream);
                 }
-              } catch (_) {
-                this.mediaRecorder = new MediaRecorder(stream);
-              }
-              
-              this.mediaRecorder.ondataavailable = (event) => {
-                try {
-                  if (!event.data || event.data.size <= 0) return;
-                  if (!this.activeCall || ws.readyState !== WebSocket.OPEN) return;
-                  if (this.isMicrophoneMuted || this.isSpeaking || this.awaitingResponse) return;
-                  if (event.data.size < this.minRecordedBytes) return;
+                this.mediaRecorder.ondataavailable = (event) => {
+                  try {
+                    if (!event.data || event.data.size <= 0) return;
+	                    if (!this.activeCall || ws.readyState !== WebSocket.OPEN) return;
+	                    if (this.isPaused || this.isMicrophoneMuted || this.isSpeaking || this.awaitingResponse) return;
+	                    if (event.data.size < this.minRecordedBytes) return;
 
-                  this.awaitingResponse = true;
-                  this.startResponseWatchdog();
+                    this.awaitingResponse = true;
+                    this.startResponseWatchdog();
 
-                  const reader = new FileReader();
-                  reader.onloadend = () => {
-                    try {
-                      const base64Audio = String(reader.result || '').split(',')[1] || '';
-                      if (!base64Audio) {
-                        this.awaitingResponse = false;
-                        return;
-                      }
-
-                      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-                      const destination = (document.getElementById('search-destination')?.value || '').trim();
-                      const guests = Number(document.getElementById('search-guests')?.value || 0) || 0;
-                      const nights = Number(document.getElementById('search-nights')?.value || 0) || 0;
-
-                      ws.send(JSON.stringify({
-                        route: 'audio',
-                        action: 'stt',
-                        payload: {
-                          audio: base64Audio,
-                          context: { timezone, destination, guests, nights }
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                      try {
+                        const base64Audio = String(reader.result || '').split(',')[1] || '';
+                        if (!base64Audio) {
+                          this.awaitingResponse = false;
+                          return;
                         }
-                      }));
-                    } catch (err) {
-                      console.error('[HERO-CALL] ❌ Error enviando audio', err);
-                      this.awaitingResponse = false;
-                    }
-                  };
-                  reader.readAsDataURL(event.data);
-                } catch (err) {
-                  console.error('[HERO-CALL] ❌ Error en ondataavailable', err);
-                  this.awaitingResponse = false;
-                }
-              };
 
-              this.mediaRecorder.start(this.recordingSliceMs);
-              console.log('[HERO-CALL] 🎤 Microphone recording started');
+                        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                        const destination = (document.getElementById('search-destination')?.value || '').trim();
+                        const guests = Number(document.getElementById('search-guests')?.value || 0) || 0;
+                        const nights = Number(document.getElementById('search-nights')?.value || 0) || 0;
+
+                        ws.send(JSON.stringify({
+                          route: 'audio',
+                          action: 'stt',
+                          payload: {
+                            audio: base64Audio,
+                            context: { timezone, destination, guests, nights }
+                          }
+                        }));
+                      } catch (err) {
+                        console.error('[MCP] Error enviando audio', err);
+                        this.awaitingResponse = false;
+                      }
+                    };
+                    reader.readAsDataURL(event.data);
+                  } catch (err) {
+                    console.error('[MCP] Error en ondataavailable', err);
+                    this.awaitingResponse = false;
+                  }
+                };
+
+                this.mediaRecorder.start(this.recordingSliceMs);
+                console.log("🎤 Microphone recording started");
 
             } catch (err) {
-              console.error('[HERO-CALL] ❌ Error accessing microphone:', err);
-              alert('Error: No se pudo acceder al micrófono. Por favor permite el acceso para hablar con Sandra.');
-              this.stopAudioCapture();
-              try { ws.close(); } catch (_) {}
+                console.error("Error accessing microphone:", err);
+                alert("Error: No se pudo acceder al micrófono. Por favor permite el acceso para hablar con Sandra.");
+                this.stopAudioCapture();
+                try { ws.close(); } catch (_) {}
             }
-          };
+        };
 
-          ws.onmessage = (event) => {
+        ws.onmessage = (event) => {
             let data;
             try {
               data = JSON.parse(event.data);
             } catch (err) {
-              console.error('[HERO-CALL] ❌ Mensaje inválido', err);
+              console.error('[MCP] Mensaje inválido', err);
               return;
             }
 
@@ -883,20 +1201,33 @@
                 }));
               } catch (_) {}
             }
-          };
+        };
 
-          ws.onclose = () => {
-            console.log('[HERO-CALL] 🔌 WebSocket connection closed');
-            this.stopAudioCapture();
-            this.activeCall = null;
-            this.setHeroCallActive(false);
-          };
+		        ws.onclose = () => {
+		            console.log("WebSocket connection closed");
+		            this.activeCall = null;
+		            this.hangupCall('ws_close');
+		        };
+	      }
 
-          ws.onerror = (err) => {
-            console.error('[HERO-CALL] ❌ WebSocket error:', err);
-          };
-        }
+      addMessage(text, type) {
+        const container = document.getElementById('sandra-messages');
+        const isUser = type === 'user';
+        const html = `
+          <div class="flex gap-2 ${isUser ? 'flex-row-reverse' : ''}">
+            ${!isUser ? '<div class="w-6 h-6 rounded-full bg-gradient-to-tr from-blue-400 to-purple-500 flex-shrink-0 flex items-center justify-center text-[10px] text-white font-bold">S</div>' : ''}
+            <div class="${isUser ? 'bg-blue-600 text-white' : 'bg-white border border-slate-100 text-slate-700'} p-2.5 rounded-xl ${isUser ? 'rounded-tr-none' : 'rounded-tl-none'} shadow-sm text-xs max-w-[85%]"><p>${text}</p></div>
+          </div>`;
+        container.insertAdjacentHTML('beforeend', html);
+        container.scrollTop = container.scrollHeight;
+      }
 
+      showTyping(show) {
+        const el = document.getElementById('sandra-typing');
+        if(show) el.classList.remove('hidden'); else el.classList.add('hidden');
+      }
+
+      // AUDIO FIX: Improved playAudioResponse with 3s delay on revoke
 		      playAudioResponse(audioBase64) {
 		        if (this.currentAudio) {
 		          this.currentAudio.pause();
@@ -904,6 +1235,11 @@
 		        }
 
 		        this.isSpeaking = true;
+		        try {
+		          if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+		            this.mediaRecorder.pause();
+		          }
+		        } catch (_) {}
 
 	        const byteCharacters = atob(audioBase64);
 	        const byteNumbers = new Array(byteCharacters.length);
@@ -924,93 +1260,31 @@
 
 		        audio.onended = () => {
 		          this.isSpeaking = false;
+		          try {
+		            if (this.mediaRecorder && this.mediaRecorder.state === 'paused' && !this.isPaused && !this.isMicrophoneMuted) {
+		              this.mediaRecorder.resume();
+		            }
+		          } catch (_) {}
+		          // CRITICAL FIX: Wait 3 seconds before revoking to prevent cutting off the end
 		          setTimeout(() => {
 		            if (audio._blobUrl) {
 		              URL.revokeObjectURL(audio._blobUrl);
               audio._blobUrl = null;
             }
+            this.currentAudio = null;
 	          }, 3000);
 	        };
 
-          audio.play().catch(err => {
-            console.error('[HERO-CALL] ❌ Error reproduciendo audio:', err);
+	        audio.play().catch(e => {
 	          this.isSpeaking = false;
-          });
-        }
+	          console.error("Audio play error:", e);
+	        });
+	      }
+    }
 
-        hangupCall() {
-          console.log('[HERO-CALL] 📞 Colgando llamada...');
-          if (this.activeCall) {
-            try {
-              this.activeCall.close();
-            } catch (_) {}
-            this.activeCall = null;
-          }
-          this.stopAudioCapture();
-          this.setHeroCallActive(false);
-          
-          if (this.currentAudio) {
-            this.currentAudio.pause();
-            if (this.currentAudio._blobUrl) URL.revokeObjectURL(this.currentAudio._blobUrl);
-            this.currentAudio = null;
-          }
-        }
-      }
-
-      // Inicializar sistema cuando el DOM esté listo
-      let heroCallSystem = null;
-      
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initHeroCallSystem);
-      } else {
-        initHeroCallSystem();
-      }
-
-      function initHeroCallSystem() {
-        heroCallSystem = new HeroConversationalCall();
-        window.heroCallSystem = heroCallSystem;
-
-        // Conectar botón "Buscar con IA"
-        const btnSearchAi = document.getElementById('btn-search-ai');
-        if (btnSearchAi) {
-          btnSearchAi.addEventListener('click', () => {
-            heroCallSystem.startConversationalCall();
-            const searchContainer = document.getElementById('search-container');
-            if (searchContainer) searchContainer.style.opacity = '0';
-          });
-        }
-
-        // Conectar botón colgar
-        const hangupBtn = document.getElementById('hero-hangup-btn');
-        if (hangupBtn) {
-          hangupBtn.addEventListener('click', () => {
-            heroCallSystem.hangupCall();
-          });
-        }
-
-        // Conectar botón mute
-        const muteBtn = document.getElementById('hero-mute-btn');
-        if (muteBtn) {
-          muteBtn.addEventListener('click', () => {
-            heroCallSystem.isMicrophoneMuted = !heroCallSystem.isMicrophoneMuted;
-            const micIcon = document.getElementById('hero-mic-icon');
-            const micMutedIcon = document.getElementById('hero-mic-muted-icon');
-            if (heroCallSystem.isMicrophoneMuted) {
-              if (micIcon) micIcon.classList.add('hidden');
-              if (micMutedIcon) micMutedIcon.classList.remove('hidden');
-              muteBtn.classList.add('bg-red-500/40');
-            } else {
-              if (micMutedIcon) micMutedIcon.classList.add('hidden');
-              if (micIcon) micIcon.classList.remove('hidden');
-              muteBtn.classList.remove('bg-red-500/40');
-            }
-          });
-        }
-
-        console.log('[HERO-CALL] ✅ Sistema de llamadas conversacionales inicializado');
-      }
-    })();
+    document.addEventListener('DOMContentLoaded', () => {
+      new SandraWidget();
+    });
   </script>
-
 </body>
 </html>
