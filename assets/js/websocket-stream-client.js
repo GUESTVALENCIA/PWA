@@ -79,7 +79,13 @@ class WebSocketStreamClient {
       const data = await res.json();
 
       let wsUrl = data.MCP_SERVER_URL || 'wss://pwa-imbf.onrender.com';
-      wsUrl = wsUrl.replace('http', 'ws');
+
+      // Force WSS for Render to avoid Mixed Content / Connection Refused
+      if (wsUrl.includes('onrender.com') && !wsUrl.startsWith('wss://')) {
+        wsUrl = wsUrl.replace(/^https?:\/\//, 'wss://').replace(/^ws:\/\//, 'wss://');
+      } else {
+        wsUrl = wsUrl.replace(/^http/, 'ws');
+      }
 
       this.config.wsUrl = wsUrl;
       this.config.mcpToken = data.MCP_TOKEN;
