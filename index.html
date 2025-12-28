@@ -729,6 +729,15 @@
 	        console.log('Iniciando llamada conversacional...');
 	        if (this.chatLocked || this.activeCall || this.ringTimeout) return;
 	        this.chatLocked = true;
+	        
+	        // Ocultar botón de llamada cuando inicia
+	        const callBtn = document.getElementById('sandra-call-btn');
+	        if (callBtn) callBtn.style.display = 'none';
+	        
+	        // Mostrar controles de llamada
+	        const callControls = document.getElementById('sandra-call-controls');
+	        if (callControls) callControls.classList.remove('hidden');
+	        
 	        this.playRingtone();
 	      }
 
@@ -951,6 +960,7 @@
         this.stopAudioCapture();
         
         // Limpiar estado
+        this.chatLocked = false;
         this.setHeroCallActive(false);
         this.awaitingResponse = false;
         this.isSpeaking = false;
@@ -959,9 +969,12 @@
         const callControls = document.getElementById('sandra-call-controls');
         if (callControls) callControls.classList.add('hidden');
         
-        // Mostrar botón de llamada
+        // SIEMPRE mostrar botón de llamada cuando se cuelga
         const callBtn = document.getElementById('sandra-call-btn');
-        if (callBtn) callBtn.style.display = 'flex';
+        if (callBtn) {
+          callBtn.style.display = 'flex';
+          callBtn.style.visibility = 'visible';
+        }
         
         console.log('✅ Llamada colgada correctamente');
       }
@@ -1184,6 +1197,15 @@
       }
 
       addMessage(text, type) {
+        // Asegurar que el botón de llamada esté visible cuando se envía mensaje (si no hay llamada activa)
+        if (!this.activeCall && !this.chatLocked) {
+          const callBtn = document.getElementById('sandra-call-btn');
+          if (callBtn) {
+            callBtn.style.display = 'flex';
+            callBtn.style.visibility = 'visible';
+          }
+        }
+        
         const container = document.getElementById('sandra-messages');
         const isUser = type === 'user';
         const html = `

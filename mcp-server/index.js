@@ -284,6 +284,18 @@ app.get('/', (req, res) => {
 
 });
 
+// API Config endpoint (para cliente en localhost)
+app.get('/api/config', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET');
+  res.setHeader('Content-Type', 'application/json');
+  
+  res.json({
+    MCP_SERVER_URL: 'http://localhost:4042',
+    MCP_TOKEN: process.env.MCP_TOKEN || null
+  });
+});
+
 
 
 // WebSocket Server
