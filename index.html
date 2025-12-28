@@ -953,10 +953,11 @@
 
         ws.onopen = async () => {
             console.log('✅ WebSocket conectado');
+            // Enviar mensaje de ready para recibir el saludo inicial
             ws.send(JSON.stringify({
               route: 'conserje',
               action: 'message',
-              payload: { type: 'ready', message: 'Cliente listo' }
+              payload: { type: 'ready', message: 'Cliente listo para recibir saludo' }
             }));
 
             // Start Microphone Capture
