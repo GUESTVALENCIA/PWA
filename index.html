@@ -48,9 +48,6 @@
     .hero-section{position:relative;min-height:100vh;display:flex;align-items:flex-end;justify-content:center;overflow:hidden;padding-bottom:10vh}
     .hero-video{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:-2}
     .hero-background-image{position:absolute;top:0;left:0;width:100%;height:100%;background-size:cover;background-position:center 35%;z-index:-3;transition:transform 0.3s ease}
-    /* Movimiento sutil del Hero durante llamada (sin video) */
-    .hero-motion{animation:hero-motion 10s ease-in-out infinite;will-change:transform}
-    @keyframes hero-motion{0%,100%{transform:scale(1) translate3d(0,0,0)}50%{transform:scale(1.015) translate3d(0,-0.6%,0)}}
     /* Subtítulos siempre visibles y con saltos de línea cuando se muestran */
     #sandra-subtitles span{white-space:pre-line;display:inline-block;line-height:1.5}
     .property-card{transition:transform 0.3s,box-shadow 0.3s}.property-card:hover{transform:translateY(-5px);box-shadow:0 20px 40px rgba(0,0,0,0.1)}
@@ -73,48 +70,23 @@
 <body class="font-sans text-slate-900 bg-white min-h-full flex flex-col">
 
   <!-- NAVBAR -->
-  <nav id="main-nav" class="fixed top-0 left-0 right-0 w-full z-50 h-24 flex items-center transition-all duration-300 bg-black/20 backdrop-blur-md border-b border-white/10 shadow-sm">
-    <div class="w-full max-w-7xl mx-auto px-6 flex justify-between items-center">
-      <a href="#home" class="nav-link text-3xl font-bold text-white flex items-center gap-1 font-serif tracking-tight drop-shadow-md">
+  <nav id="main-nav" class="fixed top-0 left-0 right-0 w-full z-50 transition-all duration-300">
+    <div class="w-full glass-dark px-6 py-3 flex justify-between items-center shadow-lg" style="border-radius: 0;">
+      <a href="#home" class="nav-link text-2xl font-bold text-white flex items-center gap-2">
         <span class="text-blue-400">Guests</span>Valencia
       </a>
-
-      <div class="hidden lg:flex gap-8 text-base font-medium text-white/90">
-        <a href="#home" class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
-          Inicio
-          <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-400 transition-all group-hover:w-full"></span>
-        </a>
-        <a href="#alojamientos" class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
-          Alojamientos
-          <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-400 transition-all group-hover:w-full"></span>
-        </a>
-        <a href="#servicios" class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
-          Servicios
-          <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-400 transition-all group-hover:w-full"></span>
-        </a>
-        <a href="#owners" class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
-          Propietarios
-          <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-400 transition-all group-hover:w-full"></span>
-        </a>
-        <a href="#quienes-somos" class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
-          Quiénes Somos
-          <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-400 transition-all group-hover:w-full"></span>
-        </a>
-        <a href="#contacto" class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
-          Contacto
-          <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-400 transition-all group-hover:w-full"></span>
-        </a>
-        <a href="https://app.guestsvalencia.es" class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
-          📱 App
-          <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-400 transition-all group-hover:w-full"></span>
-        </a>
+      <div class="hidden md:flex gap-6 text-sm font-medium text-slate-200">
+        <a href="#home" class="nav-link hover:text-white">Inicio</a>
+        <a href="#alojamientos" class="nav-link hover:text-white">Alojamientos</a>
+        <a href="#servicios" class="nav-link hover:text-white">Servicios</a>
+        <a href="#owners" class="nav-link hover:text-white">Propietarios</a>
+        <a href="#quienes-somos" class="nav-link hover:text-white">Quiénes Somos</a>
+        <a href="#contacto" class="nav-link hover:text-white">Contacto</a>
+        <a href="https://app.guestsvalencia.es" class="nav-link hover:text-white">📱 App</a>
       </div>
-
-      <div class="flex gap-4 items-center">
-        <a href="#login" class="nav-link hidden sm:block text-white/90 hover:text-white text-base font-medium">Acceder</a>
-        <a href="#register" class="nav-link bg-white/10 hover:bg-white/20 border border-white/20 text-white px-6 py-3 rounded-full text-base font-bold backdrop-blur-sm transition-all transform hover:scale-105">
-          Registrarse
-        </a>
+      <div class="flex gap-3 items-center">
+        <a href="#login" class="hidden sm:block text-slate-300 hover:text-white text-sm py-2">Acceder</a>
+        <a href="#register" class="btn-primary px-4 py-2 rounded-xl text-sm font-semibold">Registrarse</a>
       </div>
     </div>
   </nav>
@@ -126,7 +98,7 @@
     <!-- HOME -->
     <section id="home-page" class="page active">
       <header class="hero-section">
-        <video id="hero-video" class="hero-video" autoplay muted loop playsinline style="display:none;" poster="assets/images/sandra-avatar.png">
+        <video id="hero-video" class="hero-video" autoplay muted loop playsinline style="display:none;">
           <source src="" type="video/mp4">
         </video>
         <div id="hero-background-image" class="hero-background-image" style="background-image: url('https://images.unsplash.com/photo-1600607687644-c7171b42498b?auto=format&fit=crop&w=1920&q=95'); filter: brightness(1.05) contrast(1.1); background-size: cover; background-position: center 35%;"></div>
@@ -360,66 +332,6 @@
   <!-- FOOTER -->
   <!-- [SAME FOOTER] -->
 
-  <!-- Persistencia del Hero (solo imagen): aplica + guarda, sin tocar la lógica de llamada -->
-  <script>
-    (function () {
-      const heroBg = document.getElementById('hero-background-image');
-      const heroVideo = document.getElementById('hero-video');
-      const heroInput = document.getElementById('hero-media-upload');
-      const STORAGE_KEY = 'gv-hero-image';
-      let currentObjectUrl = null;
-
-      const applyHeroImage = (url) => {
-        if (heroBg) heroBg.style.backgroundImage = `url('${url}')`;
-        if (heroVideo) heroVideo.setAttribute('poster', url);
-      };
-
-      const revokeCurrentObjectUrl = () => {
-        if (currentObjectUrl) {
-          URL.revokeObjectURL(currentObjectUrl);
-          currentObjectUrl = null;
-        }
-      };
-
-      // 1) Cargar imagen persistida (localStorage)
-      try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) applyHeroImage(saved);
-      } catch (err) {
-        console.warn('No se pudo leer la imagen guardada del Hero', err);
-      }
-
-      // 2) Al subir imagen: mostrar y persistir (sin tocar vídeo/llamada)
-      if (heroInput) {
-        heroInput.addEventListener('change', (e) => {
-          const file = e.target.files && e.target.files[0];
-          if (!file) return;
-
-          if (!file.type || !file.type.startsWith('image/')) {
-            // No forzamos nada: si no es imagen, salimos sin romper el flujo.
-            return;
-          }
-
-          // Mostrar al instante
-          revokeCurrentObjectUrl();
-          currentObjectUrl = URL.createObjectURL(file);
-          applyHeroImage(currentObjectUrl);
-
-          // Persistir (dataURL)
-          const reader = new FileReader();
-          reader.onload = () => {
-            try {
-              localStorage.setItem(STORAGE_KEY, String(reader.result || ''));
-            } catch (err) {
-              console.warn('No se pudo guardar la imagen del Hero (localStorage)', err);
-            }
-          };
-          reader.readAsDataURL(file);
-        });
-      }
-    })();
-  </script>
-
   <!-- SANDRA WIDGET SCRIPT -->
   <script>
     // Sandra Gateway Client
@@ -455,24 +367,16 @@
     class SandraWidget {
       constructor() {
         this.gateway = new SandraGateway();
-        // Forzamos modo estático (sin video). Cuando tengas el mp4 de Sora, pon esto a true.
-        this.useVideo = false;
-        this.ringTimeout = null;
         this.isOpen = false;
         this.isRecording = false;
         this.isMicrophoneMuted = false;
         this.isSpeaking = false;
-        this.awaitingResponse = false;
         this.audioQueue = [];
         this.currentAudio = null;
         this.activeCall = null;
-        this.mediaRecorder = null;
-        this.stream = null;
-        this.recordingSliceMs = 2500;
-        this.minRecordedBytes = 6000;
-        this.responseWatchdogTimeout = null;
-        this._mcpConfigPromise = null;
         this.chatLocked = false;
+        this.stream = null;
+        this.mediaRecorder = null;
         this.init();
       }
 
@@ -569,9 +473,6 @@
         const acceptCallBtn = document.getElementById('sandra-accept-call');
         const declineCallBtn = document.getElementById('sandra-decline-call');
         const callPrompt = document.getElementById('sandra-call-prompt');
-        const btnCallToggle = document.getElementById('btn-call-toggle');
-        const btnMuteToggle = document.getElementById('btn-mute-toggle');
-        const btnSearchAi = document.getElementById('btn-search-ai');
 
         // Toggle Chat
         const toggleChat = () => {
@@ -618,8 +519,6 @@
             if (callPrompt) callPrompt.style.display = 'none';
             const callControls = document.getElementById('sandra-call-controls');
             if (callControls) callControls.classList.remove('hidden');
-            // Hide chat window when starting call
-            toggleChat();
           });
         }
 
@@ -630,146 +529,71 @@
           });
         }
 
-	        if (btnCallToggle) {
-	            btnCallToggle.addEventListener('click', () => {
-	                // Toggle logic: for now, it starts call if not started
-	                if (!this.activeCall) {
-	                    this.startConversationalCall();
-		                } else {
-		                    // Hang up
-		                    try { this.activeCall.close(); } catch (_) {}
-		                    this.activeCall = null;
-		                    this.stopAudioCapture();
-		                    this.setHeroCallActive(false);
-		                    console.log("Call ended by user");
-	                    // Optionally reset UI to idle state
-	                }
-	            });
-	        }
+        // Hangup Button
+        const hangupBtn = document.getElementById('sandra-hangup-btn');
+        if (hangupBtn) {
+          hangupBtn.addEventListener('click', () => {
+            this.hangupCall();
+          });
+        }
+      }
 
-	        if (btnMuteToggle) {
-	          btnMuteToggle.addEventListener('click', () => {
-	            this.isMicrophoneMuted = !this.isMicrophoneMuted;
-	            const micIcon = document.getElementById('mic-icon');
-	            const micMutedIcon = document.getElementById('mic-muted-icon');
-	            if (this.isMicrophoneMuted) {
-	              micIcon && micIcon.classList.add('hidden');
-	              micMutedIcon && micMutedIcon.classList.remove('hidden');
-	              btnMuteToggle.classList.add('bg-red-500/40');
-	            } else {
-	              micMutedIcon && micMutedIcon.classList.add('hidden');
-	              micIcon && micIcon.classList.remove('hidden');
-	              btnMuteToggle.classList.remove('bg-red-500/40');
-	            }
-	          });
-	        }
+      hangupCall() {
+        console.log('Colgando llamada...');
+        if (this.activeCall) {
+          try {
+            this.activeCall.close();
+          } catch (err) {
+            console.error('[MCP] Error cerrando WebSocket', err);
+          }
+          this.activeCall = null;
+        }
+        this.stopAudioCapture();
+        this.chatLocked = false;
+        const callControls = document.getElementById('sandra-call-controls');
+        if (callControls) callControls.classList.add('hidden');
+        const callPrompt = document.getElementById('sandra-call-prompt');
+        if (callPrompt) callPrompt.style.display = 'block';
+      }
 
-		        if (btnSearchAi) {
-		            btnSearchAi.addEventListener('click', () => {
-		                this.startConversationalCall();
-		                // Optionally hide the hero search bar to focus on video
-		                const searchContainer = document.getElementById('search-container');
-		                if (searchContainer) searchContainer.style.opacity = '0'; // Fade out
-		            });
-		        }
-	      }
-
-	      setHeroCallActive(active) {
-	        const heroBg = document.getElementById('hero-background-image');
-	        const heroVideo = document.getElementById('hero-video');
-	        const searchContainer = document.getElementById('search-container');
-
-	        if (searchContainer) {
-	          searchContainer.style.opacity = active ? '0' : '1';
-	          searchContainer.style.pointerEvents = active ? 'none' : 'auto';
-	        }
-
-	        if (heroBg) {
-	          heroBg.classList.toggle('hero-motion', !!active);
-	        }
-
-	        // En modo sin video, aseguramos que el <video> no se muestre ni cargue.
-	        if (heroVideo && !this.useVideo) {
-	          try {
-	            heroVideo.pause();
-	            heroVideo.currentTime = 0;
-	          } catch (_) {}
-	          heroVideo.style.display = 'none';
-	          heroVideo.style.opacity = '0';
-	          const source = heroVideo.querySelector('source');
-	          if (source) source.removeAttribute('src');
-	          try { heroVideo.load(); } catch (_) {}
-	        }
-
-	        if (!active) {
-	          this.chatLocked = false;
-	          if (this.ringTimeout) {
-	            clearTimeout(this.ringTimeout);
-	            this.ringTimeout = null;
-	          }
-	        }
-	      }
-
-	      startConversationalCall() {
-	        console.log('Iniciando llamada conversacional...');
-	        if (this.chatLocked || this.activeCall || this.ringTimeout) return;
-	        this.chatLocked = true;
-	        this.playRingtone();
-	      }
+      startConversationalCall() {
+        console.log('Iniciando llamada conversacional...');
+        this.chatLocked = true;
+        this.playRingtone();
+      }
 
       playRingtone() {
         console.log('🔔 Iniciando ringtone...');
         // Simulation of ringtone logic -> leads to pickup
-        if (this.ringTimeout) clearTimeout(this.ringTimeout);
-        this.ringTimeout = setTimeout(() => {
-            this.ringTimeout = null;
+        setTimeout(() => {
             console.log('🔔 Segundo ring completado, descolgando llamada...');
-            this.setHeroCallActive(true);
-
-            if (this.useVideo) {
-              this.transitionHeroToVideo();
-              this.startVideoStream();
-            } else {
-              // Sin video: solo animamos el Hero y arrancamos la llamada/stream de audio.
-              this.startRealTimeCall();
-            }
+            this.transitionHeroToVideo();
+            this.startVideoStream();
         }, 3000);
       }
 
       transitionHeroToVideo() {
         console.log('🎥 Transición: Imagen estática → Video');
-        if (!this.useVideo) return;
         const heroImage = document.getElementById('hero-background-image');
         const heroVideo = document.getElementById('hero-video');
 
         if (heroImage && heroVideo) {
-          // Crossfade SIN "cortina blanca": mantenemos la imagen visible y hacemos fade-in del vídeo encima.
-          // Además, igualamos el poster del vídeo al fondo actual para que el cambio sea casi imperceptible.
-          try {
-            const bg = window.getComputedStyle(heroImage).backgroundImage || '';
-            const m = bg.match(/url\(["']?(.*?)["']?\)/i);
-            if (m && m[1]) heroVideo.setAttribute('poster', m[1]);
-          } catch (_) {}
-
-          heroImage.style.display = 'block';
-          heroImage.style.opacity = '1';
-
-          heroVideo.style.display = 'block';
-          heroVideo.style.opacity = '0';
-          heroVideo.style.transition = 'opacity 0.8s ease-in';
-
-          requestAnimationFrame(() => {
-            heroVideo.style.opacity = '1';
-          });
+          heroImage.style.transition = 'opacity 0.8s ease-out';
+          heroImage.style.opacity = '0';
+          setTimeout(() => {
+            heroImage.style.display = 'none';
+            heroVideo.style.display = 'block';
+            heroVideo.style.opacity = '0';
+            heroVideo.style.transition = 'opacity 0.8s ease-in';
+            setTimeout(() => {
+              heroVideo.style.opacity = '1';
+            }, 100);
+          }, 800);
         }
       }
 
       startVideoStream() {
         console.log('🎬 Iniciando stream de video...');
-        if (!this.useVideo) {
-          this.startRealTimeCall();
-          return;
-        }
         const heroVideo = document.getElementById('hero-video');
         const videoSource = heroVideo.querySelector('source');
 
@@ -778,100 +602,50 @@
           heroVideo.load();
           heroVideo.play().catch(e => console.log('Error al reproducir video:', e));
         }
-	        // Start Real Time Call (WebSocket + Audio Capture)
-	        this.startRealTimeCall();
-	      }
+        // Start Real Time Call (WebSocket)
+        this.startRealTimeCall();
+      }
 
-	      async getMcpConfig() {
-	        if (this._mcpConfigPromise) return this._mcpConfigPromise;
-	        this._mcpConfigPromise = (async () => {
-	          try {
-	            const res = await fetch('/api/config', { cache: 'no-store' });
-	            if (!res.ok) throw new Error(`config ${res.status}`);
-	            const cfg = await res.json();
-	            return {
-	              MCP_SERVER_URL: cfg && cfg.MCP_SERVER_URL ? cfg.MCP_SERVER_URL : 'https://pwa-imbf.onrender.com',
-	              MCP_TOKEN: cfg && cfg.MCP_TOKEN ? cfg.MCP_TOKEN : null
-	            };
-	          } catch (err) {
-	            console.warn('[MCP] No se pudo cargar /api/config, usando fallback', err);
-	            return { MCP_SERVER_URL: 'https://pwa-imbf.onrender.com', MCP_TOKEN: null };
-	          }
-	        })();
-	        return this._mcpConfigPromise;
-	      }
+      async startRealTimeCall() {
+        // Obtener configuración MCP
+        let mcpServerUrl = 'https://pwa-imbf.onrender.com';
+        let mcpToken = null;
+        
+        try {
+          const res = await fetch('/api/config', { cache: 'no-store' });
+          if (res.ok) {
+            const cfg = await res.json();
+            mcpServerUrl = cfg.MCP_SERVER_URL || mcpServerUrl;
+            mcpToken = cfg.MCP_TOKEN || null;
+          }
+        } catch (err) {
+          console.warn('[MCP] No se pudo cargar /api/config, usando fallback', err);
+        }
 
-	      buildWebSocketUrl(mcpServerUrl, token) {
-	        let url;
-	        try {
-	          url = new URL(String(mcpServerUrl || ''));
-	        } catch (_) {
-	          url = new URL('https://pwa-imbf.onrender.com');
-	        }
+        // Construir URL WebSocket
+        let wsUrl;
+        try {
+          const url = new URL(mcpServerUrl.replace(/\/$/, ''));
+          url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+          url.pathname = '/';
+          if (url.hostname.includes('onrender.com')) {
+            url.port = '';
+          } else if (!url.port) {
+            url.port = '4042';
+          }
+          url.search = mcpToken ? `?token=${encodeURIComponent(mcpToken)}` : '';
+          wsUrl = url.toString();
+        } catch (_) {
+          wsUrl = 'wss://pwa-imbf.onrender.com';
+        }
 
-	        const isRender = url.hostname.includes('onrender.com');
-	        url.protocol = (url.protocol === 'https:') ? 'wss:' : 'ws:';
-	        url.pathname = '/';
-
-	        if (isRender) {
-	          url.port = '';
-	        } else if (!url.port) {
-	          url.port = '4042';
-	        }
-
-	        url.search = token ? `?token=${encodeURIComponent(String(token))}` : '';
-	        return url.toString();
-	      }
-
-	      clearResponseWatchdog() {
-	        if (this.responseWatchdogTimeout) {
-	          clearTimeout(this.responseWatchdogTimeout);
-	          this.responseWatchdogTimeout = null;
-	        }
-	      }
-
-	      startResponseWatchdog() {
-	        this.clearResponseWatchdog();
-	        this.responseWatchdogTimeout = setTimeout(() => {
-	          this.responseWatchdogTimeout = null;
-	          if (!this.activeCall) return;
-	          if (!this.awaitingResponse) return;
-	          console.warn('[MCP] Watchdog: sin respuesta, reanudando escucha');
-	          this.awaitingResponse = false;
-	        }, 12000);
-	      }
-
-	      stopAudioCapture() {
-	        this.clearResponseWatchdog();
-	        this.awaitingResponse = false;
-	        this.isSpeaking = false;
-
-	        if (this.mediaRecorder) {
-	          try {
-	            if (this.mediaRecorder.state === 'recording' || this.mediaRecorder.state === 'paused') {
-	              this.mediaRecorder.stop();
-	            }
-	          } catch (_) {}
-	          this.mediaRecorder = null;
-	        }
-
-	        if (this.stream) {
-	          try {
-	            this.stream.getTracks().forEach(t => t.stop());
-	          } catch (_) {}
-	          this.stream = null;
-	        }
-	      }
-
-	      async startRealTimeCall() {
-	        const cfg = await this.getMcpConfig();
-	        const wsUrl = this.buildWebSocketUrl(cfg.MCP_SERVER_URL, cfg.MCP_TOKEN);
-	        const ws = new WebSocket(wsUrl);
-	        this.activeCall = ws;
+        console.log('[MCP] Conectando WebSocket:', wsUrl);
+        const ws = new WebSocket(wsUrl);
+        this.activeCall = ws;
 
         ws.onopen = async () => {
             console.log('✅ WebSocket conectado');
-            ws.send(JSON.stringify({
+            ws.send(JSON.stringify({ 
               route: 'conserje',
               action: 'message',
               payload: { type: 'ready', message: 'Cliente listo' }
@@ -879,78 +653,63 @@
 
             // Start Microphone Capture
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true
-                    }
-                });
+              const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                  echoCancellation: true,
+                  noiseSuppression: true,
+                  autoGainControl: true
+                }
+              });
 
-                this.stream = stream;
-
-                const preferredMime = 'audio/webm;codecs=opus';
-                try {
-                  if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(preferredMime)) {
-                    this.mediaRecorder = new MediaRecorder(stream, { mimeType: preferredMime });
-                  } else {
-                    this.mediaRecorder = new MediaRecorder(stream);
-                  }
-                } catch (_) {
+              this.stream = stream;
+              const preferredMime = 'audio/webm;codecs=opus';
+              try {
+                if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(preferredMime)) {
+                  this.mediaRecorder = new MediaRecorder(stream, { mimeType: preferredMime });
+                } else {
                   this.mediaRecorder = new MediaRecorder(stream);
                 }
-                this.mediaRecorder.ondataavailable = (event) => {
-                  try {
-                    if (!event.data || event.data.size <= 0) return;
-                    if (!this.activeCall || ws.readyState !== WebSocket.OPEN) return;
-                    if (this.isMicrophoneMuted || this.isSpeaking || this.awaitingResponse) return;
-                    if (event.data.size < this.minRecordedBytes) return;
+              } catch (_) {
+                this.mediaRecorder = new MediaRecorder(stream);
+              }
 
-                    this.awaitingResponse = true;
-                    this.startResponseWatchdog();
+              this.mediaRecorder.ondataavailable = (event) => {
+                try {
+                  if (!event.data || event.data.size <= 0) return;
+                  if (!this.activeCall || ws.readyState !== WebSocket.OPEN) return;
+                  if (this.isMicrophoneMuted || this.isSpeaking) return;
 
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                      try {
-                        const base64Audio = String(reader.result || '').split(',')[1] || '';
-                        if (!base64Audio) {
-                          this.awaitingResponse = false;
-                          return;
+                  const reader = new FileReader();
+                  reader.onloadend = () => {
+                    try {
+                      const base64Audio = String(reader.result || '').split(',')[1] || '';
+                      if (!base64Audio) return;
+
+                      ws.send(JSON.stringify({
+                        route: 'audio',
+                        action: 'stt',
+                        payload: {
+                          audio: base64Audio,
+                          format: 'webm'
                         }
+                      }));
+                    } catch (err) {
+                      console.error('[MCP] Error enviando audio', err);
+                    }
+                  };
+                  reader.readAsDataURL(event.data);
+                } catch (err) {
+                  console.error('[MCP] Error en ondataavailable', err);
+                }
+              };
 
-                        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-                        const destination = (document.getElementById('search-destination')?.value || '').trim();
-                        const guests = Number(document.getElementById('search-guests')?.value || 0) || 0;
-                        const nights = Number(document.getElementById('search-nights')?.value || 0) || 0;
-
-                        ws.send(JSON.stringify({
-                          route: 'audio',
-                          action: 'stt',
-                          payload: {
-                            audio: base64Audio,
-                            context: { timezone, destination, guests, nights }
-                          }
-                        }));
-                      } catch (err) {
-                        console.error('[MCP] Error enviando audio', err);
-                        this.awaitingResponse = false;
-                      }
-                    };
-                    reader.readAsDataURL(event.data);
-                  } catch (err) {
-                    console.error('[MCP] Error en ondataavailable', err);
-                    this.awaitingResponse = false;
-                  }
-                };
-
-                this.mediaRecorder.start(this.recordingSliceMs);
-                console.log("🎤 Microphone recording started");
+              this.mediaRecorder.start(1000);
+              console.log("🎤 Microphone recording started");
 
             } catch (err) {
-                console.error("Error accessing microphone:", err);
-                alert("Error: No se pudo acceder al micrófono. Por favor permite el acceso para hablar con Sandra.");
-                this.stopAudioCapture();
-                try { ws.close(); } catch (_) {}
+              console.error("Error accessing microphone:", err);
+              alert("Error: No se pudo acceder al micrófono. Por favor permite el acceso para hablar con Sandra.");
+              try { ws.close(); } catch (_) {}
             }
         };
 
@@ -964,31 +723,38 @@
             }
 
             if (data.route === 'audio' && data.action === 'tts' && data.payload && data.payload.audio) {
-              this.clearResponseWatchdog();
-              this.awaitingResponse = false;
-              this.playAudioResponse(data.payload.audio);
-              return;
-            }
-
-            if (data.route === 'conserje' && data.action === 'message' && data.payload && data.payload.type === 'noSpeech' && data.payload.message) {
-              this.clearResponseWatchdog();
-              this.awaitingResponse = false;
-              try {
-                ws.send(JSON.stringify({
-                  route: 'audio',
-                  action: 'tts',
-                  payload: { text: data.payload.message }
-                }));
-              } catch (_) {}
+              this.playAudioResponse(data.payload.audio, data.payload.isWelcome);
             }
         };
 
-	        ws.onclose = () => {
-	            console.log("WebSocket connection closed");
-	            this.stopAudioCapture();
-	            this.activeCall = null;
-	            this.setHeroCallActive(false);
-	        };
+        ws.onclose = () => {
+          console.log("WebSocket connection closed");
+          this.stopAudioCapture();
+          this.activeCall = null;
+        };
+
+        ws.onerror = (err) => {
+          console.error("WebSocket error:", err);
+        };
+      }
+
+      stopAudioCapture() {
+        if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+          try {
+            this.mediaRecorder.stop();
+          } catch (err) {
+            console.error('[MCP] Error deteniendo MediaRecorder', err);
+          }
+          this.mediaRecorder = null;
+        }
+        if (this.stream) {
+          try {
+            this.stream.getTracks().forEach(t => t.stop());
+          } catch (err) {
+            console.error('[MCP] Error deteniendo stream', err);
+          }
+          this.stream = null;
+        }
       }
 
       addMessage(text, type) {
@@ -1009,48 +775,39 @@
       }
 
       // AUDIO FIX: Improved playAudioResponse with 3s delay on revoke
-	      playAudioResponse(audioBase64) {
-	        if (this.currentAudio) {
-	          this.currentAudio.pause();
-	          if (this.currentAudio._blobUrl) URL.revokeObjectURL(this.currentAudio._blobUrl);
-	        }
+      playAudioResponse(audioBase64) {
+        if (this.currentAudio) {
+          this.currentAudio.pause();
+          if (this.currentAudio._blobUrl) URL.revokeObjectURL(this.currentAudio._blobUrl);
+        }
 
-	        this.isSpeaking = true;
-
-	        const byteCharacters = atob(audioBase64);
-	        const byteNumbers = new Array(byteCharacters.length);
-	        for (let i = 0; i < byteCharacters.length; i++) {
-	          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        const byteCharacters = atob(audioBase64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
         }
         const byteArray = new Uint8Array(byteNumbers);
         const blob = new Blob([byteArray], { type: 'audio/mp3' });
         const blobUrl = URL.createObjectURL(blob);
 
         const audio = new Audio(blobUrl);
-	        audio._blobUrl = blobUrl;
-	        this.currentAudio = audio;
+        audio._blobUrl = blobUrl;
+        this.currentAudio = audio;
 
-	        audio.onerror = () => {
-	          this.isSpeaking = false;
-	        };
-
-	        audio.onended = () => {
-	          this.isSpeaking = false;
-	          // CRITICAL FIX: Wait 3 seconds before revoking to prevent cutting off the end
-	          setTimeout(() => {
+        audio.onended = () => {
+          this.isSpeaking = false;
+          // CRITICAL FIX: Wait 3 seconds before revoking to prevent cutting off the end
+          setTimeout(() => {
             if (audio._blobUrl) {
               URL.revokeObjectURL(audio._blobUrl);
               audio._blobUrl = null;
             }
             this.currentAudio = null;
-	          }, 3000);
-	        };
+          }, 3000);
+        };
 
-	        audio.play().catch(e => {
-	          this.isSpeaking = false;
-	          console.error("Audio play error:", e);
-	        });
-	      }
+        audio.play().catch(e => console.error("Audio play error:", e));
+      }
     }
 
     document.addEventListener('DOMContentLoaded', () => {
