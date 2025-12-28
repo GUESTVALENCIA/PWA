@@ -70,4 +70,7 @@ class Logger {
   debug(message, data) { this.log('debug', message, data); }
 }
 
-export const logger = new Logger();
+const loggerInstance = new Logger();
+
+export default loggerInstance;
+export const logger = loggerInstance;
