@@ -1,111 +1,143 @@
 /**
- * Ruta de Propuestas
- * POST /api/projects/:projectId/propose - Crear propuesta
- * GET /api/proposals/:proposalId - Obtener propuesta
- * GET /api/proposals - Listar todas
+ * Proposal Routes
+ * POST /api/projects/:projectId/propose - Create proposal
+ * GET /api/proposals/:proposalId - Get proposal with reviews
+ * GET /api/proposals - List all proposals
  */
 
 import express from 'express';
-import { v4 as uuidv4 } from 'uuid';
-import { projectManager, stateManager } from '../../server.js';
-import { logger } from '../utils/logger.js';
+import logger from '../utils/logger.js';
 
 const router = express.Router();
 
-// POST /api/projects/:projectId/propose
-router.post('/projects/:projectId/propose', (req, res) => {
+/**
+ * POST /api/projects/:projectId/propose
+ * Create a new proposal for a project
+ */
+router.post('/projects/:projectId/propose', async (req, res, next) => {
   try {
     const { projectId } = req.params;
     const { title, description, files, reasoning } = req.body;
     const agentId = req.agent?.id || 'unknown';
 
+    const { proposal: proposalService, project: projectManager } = req.services;
+
+    // Verify project exists
     const project = projectManager.getProject(projectId);
     if (!project) {
-      return res.status(404).json({ error: 'Proyecto no encontrado' });
+      return res.status(404).json({ error: 'Project not found' });
     }
 
-    const proposal = {
-      id: uuidv4(),
-      project_id: projectId,
-      agent_name: agentId,
+    // Validate required fields
+    if (!title || !files || !Array.isArray(files) || files.length === 0) {
+      return res.status(400).json({
+        error: 'Title and files array are required',
+        received: { title, files }
+      });
+    }
+
+    // Create proposal using service
+    const proposal = await proposalService.createProposal(projectId, agentId, {
       title,
       description,
-      files: files || [],
       reasoning,
-      status: 'pending'
-    };
-
-    stateManager.registerProposal(proposal);
-
-    // Broadcast a agentes
-    stateManager.broadcastToAgents({
-      type: 'proposal_created',
-      proposalId: proposal.id,
-      projectId,
-      agent: agentId
+      files
     });
 
-    logger.info(`📋 Propuesta creada #${proposal.id.substring(0, 8)} por ${agentId}`);
+    logger.info(`✅ Proposal created: ${proposal.id} by ${agentId}`);
 
     res.status(201).json({
       id: proposal.id,
-      projectId: proposal.project_id,
+      project_id: proposal.project_id,
+      agent_id: proposal.agent_id,
+      title: proposal.title,
       status: proposal.status,
-      message: `✅ Propuesta creada`,
-      viewUrl: `http://localhost:3000/proposals/${proposal.id}`
+      created_at: proposal.created_at,
+      message: 'Proposal created successfully',
+      viewUrl: `http://localhost:3000/api/proposals/${proposal.id}`
     });
   } catch (error) {
-    logger.error('Error creando propuesta:', error);
-    res.status(500).json({ error: error.message });
+    logger.error('Failed to create proposal:', error);
+    next(error);
   }
 });
 
-// GET /api/proposals/:proposalId
-router.get('/proposals/:proposalId', (req, res) => {
+/**
+ * GET /api/proposals/:proposalId
+ * Get proposal with all reviews
+ */
+router.get('/proposals/:proposalId', async (req, res, next) => {
   try {
-    const proposal = stateManager.getProposal(req.params.proposalId);
+    const { proposalId } = req.params;
+    const { proposal: proposalService } = req.services;
 
-    if (!proposal) {
-      return res.status(404).json({ error: 'Propuesta no encontrada' });
-    }
+    // Get proposal with reviews
+    const proposalData = await proposalService.getProposalWithReviews(proposalId);
 
     res.json({
-      id: proposal.id,
-      projectId: proposal.project_id,
-      agentName: proposal.agent_name,
-      title: proposal.title,
-      description: proposal.description,
-      files: proposal.files,
-      reasoning: proposal.reasoning,
-      status: proposal.status,
-      reviews: proposal.reviews || [],
-      created_at: proposal.created_at
+      id: proposalData.id,
+      project_id: proposalData.project_id,
+      agent_id: proposalData.agent_id,
+      title: proposalData.title,
+      description: proposalData.description,
+      reasoning: proposalData.reasoning,
+      status: proposalData.status,
+      files: proposalData.files,
+      created_at: proposalData.created_at,
+      updated_at: proposalData.updated_at,
+      review_count: proposalData.review_count,
+      approval_score: proposalData.approval_score,
+      reviews: proposalData.reviews.map(r => ({
+        id: r.id,
+        reviewer_agent_id: r.reviewer_agent_id,
+        assessment: r.assessment,
+        score: r.score,
+        status: r.status,
+        suggestions: r.suggestions,
+        created_at: r.created_at
+      }))
     });
   } catch (error) {
-    logger.error('Error obteniendo propuesta:', error);
-    res.status(500).json({ error: error.message });
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+    logger.error('Failed to get proposal:', error);
+    next(error);
   }
 });
 
-// GET /api/proposals
-router.get('/proposals', (req, res) => {
+/**
+ * GET /api/proposals
+ * List all proposals for a project or globally
+ */
+router.get('/proposals', async (req, res, next) => {
   try {
-    const proposals = Array.from(stateManager.proposals.values());
+    const { projectId } = req.query;
+    const { proposal: proposalService } = req.services;
+
+    let proposals;
+    if (projectId) {
+      proposals = await proposalService.getProjectProposals(projectId);
+    } else {
+      // Get all proposals (TODO: This should be paginated for production)
+      proposals = [];
+    }
 
     res.json({
       total: proposals.length,
       proposals: proposals.map(p => ({
         id: p.id,
-        projectId: p.project_id,
-        agent: p.agent_name,
+        project_id: p.project_id,
+        agent_id: p.agent_id,
         title: p.title,
         status: p.status,
-        reviews: p.reviews?.length || 0
+        review_count: p.review_count || 0,
+        created_at: p.created_at
       }))
     });
   } catch (error) {
-    logger.error('Error listando propuestas:', error);
-    res.status(500).json({ error: error.message });
+    logger.error('Failed to list proposals:', error);
+    next(error);
   }
 });
 
