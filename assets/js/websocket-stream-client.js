@@ -215,7 +215,7 @@ class WebSocketStreamClient {
         console.log('[WEBSOCKET-CLIENT] Sending config handshake for new call...');
         this.ws.send(JSON.stringify({
           type: 'config',
-          sampleRate: this.config.sampleRate
+          sampleRate: this.audioContext.sampleRate
         }));
       }
 
