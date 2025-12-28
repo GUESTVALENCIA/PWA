@@ -22,81 +22,224 @@ class WebSocketStreamClient {
     this.currentResponse = '';
     this.currentResponseType = 'general';
 
-    // Configuration
+    // Reconnection management
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 10;
+    this.reconnectDelay = 1000; // Start with 1 second
+    this.maxReconnectDelay = 30000; // Max 30 seconds
+    this.reconnectTimeout = null;
+    this.isReconnecting = false;
+    this.shouldReconnect = true;
+
+    // Configuration - will be loaded from API
     this.config = {
-      wsUrl: this.determineWSUrl(),
+      wsUrl: null, // Will be set after loading config
       audioMimeType: 'audio/webm;codecs=opus',
       audioSampleRate: 48000,
       audioChannels: 1,
       chunkDuration: 100 // ms between chunks
     };
 
-    // Auto-initialize
-    this.init();
+    // Load config and initialize
+    this.loadConfigAndInit();
   }
 
   /**
-   * Determine WebSocket URL based on current location
+   * Load configuration from API and initialize WebSocket
    */
-  determineWSUrl() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    return `${protocol}//${host}/ws/stream`;
+  async loadConfigAndInit() {
+    try {
+      console.log('[WEBSOCKET-CLIENT] 📡 Cargando configuración del servidor...');
+      
+      const response = await fetch('/api/config');
+      if (!response.ok) {
+        throw new Error('No se pudo cargar la configuración');
+      }
+      
+      const config = await response.json();
+      const mcpServerUrl = config.MCP_SERVER_URL || 'https://pwa-imbf.onrender.com';
+      
+      // Convert HTTP/HTTPS URL to WebSocket URL
+      const wsUrl = this.convertToWebSocketUrl(mcpServerUrl);
+      
+      this.config.wsUrl = wsUrl;
+      this.config.mcpToken = config.MCP_TOKEN || null;
+      
+      console.log('[WEBSOCKET-CLIENT] ✅ Configuración cargada:', {
+        mcpServerUrl,
+        wsUrl,
+        hasToken: !!this.config.mcpToken
+      });
+
+      // Initialize WebSocket connection
+      await this.init();
+      
+    } catch (err) {
+      console.error('[WEBSOCKET-CLIENT] ❌ Error cargando configuración:', err);
+      // Fallback to default if config fails
+      const defaultUrl = 'wss://pwa-imbf.onrender.com';
+      this.config.wsUrl = defaultUrl;
+      console.warn('[WEBSOCKET-CLIENT] ⚠️  Usando URL por defecto:', defaultUrl);
+      await this.init();
+    }
+  }
+
+  /**
+   * Convert HTTP/HTTPS URL to WebSocket URL
+   */
+  convertToWebSocketUrl(httpUrl) {
+    try {
+      // Remove trailing slash if present
+      const cleanUrl = httpUrl.replace(/\/$/, '');
+      const url = new URL(cleanUrl);
+      
+      // Render uses WebSocket on the same domain, no port needed
+      // For localhost, use ws://localhost:4042
+      if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+        return `ws://${url.hostname}:4042`;
+      }
+      // For production (Render), use wss:// with same hostname
+      return `wss://${url.hostname}`;
+    } catch (err) {
+      console.error('[WEBSOCKET-CLIENT] Error convirtiendo URL:', err);
+      return 'wss://pwa-imbf.onrender.com';
+    }
   }
 
   /**
    * Initialize WebSocket connection
    */
   async init() {
+    // Prevent multiple simultaneous connection attempts
+    if (this.isReconnecting || (this.ws && this.ws.readyState === WebSocket.CONNECTING)) {
+      console.log('[WEBSOCKET-CLIENT] ⏸️  Ya hay una conexión en progreso, esperando...');
+      return;
+    }
+
+    // Don't reconnect if we've exceeded max attempts
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error('[WEBSOCKET-CLIENT] ❌ Máximo de intentos de reconexión alcanzado');
+      this.shouldReconnect = false;
+      this.showError('No se pudo conectar al servidor. Por favor, recarga la página.');
+      return;
+    }
+
+    if (!this.config.wsUrl) {
+      console.error('[WEBSOCKET-CLIENT] ❌ URL de WebSocket no configurada');
+      return;
+    }
+
     try {
+      this.isReconnecting = true;
       console.log('[WEBSOCKET-CLIENT] 🔌 Inicializando conexión WebSocket...');
       console.log('[WEBSOCKET-CLIENT] URL:', this.config.wsUrl);
+      console.log('[WEBSOCKET-CLIENT] Intento:', this.reconnectAttempts + 1, '/', this.maxReconnectAttempts);
 
-      this.ws = new WebSocket(this.config.wsUrl);
+      // Close existing connection if any
+      if (this.ws) {
+        try {
+          this.ws.close();
+        } catch (_) {}
+      }
+
+      // Build WebSocket URL with token if available
+      let wsUrl = this.config.wsUrl;
+      if (this.config.mcpToken) {
+        wsUrl += `?token=${encodeURIComponent(this.config.mcpToken)}`;
+      }
+
+      this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
         console.log('[WEBSOCKET-CLIENT] ✅ Conectado al servidor WebSocket');
         this.isConnected = true;
+        this.isReconnecting = false;
+        this.reconnectAttempts = 0; // Reset on successful connection
+        this.reconnectDelay = 1000; // Reset delay
 
-        // Send initial configuration
-        this.send({
-          type: 'setLanguage',
-          language: this.language
-        });
+        // Wait for connection message from server before sending config
+        // The server will send a 'connected' message first
       };
 
       this.ws.onmessage = (event) => {
-        this.handleMessage(JSON.parse(event.data));
+        try {
+          const data = JSON.parse(event.data);
+          this.handleMessage(data);
+        } catch (err) {
+          console.error('[WEBSOCKET-CLIENT] ❌ Error parseando mensaje:', err);
+        }
       };
 
       this.ws.onerror = (err) => {
         console.error('[WEBSOCKET-CLIENT] ❌ WebSocket error:', err);
-      };
-
-      this.ws.onclose = () => {
-        console.log('[WEBSOCKET-CLIENT] ⚠️  Desconectado del servidor');
         this.isConnected = false;
-        // Attempt reconnection after 3 seconds
-        setTimeout(() => this.init(), 3000);
       };
 
-      // Wait for connection
-      await new Promise((resolve) => {
-        const checkConnection = setInterval(() => {
-          if (this.isConnected) {
-            clearInterval(checkConnection);
-            resolve();
-          }
-        }, 100);
-        setTimeout(() => clearInterval(checkConnection), 5000);
-      });
+      this.ws.onclose = (event) => {
+        console.log('[WEBSOCKET-CLIENT] ⚠️  Desconectado del servidor', {
+          code: event.code,
+          reason: event.reason,
+          wasClean: event.wasClean
+        });
+        this.isConnected = false;
+        this.isReconnecting = false;
 
-      console.log('[WEBSOCKET-CLIENT] ✅ Sistema inicializado correctamente');
-      window.speechToChatSystem = this; // Expose globally for testing
+        // Only reconnect if we should and it wasn't a clean close
+        if (this.shouldReconnect && !event.wasClean) {
+          this.scheduleReconnect();
+        }
+      };
+
+      // Expose globally for testing
+      window.speechToChatSystem = this;
+      window.websocketStreamClient = this;
 
     } catch (err) {
       console.error('[WEBSOCKET-CLIENT] ❌ Error inicializando:', err);
-      setTimeout(() => this.init(), 3000);
+      this.isReconnecting = false;
+      this.scheduleReconnect();
+    }
+  }
+
+  /**
+   * Schedule reconnection with exponential backoff
+   */
+  scheduleReconnect() {
+    if (!this.shouldReconnect) {
+      return;
+    }
+
+    // Clear any existing timeout
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+    }
+
+    this.reconnectAttempts++;
+    
+    // Calculate delay with exponential backoff
+    const delay = Math.min(
+      this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1),
+      this.maxReconnectDelay
+    );
+
+    console.log(`[WEBSOCKET-CLIENT] 🔄 Reintentando conexión en ${delay}ms (intento ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+
+    this.reconnectTimeout = setTimeout(() => {
+      this.reconnectTimeout = null;
+      if (this.shouldReconnect) {
+        this.init();
+      }
+    }, delay);
+  }
+
+  /**
+   * Stop reconnection attempts
+   */
+  stopReconnecting() {
+    this.shouldReconnect = false;
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
     }
   }
 
@@ -104,8 +247,73 @@ class WebSocketStreamClient {
    * Handle incoming messages from server
    */
   handleMessage(data) {
-    console.log('[WEBSOCKET-CLIENT] 📨 Mensaje recibido:', data.type);
+    console.log('[WEBSOCKET-CLIENT] 📨 Mensaje recibido:', data);
 
+    // Handle MCP format: {route, action, ...}
+    if (data.route && data.action) {
+      this.handleMCPMessage(data);
+      return;
+    }
+
+    // Handle legacy format: {type, ...}
+    if (data.type) {
+      this.handleLegacyMessage(data);
+      return;
+    }
+
+    console.warn('[WEBSOCKET-CLIENT] Formato de mensaje desconocido:', data);
+  }
+
+  /**
+   * Handle MCP format messages
+   */
+  handleMCPMessage(data) {
+    const { route, action, ...payload } = data;
+
+    switch (route) {
+      case 'system':
+        if (action === 'connected') {
+          console.log('[WEBSOCKET-CLIENT] ✅ Confirmación de conexión:', payload.clientId);
+          if (payload.availableProviders) {
+            this.availableProviders = payload.availableProviders;
+            console.log('[WEBSOCKET-CLIENT] 🔄 Proveedores disponibles:', this.availableProviders.join(', '));
+          }
+          // Send initial configuration after connection
+          this.sendMCP('conserje', 'setLanguage', { language: this.language });
+          if (this.llmProvider && this.llmProvider !== 'openai') {
+            this.setProvider(this.llmProvider);
+          }
+        }
+        break;
+
+      case 'conserje':
+        if (action === 'transcription') {
+          this.handleTranscription(payload);
+        } else if (action === 'response_chunk') {
+          this.handleResponseChunk(payload);
+        } else if (action === 'response_complete') {
+          this.handleResponseComplete(payload);
+        } else if (action === 'providerSet') {
+          this.llmProvider = payload.provider;
+          localStorage.setItem('llm_provider', payload.provider);
+          console.log('[WEBSOCKET-CLIENT] 🔄 Proveedor cambiado a:', payload.provider);
+        }
+        break;
+
+      case 'error':
+        console.error('[WEBSOCKET-CLIENT] ❌ Error del servidor:', payload.message || payload.error);
+        this.showError(payload.message || payload.error || 'Error desconocido');
+        break;
+
+      default:
+        console.log('[WEBSOCKET-CLIENT] Mensaje MCP:', { route, action, payload });
+    }
+  }
+
+  /**
+   * Handle legacy format messages (for backward compatibility)
+   */
+  handleLegacyMessage(data) {
     switch (data.type) {
       case 'connection':
         console.log('[WEBSOCKET-CLIENT] Confirmación de conexión:', data.clientId);
@@ -113,7 +321,6 @@ class WebSocketStreamClient {
           this.availableProviders = data.availableProviders;
           console.log('[WEBSOCKET-CLIENT] 🔄 Proveedores disponibles:', this.availableProviders.join(', '));
         }
-        // Send provider preference if set
         if (this.llmProvider !== 'openai') {
           this.setProvider(this.llmProvider);
         }
@@ -155,9 +362,10 @@ class WebSocketStreamClient {
    * Handle transcription from server
    */
   handleTranscription(data) {
-    console.log('[WEBSOCKET-CLIENT] 📝 Transcripción:', data.text);
+    const text = data.text || data.transcription || data.message;
+    console.log('[WEBSOCKET-CLIENT] 📝 Transcripción:', text);
 
-    if (!data.text) {
+    if (!text) {
       console.warn('[WEBSOCKET-CLIENT] Transcripción vacía');
       return;
     }
@@ -165,49 +373,60 @@ class WebSocketStreamClient {
     // Add to conversation history
     this.conversationHistory.push({
       role: 'user',
-      content: data.text,
+      content: text,
       timestamp: new Date()
     });
 
     // Display in UI if available
-    this.displayTranscription(data.text);
+    this.displayTranscription(text);
   }
 
   /**
    * Handle streaming response chunks
    */
   handleResponseChunk(data) {
-    console.log('[WEBSOCKET-CLIENT] 📊 Chunk #' + data.sequence + ':', data.text);
+    const text = data.text || data.chunk || data.message;
+    const sequence = data.sequence || data.index || 0;
+    console.log('[WEBSOCKET-CLIENT] 📊 Chunk #' + sequence + ':', text);
 
-    this.currentResponse += data.text;
-
-    // Display streaming text in real-time
-    this.displayResponseStreaming(data.text);
+    if (text) {
+      this.currentResponse += text;
+      // Display streaming text in real-time
+      this.displayResponseStreaming(text);
+    }
   }
 
   /**
    * Handle completed response
    */
   async handleResponseComplete(data) {
+    const text = data.text || data.response || data.message;
+    const responseType = data.responseType || data.type || 'general';
+    
     console.log('[WEBSOCKET-CLIENT] ✅ Respuesta completada');
-    console.log('[WEBSOCKET-CLIENT] Tipo de respuesta:', data.responseType);
+    console.log('[WEBSOCKET-CLIENT] Tipo de respuesta:', responseType);
 
-    this.currentResponse = data.text;
-    this.currentResponseType = data.responseType;
+    if (!text) {
+      console.warn('[WEBSOCKET-CLIENT] Respuesta vacía');
+      return;
+    }
+
+    this.currentResponse = text;
+    this.currentResponseType = responseType;
 
     // Add to conversation history
     this.conversationHistory.push({
       role: 'assistant',
-      content: data.text,
-      type: data.responseType,
+      content: text,
+      type: responseType,
       timestamp: new Date()
     });
 
     // Play voice response
-    await this.playVoiceResponse(data.text, data.responseType);
+    await this.playVoiceResponse(text, responseType);
 
     // Display final response
-    this.displayResponseComplete(data.text);
+    this.displayResponseComplete(text);
   }
 
   /**
@@ -363,10 +582,7 @@ class WebSocketStreamClient {
     console.log('[WEBSOCKET-CLIENT] 🌐 Idioma establecido:', language);
 
     if (this.isConnected && this.ws) {
-      this.send({
-        type: 'setLanguage',
-        language: language
-      });
+      this.sendMCP('conserje', 'setLanguage', { language });
     }
   }
 
@@ -386,10 +602,7 @@ class WebSocketStreamClient {
     console.log('[WEBSOCKET-CLIENT] 🔄 Proveedor LLM establecido:', provider);
 
     if (this.isConnected && this.ws) {
-      this.send({
-        type: 'setProvider',
-        provider: provider
-      });
+      this.sendMCP('conserje', 'setProvider', { provider });
     }
   }
 
@@ -402,9 +615,7 @@ class WebSocketStreamClient {
     console.log('[WEBSOCKET-CLIENT] 🗑️  Historial borrado');
 
     if (this.isConnected && this.ws) {
-      this.send({
-        type: 'clearHistory'
-      });
+      this.sendMCP('conserje', 'clearHistory', {});
     }
   }
 
@@ -431,13 +642,56 @@ class WebSocketStreamClient {
   }
 
   /**
-   * Send message to server
+   * Send message to server (MCP format)
    */
-  send(data) {
+  sendMCP(route, action, payload = {}) {
     if (this.isConnected && this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(data));
+      const message = {
+        route,
+        action,
+        payload
+      };
+      this.ws.send(JSON.stringify(message));
+      console.log('[WEBSOCKET-CLIENT] 📤 Enviado:', { route, action });
     } else {
       console.warn('[WEBSOCKET-CLIENT] ⚠️  No se puede enviar: WebSocket no conectado');
+    }
+  }
+
+  /**
+   * Send message to server (legacy format for backward compatibility)
+   */
+  send(data) {
+    // If data already has route/action, send as-is
+    if (data.route && data.action) {
+      if (this.isConnected && this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify(data));
+      }
+      return;
+    }
+
+    // Convert legacy format to MCP format
+    if (data.type) {
+      const routeMap = {
+        'setLanguage': { route: 'conserje', action: 'setLanguage' },
+        'setProvider': { route: 'conserje', action: 'setProvider' },
+        'clearHistory': { route: 'conserje', action: 'clearHistory' }
+      };
+
+      const mapping = routeMap[data.type];
+      if (mapping) {
+        this.sendMCP(mapping.route, mapping.action, { ...data, type: undefined });
+      } else {
+        // Fallback: send as legacy format
+        if (this.isConnected && this.ws && this.ws.readyState === WebSocket.OPEN) {
+          this.ws.send(JSON.stringify(data));
+        }
+      }
+    } else {
+      // Send as-is
+      if (this.isConnected && this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify(data));
+      }
     }
   }
 
@@ -515,30 +769,35 @@ class WebSocketStreamClient {
   }
 }
 
-// Initialize on page load
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('[WEBSOCKET-CLIENT] 📄 DOM cargado, inicializando sistema...');
+// Initialize on page load (only once)
+(function() {
+  let initialized = false;
 
-  // Create global instance
-  if (!window.websocketStreamClient) {
-    window.websocketStreamClient = new WebSocketStreamClient();
+  function initialize() {
+    if (initialized || window.websocketStreamClient) {
+      console.log('[WEBSOCKET-CLIENT] ⏸️  Ya inicializado, omitiendo...');
+      return;
+    }
+
+    initialized = true;
+    console.log('[WEBSOCKET-CLIENT] 📄 Inicializando sistema...');
+
+    try {
+      window.websocketStreamClient = new WebSocketStreamClient();
+      // Also expose as speechToChatSystem for compatibility
+      window.speechToChatSystem = window.websocketStreamClient;
+      console.log('[WEBSOCKET-CLIENT] ✅ Script cargado correctamente');
+    } catch (err) {
+      console.error('[WEBSOCKET-CLIENT] ❌ Error inicializando:', err);
+      initialized = false;
+    }
   }
 
-  // Also expose as speechToChatSystem for compatibility
-  window.speechToChatSystem = window.websocketStreamClient;
-});
-
-// Auto-initialize if script loaded after DOM
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    console.log('[WEBSOCKET-CLIENT] 📄 DOM already loaded');
-  });
-} else {
-  console.log('[WEBSOCKET-CLIENT] 📄 DOM already loaded, creating instance...');
-  if (!window.websocketStreamClient) {
-    window.websocketStreamClient = new WebSocketStreamClient();
+  // Initialize when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initialize);
+  } else {
+    // DOM already loaded
+    initialize();
   }
-  window.speechToChatSystem = window.websocketStreamClient;
-}
-
-console.log('[WEBSOCKET-CLIENT] ✅ Script cargado correctamente');
+})();
