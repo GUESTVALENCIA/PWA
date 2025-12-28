@@ -1250,8 +1250,16 @@
 
       // AUDIO FIX: Improved playAudioResponse with 3s delay on revoke
 	      playAudioResponse(audioBase64, isWelcome = false) {
+	        console.log('[AUDIO] playAudioResponse called with isWelcome:', isWelcome, 'audioBase64 length:', audioBase64?.length);
+
 	        if (!audioBase64 || typeof audioBase64 !== 'string') {
-	          console.error('[AUDIO] Audio base64 inválido');
+	          console.error('[AUDIO] ❌ Audio base64 inválido:', typeof audioBase64, audioBase64);
+	          this.isSpeaking = false;
+	          return;
+	        }
+
+	        if (audioBase64.length < 100) {
+	          console.error('[AUDIO] ❌ Audio base64 muy pequeño:', audioBase64.length, 'bytes');
 	          this.isSpeaking = false;
 	          return;
 	        }
@@ -1266,19 +1274,22 @@
 	        let blobUrl;
 	        try {
 	          const byteCharacters = atob(audioBase64);
+	          console.log('[AUDIO] atob decodificado:', byteCharacters.length, 'caracteres');
+
 	          const byteNumbers = new Array(byteCharacters.length);
 	          for (let i = 0; i < byteCharacters.length; i++) {
 	            byteNumbers[i] = byteCharacters.charCodeAt(i);
 	          }
 	          const byteArray = new Uint8Array(byteNumbers);
-	          
+	          console.log('[AUDIO] Uint8Array creado:', byteArray.length, 'bytes');
+
 	          // Usar audio/mpeg en lugar de audio/mp3 para mejor compatibilidad
 	          const blob = new Blob([byteArray], { type: 'audio/mpeg' });
 	          blobUrl = URL.createObjectURL(blob);
-	          
-	          console.log('[AUDIO] Blob creado:', { size: blob.size, type: blob.type });
+
+	          console.log('[AUDIO] ✅ Blob creado:', { size: blob.size, type: blob.type, blobUrl: blobUrl.substring(0, 50) });
 	        } catch (error) {
-	          console.error('[AUDIO] Error decodificando base64:', error);
+	          console.error('[AUDIO] ❌ Error decodificando base64:', error);
 	          this.isSpeaking = false;
 	          return;
 	        }
@@ -1287,13 +1298,18 @@
 	        audio._blobUrl = blobUrl;
 	        this.currentAudio = audio;
 
+	        console.log('[AUDIO] Audio element creado, intentando reproducir...');
+
 	        // Para el saludo inicial, esperar a que el buffer esté completamente cargado
 	        if (isWelcome) {
+	          console.log('[AUDIO] ⏳ Esperando buffer del saludo...');
 	          const checkBuffer = () => {
 	            if (audio.readyState >= 3) { // HAVE_FUTURE_DATA o HAVE_ENOUGH_DATA
-	              console.log('✅ Saludo inicial listo, reproduciendo...');
-	              audio.play().catch(e => {
-	                console.error("Audio play error:", e);
+	              console.log('[AUDIO] ✅ Saludo inicial listo (readyState:', audio.readyState, '), reproduciendo...');
+	              audio.play().then(() => {
+	                console.log('[AUDIO] ✅ Saludo reproduciéndose');
+	              }).catch(e => {
+	                console.error("[AUDIO] ❌ Error en play():", e.name, e.message);
 	                this.isSpeaking = false;
 	              });
 	            } else {
@@ -1301,25 +1317,35 @@
 	            }
 	          };
 	          audio.addEventListener('loadeddata', () => {
-	            console.log('✅ Buffer del saludo cargado');
-	            audio.play().catch(e => {
-	              console.error("Audio play error:", e);
+	            console.log('[AUDIO] ✅ Evento loadeddata disparado');
+	            audio.play().then(() => {
+	              console.log('[AUDIO] ✅ Saludo reproduciéndose después de loadeddata');
+	            }).catch(e => {
+	              console.error("[AUDIO] ❌ Error en play() después de loadeddata:", e.name, e.message);
 	              this.isSpeaking = false;
 	            });
 	          });
+	          audio.addEventListener('canplay', () => {
+	            console.log('[AUDIO] ✅ Evento canplay disparado');
+	          });
 	          checkBuffer();
 	        } else {
-	          audio.play().catch(e => {
-	            console.error("Audio play error:", e);
+	          console.log('[AUDIO] ▶️  Reproduciendo audio normal...');
+	          audio.play().then(() => {
+	            console.log('[AUDIO] ✅ Audio reproduciéndose');
+	          }).catch(e => {
+	            console.error("[AUDIO] ❌ Error en play():", e.name, e.message);
 	            this.isSpeaking = false;
 	          });
 	        }
 
-	        audio.onerror = () => {
+	        audio.addEventListener('error', (e) => {
+	          console.error('[AUDIO] ❌ Error evento de audio:', audio.error?.message || audio.error?.code);
 	          this.isSpeaking = false;
-	        };
+	        });
 
 	        audio.onended = () => {
+	          console.log('[AUDIO] ✅ Audio finalizado');
 	          this.isSpeaking = false;
 	          // CRITICAL FIX: Wait 3 seconds before revoking to prevent cutting off the end
 	          setTimeout(() => {
@@ -1331,9 +1357,12 @@
 	          }, 3000);
 	        };
 
-	        audio.play().catch(e => {
+	        console.log('[AUDIO] ▶️  Llamando play() inicial...');
+	        audio.play().then(() => {
+	          console.log('[AUDIO] ✅ play() promise resuelto');
+	        }).catch(e => {
+	          console.error("[AUDIO] ❌ play() promise rechazado:", e.name, e.message);
 	          this.isSpeaking = false;
-	          console.error("Audio play error:", e);
 	        });
 	      }
     }

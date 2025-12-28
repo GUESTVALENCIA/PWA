@@ -78,16 +78,53 @@ class CartesiaService {
 
       const req = https.request(options, (res) => {
         const chunks = [];
-        
+
+        console.log(`[CARTESIA] HTTP ${res.statusCode} response`);
+
         res.on('data', (chunk) => chunks.push(chunk));
         res.on('end', () => {
           const buffer = Buffer.concat(chunks);
-          // Cartesia devuelve audio en bytes, no JSON
+
+          // CRITICAL: Validar HTTP status code ANTES de procesar
+          if (res.statusCode !== 200) {
+            let errorMessage = `Cartesia API error (HTTP ${res.statusCode})`;
+            try {
+              const errorBody = JSON.parse(buffer.toString());
+              errorMessage = errorBody.error?.message || errorBody.error || errorBody.message || errorMessage;
+              console.error(`[CARTESIA] API Error: ${errorMessage}`);
+            } catch (e) {
+              const rawError = buffer.toString().substring(0, 200);
+              if (rawError) {
+                errorMessage = `Cartesia API error (HTTP ${res.statusCode}): ${rawError}`;
+              }
+              console.error(`[CARTESIA] API Error: ${errorMessage}`);
+            }
+            reject(new Error(errorMessage));
+            return;
+          }
+
+          // Solo procesar como audio si status es 200
+          console.log(`[CARTESIA] Audio buffer recibido: ${buffer.length} bytes`);
+          if (buffer.length < 100) {
+            reject(new Error(`Cartesia audio buffer too small (${buffer.length} bytes)`));
+            return;
+          }
+
           resolve(buffer);
         });
       });
 
-      req.on('error', reject);
+      req.on('error', (error) => {
+        console.error(`[CARTESIA] Network error: ${error.message}`);
+        reject(error);
+      });
+
+      // Timeout de 15 segundos
+      req.setTimeout(15000, () => {
+        req.destroy();
+        reject(new Error('Cartesia request timeout'));
+      });
+
       req.write(JSON.stringify(data));
       req.end();
     });
