@@ -258,7 +258,7 @@ async function callGroq(message, systemPrompt) {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: 'mixtral-8x7b-32768', // Modelo confirmado disponible en Groq
+      model: 'llama-3.1-70b-versatile', // Modelo actual disponible en Groq (2025)
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: message }
