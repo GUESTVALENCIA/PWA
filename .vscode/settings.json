@@ -1,8 +1,9 @@
 {
-    "commentTranslate.source": "Google",
-    "commentTranslate.targetLanguage": "es",
-    "commentTranslate.sourceLanguage": "es",
-    "commentTranslate.multiLineMerge": true,
-    "commentTranslate.selectTargetLanguageWhenReplacing": true,
-    "commentTranslate.browse.enabled": false
+  "zenMode.hideActivityBar": false,
+  "zenMode.hideLineNumbers": false,
+  "zenMode.hideStatusBar": false,
+  "zenMode.centerLayout": false,
+  "zenMode.restore": true,
+  "workbench.statusBar.visible": true,
+  "workbench.editor.showTabs": "multiple"
 }
