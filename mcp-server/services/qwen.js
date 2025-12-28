@@ -18,9 +18,12 @@ class QwenService {
   }
 
   async initialize() {
-    // Verificar API keys disponibles
-    if (process.env.QWEN_API_KEY || process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY) {
+    // Verificar API key de Groq (requerida para desarrollo)
+    if (process.env.GROQ_API_KEY) {
       this.ready = true;
+      console.log('[GROQ] Servicio Qwen inicializado con Groq API');
+    } else {
+      console.warn('[GROQ] GROQ_API_KEY no configurada. El servicio no funcionará.');
     }
   }
 
@@ -50,28 +53,50 @@ class QwenService {
       fullContext += `\nContexto de reservas: ${JSON.stringify(bridgeData).substring(0, 500)}`;
     }
     
-    // Intentar Qwen, fallback a Gemini u OpenAI
+    // USAR GROQ DIRECTAMENTE (para desarrollo, sin fallbacks)
     try {
-      return await this.callQwen(message, fullContext, role);
+      return await this.callGroqQwen(message, fullContext, role);
     } catch (error) {
-      console.warn('Qwen falló, usando fallback:', error.message);
-      
-      try {
-        return await this.callGemini(message, fullContext, role);
-      } catch (error2) {
-        console.warn('Gemini falló, usando OpenAI:', error2.message);
-        return await this.callOpenAI(message, fullContext, role);
-      }
+      console.error('[GROQ] Error en llamada conversacional:', error.message);
+      throw error; // No usar fallbacks, solo Groq
     }
   }
 
-  async callQwen(message, context, role) {
-    if (!process.env.QWEN_API_KEY) {
-      throw new Error('QWEN_API_KEY no configurada');
+  async callGroqQwen(message, context, role) {
+    if (!process.env.GROQ_API_KEY) {
+      throw new Error('GROQ_API_KEY no configurada. Necesaria para desarrollo.');
     }
 
-    // Usar Gemini como proxy si Qwen directo no está disponible
-    return await this.callGemini(message, context, role);
+    const systemPrompt = `Eres Sandra, la conserje virtual de GuestsValencia. ${context}`;
+
+    const response = await this.makeRequest(
+      'api.groq.com',
+      '/openai/v1/chat/completions',
+      {
+        model: 'qwen/qwen-2.5-72b-instruct',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: message }
+        ],
+        temperature: 0.7,
+        max_tokens: 2000
+      },
+      {
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    );
+
+    return {
+      text: response.choices[0].message.content,
+      model: 'qwen/qwen-2.5-72b-instruct',
+      usage: response.usage
+    };
+  }
+
+  async callQwen(message, context, role) {
+    // Redirigir a Groq
+    return await this.callGroqQwen(message, context, role);
   }
 
   async callGemini(message, context, role) {
