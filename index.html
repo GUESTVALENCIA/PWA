@@ -924,6 +924,10 @@
 	      }
 
 	      buildWebSocketUrl(mcpServerUrl, token) {
+        // En localhost, usar ws://localhost:4042
+        if (mcpServerUrl && (mcpServerUrl.includes('localhost') || mcpServerUrl.includes('127.0.0.1'))) {
+          return 'ws://localhost:4042';
+        }
 	        let url;
 	        try {
 	          url = new URL(String(mcpServerUrl || ''));
