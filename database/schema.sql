@@ -23,11 +23,12 @@ CREATE TABLE IF NOT EXISTS projects (
   context JSONB DEFAULT '{}',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  created_by VARCHAR(100),
-  INDEX idx_projects_status (status),
-  INDEX idx_projects_lock (lock_status),
-  INDEX idx_projects_created (created_at)
+  created_by VARCHAR(100)
 );
+
+CREATE INDEX IF NOT EXISTS idx_projects_status ON projects (status);
+CREATE INDEX IF NOT EXISTS idx_projects_lock ON projects (lock_status);
+CREATE INDEX IF NOT EXISTS idx_projects_created ON projects (created_at);
 
 -- Proposals table: Tracks all change proposals from agents
 CREATE TABLE IF NOT EXISTS proposals (
@@ -42,12 +43,13 @@ CREATE TABLE IF NOT EXISTS proposals (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   review_count INT DEFAULT 0,
-  approval_score DECIMAL(3,1),
-  INDEX idx_proposals_project (project_id),
-  INDEX idx_proposals_agent (agent_id),
-  INDEX idx_proposals_status (status),
-  INDEX idx_proposals_created (created_at)
+  approval_score DECIMAL(3,1)
 );
+
+CREATE INDEX IF NOT EXISTS idx_proposals_project ON proposals (project_id);
+CREATE INDEX IF NOT EXISTS idx_proposals_agent ON proposals (agent_id);
+CREATE INDEX IF NOT EXISTS idx_proposals_status ON proposals (status);
+CREATE INDEX IF NOT EXISTS idx_proposals_created ON proposals (created_at);
 
 -- Proposal Reviews table: Tracks reviews from other agents
 CREATE TABLE IF NOT EXISTS proposal_reviews (
@@ -59,11 +61,12 @@ CREATE TABLE IF NOT EXISTS proposal_reviews (
   score DECIMAL(3,1) CHECK (score >= 0 AND score <= 10),
   status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'suggested_changes')),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_reviews_proposal (proposal_id),
-  INDEX idx_reviews_reviewer (reviewer_agent_id),
-  INDEX idx_reviews_created (created_at)
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX IF NOT EXISTS idx_reviews_proposal ON proposal_reviews (proposal_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_reviewer ON proposal_reviews (reviewer_agent_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_created ON proposal_reviews (created_at);
 
 -- Unified Plans table: Unified proposals ready for implementation
 CREATE TABLE IF NOT EXISTS unified_plans (
@@ -80,11 +83,12 @@ CREATE TABLE IF NOT EXISTS unified_plans (
   merged_content JSONB,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  created_by VARCHAR(100),
-  INDEX idx_plans_project (project_id),
-  INDEX idx_plans_status (status),
-  INDEX idx_plans_created (created_at)
+  created_by VARCHAR(100)
 );
+
+CREATE INDEX IF NOT EXISTS idx_plans_project ON unified_plans (project_id);
+CREATE INDEX IF NOT EXISTS idx_plans_status ON unified_plans (status);
+CREATE INDEX IF NOT EXISTS idx_plans_created ON unified_plans (created_at);
 
 -- Implementations table: Tracks actual implementation progress
 CREATE TABLE IF NOT EXISTS implementations (
@@ -100,12 +104,13 @@ CREATE TABLE IF NOT EXISTS implementations (
   error_logs TEXT,
   rollback_data JSONB,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_implementations_plan (plan_id),
-  INDEX idx_implementations_project (project_id),
-  INDEX idx_implementations_agent (agent_id),
-  INDEX idx_implementations_status (status)
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX IF NOT EXISTS idx_implementations_plan ON implementations (plan_id);
+CREATE INDEX IF NOT EXISTS idx_implementations_project ON implementations (project_id);
+CREATE INDEX IF NOT EXISTS idx_implementations_agent ON implementations (agent_id);
+CREATE INDEX IF NOT EXISTS idx_implementations_status ON implementations (status);
 
 -- ============================================================================
 -- SHARED MEMORY & SYNCHRONIZATION
@@ -121,10 +126,11 @@ CREATE TABLE IF NOT EXISTS shared_memory (
   created_by VARCHAR(100),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(project_id, key),
-  INDEX idx_memory_project (project_id),
-  INDEX idx_memory_key (key)
+  UNIQUE(project_id, key)
 );
+
+CREATE INDEX IF NOT EXISTS idx_memory_project ON shared_memory (project_id);
+CREATE INDEX IF NOT EXISTS idx_memory_key ON shared_memory (key);
 
 -- Change Logs table: Complete audit trail of all changes
 CREATE TABLE IF NOT EXISTS change_logs (
@@ -137,12 +143,13 @@ CREATE TABLE IF NOT EXISTS change_logs (
   old_values JSONB,
   new_values JSONB,
   reason TEXT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_logs_project (project_id),
-  INDEX idx_logs_entity (entity_type, entity_id),
-  INDEX idx_logs_action (action),
-  INDEX idx_logs_created (created_at)
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX IF NOT EXISTS idx_logs_project ON change_logs (project_id);
+CREATE INDEX IF NOT EXISTS idx_logs_entity ON change_logs (entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_logs_action ON change_logs (action);
+CREATE INDEX IF NOT EXISTS idx_logs_created ON change_logs (created_at);
 
 -- Agent Sessions table: Track active agent connections
 CREATE TABLE IF NOT EXISTS agent_sessions (
@@ -156,27 +163,28 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
   disconnected_at TIMESTAMP,
   ip_address VARCHAR(50),
   user_agent TEXT,
-  UNIQUE(agent_id, project_id),
-  INDEX idx_sessions_agent (agent_id),
-  INDEX idx_sessions_project (project_id),
-  INDEX idx_sessions_status (status)
+  UNIQUE(agent_id, project_id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_sessions_agent ON agent_sessions (agent_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_project ON agent_sessions (project_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_status ON agent_sessions (status);
 
 -- ============================================================================
 -- PERFORMANCE & INDEXING
 -- ============================================================================
 
 -- Create composite indexes for common queries
-CREATE INDEX idx_proposals_project_status
+CREATE INDEX IF NOT EXISTS idx_proposals_project_status
   ON proposals(project_id, status);
 
-CREATE INDEX idx_reviews_proposal_reviewer
+CREATE INDEX IF NOT EXISTS idx_reviews_proposal_reviewer
   ON proposal_reviews(proposal_id, reviewer_agent_id);
 
-CREATE INDEX idx_implementations_plan_status
+CREATE INDEX IF NOT EXISTS idx_implementations_plan_status
   ON implementations(plan_id, status);
 
-CREATE INDEX idx_logs_project_entity
+CREATE INDEX IF NOT EXISTS idx_logs_project_entity_date
   ON change_logs(project_id, entity_type, created_at DESC);
 
 -- ============================================================================
