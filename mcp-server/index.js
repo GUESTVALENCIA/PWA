@@ -111,7 +111,11 @@ app.get('/api/status', authMiddleware, (req, res) => {
 });
 
 // Serve Static Files
-app.use('/assets', express.static(path.join(__dirname, '../assets')));
+app.use('/assets', express.static(path.join(__dirname, '../assets'), {
+  setHeaders: (res, path) => {
+    res.set('Access-Control-Allow-Origin', '*');
+  }
+}));
 app.get('/', (req, res) => {
   const index = path.join(__dirname, '../index.html');
   if (fs.existsSync(index)) res.sendFile(index);
@@ -154,6 +158,10 @@ wss.on('connection', (ws, req) => {
     // BINARY HANDLING (Raw PCM Audio)
     if (Buffer.isBuffer(message) || message instanceof ArrayBuffer) {
       if (ws.dgSession) {
+        if (!ws.audioPacketCount) ws.audioPacketCount = 0;
+        ws.audioPacketCount++;
+        if (ws.audioPacketCount % 100 === 0) console.log(`[WS] 🔊 Recibidos ${ws.audioPacketCount} paquetes de audio de ${ws.clientId}`);
+
         ws.dgSession.sendAudio(message);
       }
       return;
