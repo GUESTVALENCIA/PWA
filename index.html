@@ -995,8 +995,14 @@
                     const reader = new FileReader();
                     reader.onloadend = () => {
                       try {
-                        const base64Audio = String(reader.result || '').split(',')[1] || '';
-                        if (!base64Audio) {
+                        // Extraer base64 sin el prefijo data:audio/webm;base64,
+                        const fullDataUrl = String(reader.result || '');
+                        const base64Audio = fullDataUrl.includes(',') 
+                          ? fullDataUrl.split(',')[1] 
+                          : fullDataUrl;
+                        
+                        if (!base64Audio || base64Audio.length < 100) {
+                          console.warn('[MCP] Audio demasiado corto o vacío, ignorando');
                           this.awaitingResponse = false;
                           return;
                         }
@@ -1006,14 +1012,26 @@
                         const guests = Number(document.getElementById('search-guests')?.value || 0) || 0;
                         const nights = Number(document.getElementById('search-nights')?.value || 0) || 0;
 
-                        ws.send(JSON.stringify({
+                        const audioPayload = {
                           route: 'audio',
                           action: 'stt',
                           payload: {
                             audio: base64Audio,
+                            format: 'webm',
+                            mimeType: 'audio/webm;codecs=opus',
                             context: { timezone, destination, guests, nights }
                           }
-                        }));
+                        };
+
+                        console.log('[MCP] Enviando audio al servidor:', {
+                          audioSize: base64Audio.length,
+                          timezone,
+                          destination,
+                          guests,
+                          nights
+                        });
+
+                        ws.send(JSON.stringify(audioPayload));
                       } catch (err) {
                         console.error('[MCP] Error enviando audio', err);
                         this.awaitingResponse = false;
@@ -1041,21 +1059,37 @@
             let data;
             try {
               data = JSON.parse(event.data);
+              console.log('[MCP] Mensaje recibido del servidor:', {
+                route: data.route,
+                action: data.action,
+                hasPayload: !!data.payload,
+                payloadKeys: data.payload ? Object.keys(data.payload) : []
+              });
             } catch (err) {
-              console.error('[MCP] Mensaje inválido', err);
+              console.error('[MCP] Error parseando mensaje:', err, 'Raw:', event.data);
               return;
             }
 
+            // Manejar mensaje de conexión del sistema
+            if (data.route === 'system' && data.action === 'connected') {
+              console.log('[MCP] ✅ Conectado al servidor MCP, clientId:', data.clientId);
+              return;
+            }
+
+            // Manejar respuesta de audio TTS
             if (data.route === 'audio' && data.action === 'tts' && data.payload && data.payload.audio) {
+              console.log('[MCP] ✅ Recibida respuesta de audio TTS');
               this.clearResponseWatchdog();
               this.awaitingResponse = false;
-              // Detectar si es el saludo inicial (primera respuesta después de conectar)
-              const isWelcome = !this.currentAudio && !this.isSpeaking;
+              // Detectar si es el saludo inicial
+              const isWelcome = data.payload.isWelcome || (!this.currentAudio && !this.isSpeaking);
               this.playAudioResponse(data.payload.audio, isWelcome);
               return;
             }
 
+            // Manejar mensaje de noSpeech (sin transcripción)
             if (data.route === 'conserje' && data.action === 'message' && data.payload && data.payload.type === 'noSpeech' && data.payload.message) {
+              console.log('[MCP] ⚠️ No se detectó habla, solicitando TTS del mensaje');
               this.clearResponseWatchdog();
               this.awaitingResponse = false;
               try {
@@ -1064,8 +1098,22 @@
                   action: 'tts',
                   payload: { text: data.payload.message }
                 }));
-              } catch (_) {}
+              } catch (err) {
+                console.error('[MCP] Error solicitando TTS para noSpeech:', err);
+              }
+              return;
             }
+
+            // Manejar errores del servidor
+            if (data.error) {
+              console.error('[MCP] ❌ Error del servidor:', data.error);
+              this.clearResponseWatchdog();
+              this.awaitingResponse = false;
+              return;
+            }
+
+            // Log para mensajes no manejados
+            console.log('[MCP] ⚠️ Mensaje no manejado:', data);
         };
 
 	        ws.onclose = () => {
