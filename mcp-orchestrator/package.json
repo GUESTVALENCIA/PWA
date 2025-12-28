@@ -1,0 +1,40 @@
+{
+  "name": "mcp-orchestrator",
+  "version": "1.0.0",
+  "description": "Sistema de orquestación multi-agente IA para gobierno de proyectos",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "setup": "node scripts/setup.js",
+    "test": "jest --detectOpenHandles",
+    "test:watch": "jest --watch"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "@neondatabase/serverless": "^0.9.0",
+    "ws": "^8.14.2",
+    "uuid": "^9.0.1",
+    "joi": "^17.11.0",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3",
+    "diff": "^5.1.0",
+    "chokidar": "^3.5.3",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "morgan": "^1.10.0",
+    "compression": "^1.7.4",
+    "axios": "^1.6.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "jest": "^29.7.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}
