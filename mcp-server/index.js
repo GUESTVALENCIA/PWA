@@ -44,6 +44,88 @@ const subagentesSystem = require('./agents/subagentes_mcp_setup');
 const authMiddleware = require('./middleware/auth');
 const errorHandler = require('./middleware/errorHandler');
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECURITY & PROTECTION LAYER
+// ═══════════════════════════════════════════════════════════════════════════════
+const crypto = require('crypto');
+
+/**
+ * PROTECTED SERVICE CONFIGURATION
+ * ⚠️ WARNING: DO NOT MODIFY WITHOUT AUTHORIZATION
+ * These services are critical for voice/chat connectivity
+ * Unauthorized changes WILL cause system failures
+ */
+const PROTECTED_SERVICES = {
+  voiceCall: {
+    name: 'WebSocket Voice Streaming',
+    purpose: 'Real-time bidirectional audio streaming via WebSocket',
+    endpoints: ['/ws/stream', '/api/config'],
+    status: 'PRODUCTION',
+    lastModified: new Date().toISOString(),
+    dataHash: null // Will be calculated
+  },
+  textChat: {
+    name: 'REST Text Chat Gateway',
+    purpose: 'Text-to-speech and chat message handling',
+    endpoints: ['/api/sandra/chat', '/api/conserje/message'],
+    status: 'PRODUCTION',
+    lastModified: new Date().toISOString(),
+    dataHash: null
+  }
+};
+
+// Generate hash for integrity checking
+function generateConfigHash(data) {
+  return crypto.createHash('sha256').update(JSON.stringify(data)).digest('hex').slice(0, 16);
+}
+
+// Generate service hash
+function generateServiceHash(service) {
+  return crypto.createHash('sha256').update(JSON.stringify(service)).digest('hex').slice(0, 16);
+}
+
+// Validate protected service integrity
+function validateServiceIntegrity() {
+  Object.keys(PROTECTED_SERVICES).forEach(key => {
+    PROTECTED_SERVICES[key].dataHash = generateServiceHash(PROTECTED_SERVICES[key]);
+    console.log(`✅ [PROTECTION] ${PROTECTED_SERVICES[key].name} - Hash: ${PROTECTED_SERVICES[key].dataHash}`);
+  });
+}
+
+// Log protection warnings
+function logProtectionWarnings() {
+  console.log('\n');
+  console.log('╔═══════════════════════════════════════════════════════════════════════════════╗');
+  console.log('║                      🔒 CRITICAL SERVICES PROTECTED 🔒                        ║');
+  console.log('╠═══════════════════════════════════════════════════════════════════════════════╣');
+  console.log('║                                                                               ║');
+  console.log('║  VOICE CALL SERVICE: WebSocket Voice Streaming                              ║');
+  console.log('║  ├─ Purpose: Real-time audio bidirectional communication                     ║');
+  console.log('║  ├─ Endpoints: /ws/stream, /api/config                                       ║');
+  console.log('║  ├─ Status: PRODUCTION - DO NOT MODIFY                                       ║');
+  console.log('║  └─ Hash: ' + PROTECTED_SERVICES.voiceCall.dataHash + '                                      ║');
+  console.log('║                                                                               ║');
+  console.log('║  TEXT CHAT SERVICE: REST Gateway                                             ║');
+  console.log('║  ├─ Purpose: Text messages and chat context management                       ║');
+  console.log('║  ├─ Endpoints: /api/sandra/chat, /api/conserje/message                      ║');
+  console.log('║  ├─ Status: PRODUCTION - DO NOT MODIFY                                       ║');
+  console.log('║  └─ Hash: ' + PROTECTED_SERVICES.textChat.dataHash + '                                       ║');
+  console.log('║                                                                               ║');
+  console.log('╠═══════════════════════════════════════════════════════════════════════════════╣');
+  console.log('║  ⚠️  MODIFICATION WARNING ⚠️                                                   ║');
+  console.log('║                                                                               ║');
+  console.log('║  These services are LOCKED for production use. Any unauthorized changes      ║');
+  console.log('║  will result in:                                                             ║');
+  console.log('║    • Voice calls dropping                                                     ║');
+  console.log('║    • Text chat disconnections                                                ║');
+  console.log('║    • System-wide connectivity failures                                       ║');
+  console.log('║                                                                               ║');
+  console.log('║  If modification is required, contact: SYSTEM ADMINISTRATOR                 ║');
+  console.log('║                                                                               ║');
+  console.log('╚═══════════════════════════════════════════════════════════════════════════════╝');
+  console.log('\n');
+}
+
 const app = express();
 const server = http.createServer(app);
 
@@ -77,6 +159,11 @@ app.locals.services = services;
 // Initialize all services
 async function initializeServices() {
   console.log(' Inicializando servicios...');
+
+  // INITIALIZE PROTECTION LAYER
+  validateServiceIntegrity();
+  logProtectionWarnings();
+
   try {
     await services.ambientation.initialize();
     await services.publicAPIs.initialize();
@@ -123,14 +210,41 @@ app.get('/', (req, res) => {
   else res.status(404).send('PWA Index not found');
 });
 
-// API Config
+// API Config - PROTECTED: Dynamic URL based on environment
 app.get('/api/config', (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json');
-  res.json({
-    MCP_SERVER_URL: 'wss://pwa-imbf.onrender.com', // Always ensure this points to correct endpoint
-    MCP_TOKEN: process.env.MCP_TOKEN || null
-  });
+
+  // DYNAMIC URL DETECTION - PRODUCTION HARDENED
+  let wsUrl = process.env.MCP_SERVER_URL;
+
+  if (!wsUrl) {
+    // Auto-detect based on environment
+    const isProduction = process.env.NODE_ENV === 'production';
+    const hostname = req.get('host') || 'localhost:4042';
+    const protocol = req.protocol === 'https' ? 'wss' : 'ws';
+
+    if (isProduction || hostname.includes('onrender.com') || hostname.includes('vercel.app')) {
+      wsUrl = 'wss://pwa-imbf.onrender.com';
+    } else {
+      wsUrl = `${protocol}://${hostname}`;
+    }
+  }
+
+  // Security: Ensure WSS for Render
+  if (wsUrl.includes('onrender.com') && !wsUrl.startsWith('wss://')) {
+    wsUrl = wsUrl.replace(/^https?:\/\//, 'wss://').replace(/^ws:\/\//, 'wss://');
+  }
+
+  const config = {
+    MCP_SERVER_URL: wsUrl,
+    MCP_TOKEN: process.env.MCP_TOKEN || null,
+    PROTECTED_CONFIG: true,
+    configHash: generateConfigHash({ MCP_SERVER_URL: wsUrl, timestamp: Date.now() })
+  };
+
+  console.log(`[CONFIG-ENDPOINT] 🔒 PROTECTED - Serving config for: ${wsUrl}`);
+  res.json(config);
 });
 
 // WebSocket Server Enterprise

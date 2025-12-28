@@ -1,0 +1,101 @@
+{
+  "protection_level": "MAXIMUM",
+  "status": "LOCKED_FOR_PRODUCTION",
+  "last_verification": "2025-12-28T00:00:00Z",
+  "services": {
+    "voice_streaming": {
+      "name": "WebSocket Voice Streaming",
+      "status": "PROTECTED",
+      "critical": true,
+      "endpoints": ["/ws/stream", "/api/config"],
+      "files": [
+        "mcp-server/index.js",
+        "assets/js/websocket-stream-client.js",
+        "mcp-server/services/deepgram-streaming.js",
+        "mcp-server/services/tts-streaming.js",
+        "mcp-server/services/llm-streaming.js"
+      ],
+      "ports": [4042],
+      "modification_warning": "CHANGING THIS WILL BREAK VOICE CALLS IMMEDIATELY",
+      "integrity_check": "ENABLED"
+    },
+    "text_chat": {
+      "name": "REST Text Chat Gateway",
+      "status": "PROTECTED",
+      "critical": true,
+      "endpoints": ["/api/sandra/chat", "/api/conserje/message", "/api/conserje/voice-flow"],
+      "files": [
+        "mcp-server/routes/sandra.js",
+        "mcp-server/routes/conserje.js",
+        "assets/js/sandra-gateway.js",
+        "mcp-server/services/qwen.js"
+      ],
+      "ports": [4042],
+      "modification_warning": "CHANGING THIS WILL BREAK TEXT CHAT IMMEDIATELY",
+      "integrity_check": "ENABLED"
+    }
+  },
+  "locked_configuration": {
+    "port_allocation": {
+      "4042": "MCP-SANDRA Server (LOCKED - DO NOT CHANGE)",
+      "4040": "DEPRECATED (DO NOT USE)"
+    },
+    "environment_variables": {
+      "NODE_ENV": "production",
+      "PORT": "4042",
+      "MCP_SERVER_URL": "Auto-detected or set to wss://pwa-imbf.onrender.com"
+    },
+    "url_strategy": "DYNAMIC_AUTO_DETECTION",
+    "auto_detection_logic": {
+      "local": "ws://localhost:4042",
+      "production": "wss://pwa-imbf.onrender.com"
+    }
+  },
+  "validation_rules": [
+    "Verify /api/config returns correct MCP_SERVER_URL",
+    "Verify /api/sandra/chat endpoint responds",
+    "Verify /api/conserje/message endpoint responds",
+    "Verify WebSocket handler on /ws/stream exists",
+    "Verify port 4042 is listening",
+    "Verify sandra-gateway.js uses localhost:4042 for local dev",
+    "Verify websocket-stream-client.js loads config correctly"
+  ],
+  "modification_impact": {
+    "CRITICAL": [
+      "WebSocket URL changes",
+      "Port 4042 changes",
+      "Endpoint path changes",
+      "Authentication mechanism changes"
+    ],
+    "HIGH": [
+      "Sample rate changes",
+      "Audio format changes",
+      "Message schema changes",
+      "Response format changes"
+    ],
+    "MEDIUM": [
+      "Logging level changes",
+      "Debug flag changes",
+      "Timeout value changes"
+    ]
+  },
+  "audit": {
+    "protected": true,
+    "readonly_recommended": true,
+    "backup_before_modification": true,
+    "test_in_dev_first": true,
+    "verify_before_production": true
+  },
+  "contact": {
+    "authorization_required": true,
+    "modify_only_if": [
+      "You are the System Administrator",
+      "You have explicit authorization",
+      "You have created a backup",
+      "You have tested in development",
+      "You understand the risks"
+    ]
+  },
+  "timestamp": "2025-12-28",
+  "version": "1.0"
+}

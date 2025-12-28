@@ -5,7 +5,7 @@ export class SandraGateway {
     constructor() {
         // Dynamic base URL detection (local vs production)
         if (window.location.hostname === 'localhost' || window.location.protocol === 'file:') {
-            this.baseUrl = 'http://localhost:4040/api';
+            this.baseUrl = 'http://localhost:4042/api'; // ✅ CORRECTED PORT (was 4040)
         } else {
             this.baseUrl = '/api';
         }
