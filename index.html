@@ -313,7 +313,7 @@
                 </div>
                 
                 <!-- Video stream (se muestra cuando hay llamada activa) -->
-                <img src="/assets/images/sandra-demo.png" class="absolute inset-0 w-full h-full object-cover hidden" alt="Sandra Avatar" id="sandra-avatar-img" onerror="this.src='https://placehold.co/400x700/3b82f6/ffffff?text=Sandra+IA'">
+                <img src="/assets/images/sandra-avatar.png" class="absolute inset-0 w-full h-full object-cover hidden" alt="Sandra Avatar" id="sandra-avatar-img" onerror="this.src='https://placehold.co/400x700/3b82f6/ffffff?text=Sandra+IA'">
                 <video id="sandra-video-stream" class="absolute inset-0 w-full h-full object-cover hidden" playsinline></video>
                 <div id="sandra-voice-pulse" class="absolute w-32 h-32 rounded-full bg-blue-500/30 blur-xl animate-pulse hidden"></div>
                 
@@ -458,6 +458,8 @@
         // Forzamos modo estático (sin video). Cuando tengas el mp4 de Sora, pon esto a true.
         this.useVideo = false;
         this.ringTimeout = null;
+        this.audioCtx = null;
+        this._ringNodes = [];
         this.isOpen = false;
         this.isRecording = false;
         this.isMicrophoneMuted = false;
@@ -717,23 +719,103 @@
 	        this.playRingtone();
 	      }
 
+      ensureAudioContext() {
+        if (this.audioCtx) return this.audioCtx;
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return null;
+        this.audioCtx = new Ctx();
+        return this.audioCtx;
+      }
+
+      stopRingtone() {
+        if (this.ringTimeout) {
+          clearTimeout(this.ringTimeout);
+          this.ringTimeout = null;
+        }
+        if (this._ringNodes && this._ringNodes.length) {
+          for (const n of this._ringNodes) {
+            try { if (typeof n.stop === 'function') n.stop(0); } catch (_) {}
+            try { if (typeof n.disconnect === 'function') n.disconnect(); } catch (_) {}
+          }
+          this._ringNodes = [];
+        }
+      }
+
       playRingtone() {
         console.log('🔔 Iniciando ringtone...');
-        // Simulation of ringtone logic -> leads to pickup
-        if (this.ringTimeout) clearTimeout(this.ringTimeout);
-        this.ringTimeout = setTimeout(() => {
-            this.ringTimeout = null;
-            console.log('🔔 Segundo ring completado, descolgando llamada...');
-            this.setHeroCallActive(true);
+        this.stopRingtone();
 
+        const ctx = this.ensureAudioContext();
+        if (!ctx) {
+          this.ringTimeout = setTimeout(() => {
+            this.ringTimeout = null;
+            if (!this.chatLocked) return;
             if (this.useVideo) {
               this.transitionHeroToVideo();
               this.startVideoStream();
             } else {
-              // Sin video: solo animamos el Hero y arrancamos la llamada/stream de audio.
               this.startRealTimeCall();
             }
-        }, 3000);
+          }, 3000);
+          return;
+        }
+
+        try { if (ctx.state === 'suspended') ctx.resume(); } catch (_) {}
+
+        const scheduleRing = (start, dur, freq = 425) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, start);
+          gain.gain.setValueAtTime(0.0001, start);
+          gain.gain.exponentialRampToValueAtTime(0.18, start + 0.02);
+          gain.gain.setValueAtTime(0.18, start + Math.max(0.05, dur - 0.04));
+          gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+          osc.connect(gain).connect(ctx.destination);
+          osc.start(start);
+          osc.stop(start + dur);
+          this._ringNodes.push(osc, gain);
+        };
+
+        const scheduleClac = (t) => {
+          const len = Math.floor(ctx.sampleRate * 0.03);
+          const buffer = ctx.createBuffer(1, len, ctx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < len; i++) {
+            const env = Math.exp(-i / (len / 6));
+            data[i] = (Math.random() * 2 - 1) * env;
+          }
+          const src = ctx.createBufferSource();
+          const gain = ctx.createGain();
+          src.buffer = buffer;
+          gain.gain.setValueAtTime(0.35, t);
+          gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+          src.connect(gain).connect(ctx.destination);
+          src.start(t);
+          src.stop(t + 0.04);
+          this._ringNodes.push(src, gain);
+        };
+
+        const now = ctx.currentTime + 0.02;
+        const dur = 1.15;
+        const gap = 0.35;
+        scheduleRing(now, dur);
+        scheduleRing(now + dur + gap, dur);
+        scheduleClac(now + (dur * 2) + gap + 0.05);
+
+        const totalMs = Math.ceil(((dur * 2) + gap + 0.25) * 1000);
+        this.ringTimeout = setTimeout(() => {
+          this.ringTimeout = null;
+          if (!this.chatLocked) return;
+          console.log('🔔 Segundo ring completado, descolgando llamada...');
+          this.setHeroCallActive(true);
+          if (this.useVideo) {
+            this.transitionHeroToVideo();
+            this.startVideoStream();
+          } else {
+            this.startRealTimeCall();
+          }
+        }, totalMs);
       }
 
       transitionHeroToVideo() {
@@ -966,7 +1048,9 @@
             if (data.route === 'audio' && data.action === 'tts' && data.payload && data.payload.audio) {
               this.clearResponseWatchdog();
               this.awaitingResponse = false;
-              this.playAudioResponse(data.payload.audio);
+              // Detectar si es el saludo inicial (primera respuesta después de conectar)
+              const isWelcome = !this.currentAudio && !this.isSpeaking;
+              this.playAudioResponse(data.payload.audio, isWelcome);
               return;
             }
 
@@ -1009,7 +1093,7 @@
       }
 
       // AUDIO FIX: Improved playAudioResponse with 3s delay on revoke
-	      playAudioResponse(audioBase64) {
+	      playAudioResponse(audioBase64, isWelcome = false) {
 	        if (this.currentAudio) {
 	          this.currentAudio.pause();
 	          if (this.currentAudio._blobUrl) URL.revokeObjectURL(this.currentAudio._blobUrl);
@@ -1029,6 +1113,34 @@
         const audio = new Audio(blobUrl);
 	        audio._blobUrl = blobUrl;
 	        this.currentAudio = audio;
+
+	        // Para el saludo inicial, esperar a que el buffer esté completamente cargado
+	        if (isWelcome) {
+	          const checkBuffer = () => {
+	            if (audio.readyState >= 3) { // HAVE_FUTURE_DATA o HAVE_ENOUGH_DATA
+	              console.log('✅ Saludo inicial listo, reproduciendo...');
+	              audio.play().catch(e => {
+	                console.error("Audio play error:", e);
+	                this.isSpeaking = false;
+	              });
+	            } else {
+	              setTimeout(checkBuffer, 100);
+	            }
+	          };
+	          audio.addEventListener('loadeddata', () => {
+	            console.log('✅ Buffer del saludo cargado');
+	            audio.play().catch(e => {
+	              console.error("Audio play error:", e);
+	              this.isSpeaking = false;
+	            });
+	          });
+	          checkBuffer();
+	        } else {
+	          audio.play().catch(e => {
+	            console.error("Audio play error:", e);
+	            this.isSpeaking = false;
+	          });
+	        }
 
 	        audio.onerror = () => {
 	          this.isSpeaking = false;
