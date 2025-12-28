@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="es" class="h-full scroll-smooth">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GuestsValencia · Alojamientos Inteligentes en Valencia con IA</title>
   <!-- ... [SAME HEAD CONTENT] ... -->
-  <meta name="description" content="Descubre alojamientos premium en Valencia con llegada autónoma, gestión inteligente y soporte 24/7 por nuestra IA Sandra. Tu estancia perfecta empieza aquí.">
-  <meta name="keywords" content="alojamientos valencia, apartamentos turísticos, alquiler vacacional valencia, sandra ia, galaxy pro, llegada autónoma, smart lock">
+  <meta name="description"
+    content="Descubre alojamientos premium en Valencia con llegada autónoma, gestión inteligente y soporte 24/7 por nuestra IA Sandra. Tu estancia perfecta empieza aquí.">
+  <meta name="keywords"
+    content="alojamientos valencia, apartamentos turísticos, alquiler vacacional valencia, sandra ia, galaxy pro, llegada autónoma, smart lock">
   <link rel="canonical" href="https://guestsvalencia.es/">
 
   <!-- PWA -->
@@ -20,7 +23,8 @@
   <!-- Open Graph -->
   <meta property="og:type" content="website">
   <meta property="og:title" content="GuestsValencia · Alojamientos Inteligentes con IA">
-  <meta property="og:description" content="Experimenta el futuro del alojamiento en Valencia. Llegada autónoma, confort y asistencia IA 24/7.">
+  <meta property="og:description"
+    content="Experimenta el futuro del alojamiento en Valencia. Llegada autónoma, confort y asistencia IA 24/7.">
   <meta property="og:image" content="https://guestsvalencia.es/assets/media/og-image.jpg">
   <meta property="og:url" content="https://guestsvalencia.es/">
 
@@ -32,50 +36,241 @@
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap"
+    rel="stylesheet">
 
   <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <script>tailwind.config={theme:{extend:{fontFamily:{sans:['Outfit','system-ui','sans-serif'],serif:['Playfair Display','Georgia','serif']}}}}</script>
+  <script>tailwind.config = { theme: { extend: { fontFamily: { sans: ['Outfit', 'system-ui', 'sans-serif'], serif: ['Playfair Display', 'Georgia', 'serif'] } } } }</script>
 
   <style>
-    :root{--primary:#2563EB;--accent:#3B82F6;--accent-light:#60A5FA;--accent-lighter:#93C5FD;--accent-dark:#1E40AF;--glass-bg:rgba(255,255,255,0.98);--glass-dark-bg:rgba(37,99,235,0.85);--text-primary:#0F172A;--text-secondary:#334155;--bg-light:#FFFFFF;--bg-section:#F8FAFC;--bg-accent:#EFF6FF}
-    body{font-family:'Outfit',system-ui,sans-serif;background:var(--bg-light);color:var(--text-primary);overflow-x:hidden;margin:0;padding:0}
-    html{margin:0;padding:0}
-    h1,h2,h3{font-family:'Playfair Display',Georgia,serif}
-    .glass{background:var(--glass-bg);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,0.4);box-shadow:0 8px 32px rgba(0,0,0,0.1)}
-    .glass-dark{background:var(--glass-dark-bg);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,0.15);color:white;box-shadow:0 8px 32px rgba(0,0,0,0.15)}
-    .hero-section{position:relative;min-height:100vh;display:flex;align-items:flex-end;justify-content:center;overflow:hidden;padding-bottom:10vh}
-    .hero-video{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:-2}
-    .hero-background-image{position:absolute;top:0;left:0;width:100%;height:100%;background-size:cover;background-position:center 35%;z-index:-3;transition:transform 0.3s ease}
+    :root {
+      --primary: #2563EB;
+      --accent: #3B82F6;
+      --accent-light: #60A5FA;
+      --accent-lighter: #93C5FD;
+      --accent-dark: #1E40AF;
+      --glass-bg: rgba(255, 255, 255, 0.98);
+      --glass-dark-bg: rgba(37, 99, 235, 0.85);
+      --text-primary: #0F172A;
+      --text-secondary: #334155;
+      --bg-light: #FFFFFF;
+      --bg-section: #F8FAFC;
+      --bg-accent: #EFF6FF
+    }
+
+    body {
+      font-family: 'Outfit', system-ui, sans-serif;
+      background: var(--bg-light);
+      color: var(--text-primary);
+      overflow-x: hidden;
+      margin: 0;
+      padding: 0
+    }
+
+    html {
+      margin: 0;
+      padding: 0
+    }
+
+    h1,
+    h2,
+    h3 {
+      font-family: 'Playfair Display', Georgia, serif
+    }
+
+    .glass {
+      background: var(--glass-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1)
+    }
+
+    .glass-dark {
+      background: var(--glass-dark-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: white;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15)
+    }
+
+    .hero-section {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      overflow: hidden;
+      padding-bottom: 10vh
+    }
+
+    .hero-video {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: -2
+    }
+
+    .hero-background-image {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-size: cover;
+      background-position: center 35%;
+      z-index: -3;
+      transition: transform 0.3s ease
+    }
+
     /* Movimiento sutil del Hero durante llamada (sin video) */
-    .hero-motion{animation:hero-motion 10s ease-in-out infinite;will-change:transform}
-    @keyframes hero-motion{0%,100%{transform:scale(1) translate3d(0,0,0)}50%{transform:scale(1.015) translate3d(0,-0.6%,0)}}
+    .hero-motion {
+      animation: hero-motion 10s ease-in-out infinite;
+      will-change: transform
+    }
+
+    @keyframes hero-motion {
+
+      0%,
+      100% {
+        transform: scale(1) translate3d(0, 0, 0)
+      }
+
+      50% {
+        transform: scale(1.015) translate3d(0, -0.6%, 0)
+      }
+    }
+
     /* Subtítulos siempre visibles y con saltos de línea cuando se muestran */
-    #sandra-subtitles span{white-space:pre-line;display:inline-block;line-height:1.5}
-    .property-card{transition:transform 0.3s,box-shadow 0.3s}.property-card:hover{transform:translateY(-5px);box-shadow:0 20px 40px rgba(0,0,0,0.1)}
-    .btn-primary{background:linear-gradient(135deg,var(--accent),var(--primary));color:white;box-shadow:0 4px 15px rgba(59,130,246,0.3)}
-    .btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 25px rgba(59,130,246,0.4);background:linear-gradient(135deg,var(--accent-light),var(--accent))}
-    .page{display:none}.page.active{display:block}
-    .lightbox{display:none;position:fixed;z-index:1000;inset:0;background:rgba(11,16,32,0.95);backdrop-filter:blur(8px);justify-content:center;align-items:center}
-    .lightbox.show{display:flex}
-    #sandra-widget-container{position:fixed;bottom:20px;right:20px;z-index:9999}
-    #search-container.active{box-shadow:0 0 0 3px rgba(59,130,246,0.5),0 0 20px rgba(59,130,246,0.3),0 0 40px rgba(59,130,246,0.2)}
-    #search-container.active .glass{border-color:rgba(59,130,246,0.5)}
-    .ai-search-active{animation:pulse-glow 2s ease-in-out infinite}
-    @keyframes pulse-glow{0%,100%{box-shadow:0 0 0 0 rgba(147,51,234,0.7),0 0 20px rgba(147,51,234,0.5)}50%{box-shadow:0 0 0 10px rgba(147,51,234,0),0 0 30px rgba(147,51,234,0.8)}}
-    @keyframes fade-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-    @keyframes pulse-slow{0%,100%{opacity:1}50%{opacity:0.7}}
-    .animate-fade-in{animation:fade-in 1s ease-in-out}
-    .animate-pulse-slow{animation:pulse-slow 2s ease-in-out infinite}
+    #sandra-subtitles span {
+      white-space: pre-line;
+      display: inline-block;
+      line-height: 1.5
+    }
+
+    .property-card {
+      transition: transform 0.3s, box-shadow 0.3s
+    }
+
+    .property-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1)
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--primary));
+      color: white;
+      box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3)
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4);
+      background: linear-gradient(135deg, var(--accent-light), var(--accent))
+    }
+
+    .page {
+      display: none
+    }
+
+    .page.active {
+      display: block
+    }
+
+    .lightbox {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      inset: 0;
+      background: rgba(11, 16, 32, 0.95);
+      backdrop-filter: blur(8px);
+      justify-content: center;
+      align-items: center
+    }
+
+    .lightbox.show {
+      display: flex
+    }
+
+    #sandra-widget-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 9999
+    }
+
+    #search-container.active {
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5), 0 0 20px rgba(59, 130, 246, 0.3), 0 0 40px rgba(59, 130, 246, 0.2)
+    }
+
+    #search-container.active .glass {
+      border-color: rgba(59, 130, 246, 0.5)
+    }
+
+    .ai-search-active {
+      animation: pulse-glow 2s ease-in-out infinite
+    }
+
+    @keyframes pulse-glow {
+
+      0%,
+      100% {
+        box-shadow: 0 0 0 0 rgba(147, 51, 234, 0.7), 0 0 20px rgba(147, 51, 234, 0.5)
+      }
+
+      50% {
+        box-shadow: 0 0 0 10px rgba(147, 51, 234, 0), 0 0 30px rgba(147, 51, 234, 0.8)
+      }
+    }
+
+    @keyframes fade-in {
+      from {
+        opacity: 0;
+        transform: translateY(10px)
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0)
+      }
+    }
+
+    @keyframes pulse-slow {
+
+      0%,
+      100% {
+        opacity: 1
+      }
+
+      50% {
+        opacity: 0.7
+      }
+    }
+
+    .animate-fade-in {
+      animation: fade-in 1s ease-in-out
+    }
+
+    .animate-pulse-slow {
+      animation: pulse-slow 2s ease-in-out infinite
+    }
   </style>
 </head>
+
 <body class="font-sans text-slate-900 bg-white min-h-full flex flex-col">
 
   <!-- NAVBAR -->
-  <nav id="main-nav" class="fixed top-0 left-0 right-0 w-full z-50 h-24 flex items-center transition-all duration-300 bg-black/20 backdrop-blur-md border-b border-white/10 shadow-sm">
+  <nav id="main-nav"
+    class="fixed top-0 left-0 right-0 w-full z-50 h-24 flex items-center transition-all duration-300 bg-black/20 backdrop-blur-md border-b border-white/10 shadow-sm">
     <div class="w-full max-w-7xl mx-auto px-6 flex justify-between items-center">
-      <a href="#home" class="nav-link text-3xl font-bold text-white flex items-center gap-1 font-serif tracking-tight drop-shadow-md">
+      <a href="#home"
+        class="nav-link text-3xl font-bold text-white flex items-center gap-1 font-serif tracking-tight drop-shadow-md">
         <span class="text-blue-400">Guests</span>Valencia
       </a>
 
@@ -104,15 +299,18 @@
           Contacto
           <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-400 transition-all group-hover:w-full"></span>
         </a>
-        <a href="https://app.guestsvalencia.es" class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
+        <a href="https://app.guestsvalencia.es"
+          class="nav-link hover:text-blue-300 transition-colors relative group shadow-sm">
           📱 App
           <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-400 transition-all group-hover:w-full"></span>
         </a>
       </div>
 
       <div class="flex gap-4 items-center">
-        <a href="#login" class="nav-link hidden sm:block text-white/90 hover:text-white text-base font-medium">Acceder</a>
-        <a href="#register" class="nav-link bg-white/10 hover:bg-white/20 border border-white/20 text-white px-6 py-3 rounded-full text-base font-bold backdrop-blur-sm transition-all transform hover:scale-105">
+        <a href="#login"
+          class="nav-link hidden sm:block text-white/90 hover:text-white text-base font-medium">Acceder</a>
+        <a href="#register"
+          class="nav-link bg-white/10 hover:bg-white/20 border border-white/20 text-white px-6 py-3 rounded-full text-base font-bold backdrop-blur-sm transition-all transform hover:scale-105">
           Registrarse
         </a>
       </div>
@@ -126,44 +324,69 @@
     <!-- HOME -->
     <section id="home-page" class="page active">
       <header class="hero-section">
-        <video id="hero-video" class="hero-video" autoplay muted loop playsinline style="display:none;" poster="assets/images/sandra-avatar.png">
+        <video id="hero-video" class="hero-video" autoplay muted loop playsinline style="display:none;"
+          poster="assets/images/sandra-avatar.png">
           <source src="" type="video/mp4">
         </video>
-        <div id="hero-background-image" class="hero-background-image" style="background-image: url('https://images.unsplash.com/photo-1600607687644-c7171b42498b?auto=format&fit=crop&w=1920&q=95'); filter: brightness(1.05) contrast(1.1); background-size: cover; background-position: center 35%;"></div>
+        <div id="hero-background-image" class="hero-background-image"
+          style="background-image: url('https://images.unsplash.com/photo-1600607687644-c7171b42498b?auto=format&fit=crop&w=1920&q=95'); filter: brightness(1.05) contrast(1.1); background-size: cover; background-position: center 35%;">
+        </div>
         <!-- Selector de carga para Hero -->
         <div class="absolute top-4 right-4 z-50">
-          <label for="hero-media-upload" class="cursor-pointer bg-white/90 hover:bg-white backdrop-blur-sm px-4 py-2 rounded-lg shadow-lg text-sm font-semibold text-blue-600 flex items-center gap-2 transition-all hover:shadow-xl">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          <label for="hero-media-upload"
+            class="cursor-pointer bg-white/90 hover:bg-white backdrop-blur-sm px-4 py-2 rounded-lg shadow-lg text-sm font-semibold text-blue-600 flex items-center gap-2 transition-all hover:shadow-xl">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
             Cambiar Hero
           </label>
           <input type="file" id="hero-media-upload" accept="image/*,video/*" class="hidden">
         </div>
         <div class="relative z-10 text-center px-6 max-w-4xl mx-auto" style="margin-top: 45vh;">
-          <p class="text-lg md:text-xl text-white mb-8 max-w-2xl mx-auto font-semibold drop-shadow-2xl" style="text-shadow: 0 2px 12px rgba(0,0,0,0.4), 0 0 20px rgba(0,0,0,0.2);">Apartamentos de diseño con llegada autónoma y asistencia 24 horas impulsadas por Sandra IA</p>
-          <div id="search-container" class="glass p-2 rounded-2xl max-w-4xl mx-auto shadow-2xl transition-all duration-300">
+          <p class="text-lg md:text-xl text-white mb-8 max-w-2xl mx-auto font-semibold drop-shadow-2xl"
+            style="text-shadow: 0 2px 12px rgba(0,0,0,0.4), 0 0 20px rgba(0,0,0,0.2);">Apartamentos de diseño con
+            llegada autónoma y asistencia 24 horas impulsadas por Sandra IA</p>
+          <div id="search-container"
+            class="glass p-2 rounded-2xl max-w-4xl mx-auto shadow-2xl transition-all duration-300">
             <form id="search-form" class="flex flex-col md:flex-row gap-2 items-center">
               <div class="flex-1 w-full md:w-auto flex gap-2">
-                <input type="text" id="search-destination" placeholder="¿A dónde viajas? Ej: Ruzafa..." class="flex-1 pl-4 py-4 rounded-xl bg-white/90 text-slate-800 placeholder-slate-500 font-medium outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all">
+                <input type="text" id="search-destination" placeholder="¿A dónde viajas? Ej: Ruzafa..."
+                  class="flex-1 pl-4 py-4 rounded-xl bg-white/90 text-slate-800 placeholder-slate-500 font-medium outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all">
                 <div class="relative">
-                  <input type="number" id="search-guests" value="2" min="1" aria-label="Número de personas" class="w-32 px-4 py-4 rounded-xl bg-white/90 text-slate-800 font-medium outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all pr-16">
-                  <span class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm pointer-events-none">Personas</span>
+                  <input type="number" id="search-guests" value="2" min="1" aria-label="Número de personas"
+                    class="w-32 px-4 py-4 rounded-xl bg-white/90 text-slate-800 font-medium outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all pr-16">
+                  <span
+                    class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm pointer-events-none">Personas</span>
                 </div>
                 <div class="relative">
-                  <input type="number" id="search-nights" value="1" min="1" aria-label="Número de noches" class="w-32 px-4 py-4 rounded-xl bg-white/90 text-slate-800 font-medium outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all pr-16">
-                  <span class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm pointer-events-none">Noches</span>
+                  <input type="number" id="search-nights" value="1" min="1" aria-label="Número de noches"
+                    class="w-32 px-4 py-4 rounded-xl bg-white/90 text-slate-800 font-medium outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all pr-16">
+                  <span
+                    class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm pointer-events-none">Noches</span>
                 </div>
               </div>
               <div class="flex gap-2 w-full md:w-auto">
-                <button type="button" id="btn-search-normal" class="px-6 py-4 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-lg transition-all flex items-center gap-2">
-                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                <button type="button" id="btn-search-normal"
+                  class="px-6 py-4 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-lg transition-all flex items-center gap-2">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
                   Buscar
                 </button>
-                <button type="button" id="btn-search-ai" class="px-6 py-4 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold hover:from-purple-700 hover:to-blue-700 shadow-lg transition-all flex items-center gap-2 relative overflow-hidden group">
-                  <span class="absolute inset-0 bg-gradient-to-r from-purple-400 to-blue-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
-                  <svg class="w-5 h-5 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                <button type="button" id="btn-search-ai"
+                  class="px-6 py-4 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold hover:from-purple-700 hover:to-blue-700 shadow-lg transition-all flex items-center gap-2 relative overflow-hidden group">
+                  <span
+                    class="absolute inset-0 bg-gradient-to-r from-purple-400 to-blue-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+                  <svg class="w-5 h-5 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
                   <span class="relative z-10">Buscar con IA</span>
                   <span id="ai-search-pulse" class="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100">
-                    <span class="absolute inset-0 rounded-xl bg-gradient-to-r from-purple-400/50 to-blue-400/50 animate-ping"></span>
+                    <span
+                      class="absolute inset-0 rounded-xl bg-gradient-to-r from-purple-400/50 to-blue-400/50 animate-ping"></span>
                   </span>
                 </button>
               </div>
@@ -177,47 +400,76 @@
         <div class="max-w-7xl mx-auto">
           <div class="text-center mb-16">
             <span class="text-blue-600 font-bold tracking-wider uppercase text-sm mb-2 block">Nuestros Pilares</span>
-            <h2 class="text-3xl md:text-4xl font-bold text-slate-900 mb-4">Tecnología, Transparencia y Experiencia Personalizada</h2>
-            <p class="text-slate-600 max-w-3xl mx-auto">Descubre los factores clave de nuestra gestión de propiedades para particulares y empresas en Valencia.</p>
+            <h2 class="text-3xl md:text-4xl font-bold text-slate-900 mb-4">Tecnología, Transparencia y Experiencia
+              Personalizada</h2>
+            <p class="text-slate-600 max-w-3xl mx-auto">Descubre los factores clave de nuestra gestión de propiedades
+              para particulares y empresas en Valencia.</p>
           </div>
           <div class="grid md:grid-cols-3 gap-8">
-            <div class="bg-gradient-to-br from-blue-50/60 to-white p-8 rounded-2xl border border-blue-100/60 hover:shadow-xl transition-all">
+            <div
+              class="bg-gradient-to-br from-blue-50/60 to-white p-8 rounded-2xl border border-blue-100/60 hover:shadow-xl transition-all">
               <div class="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mb-6">
-                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
               </div>
               <h3 class="text-2xl font-bold text-slate-900 mb-4">Tecnología Propia con Sandra IA</h3>
-              <p class="text-slate-600 mb-4">Ofrecemos seguimiento en tiempo real de cada proceso con acceso inmediato a toda la información de tus propiedades.</p>
+              <p class="text-slate-600 mb-4">Ofrecemos seguimiento en tiempo real de cada proceso con acceso inmediato a
+                toda la información de tus propiedades.</p>
               <ul class="space-y-2 text-sm text-slate-600">
-                <li class="flex items-start gap-2"><span class="text-blue-600 mt-1">✓</span> Actualización de reservas y tareas en tiempo real</li>
-                <li class="flex items-start gap-2"><span class="text-blue-600 mt-1">✓</span> Toda la información en una sola aplicación</li>
-                <li class="flex items-start gap-2"><span class="text-blue-600 mt-1">✓</span> Asistente IA 24/7 con videollamada conversacional</li>
-                <li class="flex items-start gap-2"><span class="text-blue-600 mt-1">✓</span> Notificaciones automáticas de intervenciones</li>
+                <li class="flex items-start gap-2"><span class="text-blue-600 mt-1">✓</span> Actualización de reservas y
+                  tareas en tiempo real</li>
+                <li class="flex items-start gap-2"><span class="text-blue-600 mt-1">✓</span> Toda la información en una
+                  sola aplicación</li>
+                <li class="flex items-start gap-2"><span class="text-blue-600 mt-1">✓</span> Asistente IA 24/7 con
+                  videollamada conversacional</li>
+                <li class="flex items-start gap-2"><span class="text-blue-600 mt-1">✓</span> Notificaciones automáticas
+                  de intervenciones</li>
               </ul>
             </div>
-            <div class="bg-gradient-to-br from-blue-50/60 to-white p-8 rounded-2xl border border-blue-100/60 hover:shadow-xl transition-all">
+            <div
+              class="bg-gradient-to-br from-blue-50/60 to-white p-8 rounded-2xl border border-blue-100/60 hover:shadow-xl transition-all">
               <div class="w-16 h-16 bg-blue-500 rounded-2xl flex items-center justify-center mb-6">
-                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
               </div>
               <h3 class="text-2xl font-bold text-slate-900 mb-4">Transparencia Total</h3>
-              <p class="text-slate-600 mb-4">Actuamos como Responsables del Tratamiento, garantizando uso lícito, leal y transparente de tus datos.</p>
+              <p class="text-slate-600 mb-4">Actuamos como Responsables del Tratamiento, garantizando uso lícito, leal y
+                transparente de tus datos.</p>
               <ul class="space-y-2 text-sm text-slate-600">
-                <li class="flex items-start gap-2"><span class="text-blue-600 mt-1">✓</span> Seguimiento detallado de cada proceso</li>
-                <li class="flex items-start gap-2"><span class="text-blue-600 mt-1">✓</span> Información completa y accesible</li>
-                <li class="flex items-start gap-2"><span class="text-blue-600 mt-1">✓</span> Comunicación clara y directa</li>
-                <li class="flex items-start gap-2"><span class="text-blue-600 mt-1">✓</span> Cumplimiento GDPR y normativas</li>
+                <li class="flex items-start gap-2"><span class="text-blue-600 mt-1">✓</span> Seguimiento detallado de
+                  cada proceso</li>
+                <li class="flex items-start gap-2"><span class="text-blue-600 mt-1">✓</span> Información completa y
+                  accesible</li>
+                <li class="flex items-start gap-2"><span class="text-blue-600 mt-1">✓</span> Comunicación clara y
+                  directa</li>
+                <li class="flex items-start gap-2"><span class="text-blue-600 mt-1">✓</span> Cumplimiento GDPR y
+                  normativas</li>
               </ul>
             </div>
-            <div class="bg-gradient-to-br from-blue-50/60 to-white p-8 rounded-2xl border border-blue-100/60 hover:shadow-xl transition-all">
+            <div
+              class="bg-gradient-to-br from-blue-50/60 to-white p-8 rounded-2xl border border-blue-100/60 hover:shadow-xl transition-all">
               <div class="w-16 h-16 bg-blue-400 rounded-2xl flex items-center justify-center mb-6">
-                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                </svg>
               </div>
               <h3 class="text-2xl font-bold text-slate-900 mb-4">Experiencia Personalizada</h3>
-              <p class="text-slate-600 mb-4">Aseguramos una gestión eficiente que optimiza la operativa y la experiencia tanto para propietarios como huéspedes.</p>
+              <p class="text-slate-600 mb-4">Aseguramos una gestión eficiente que optimiza la operativa y la experiencia
+                tanto para propietarios como huéspedes.</p>
               <ul class="space-y-2 text-sm text-slate-600">
-                <li class="flex items-start gap-2"><span class="text-blue-600 mt-1">✓</span> Protocolos adaptados a cada propiedad</li>
-                <li class="flex items-start gap-2"><span class="text-blue-600 mt-1">✓</span> Disponibilidad los 365 días, festivos incluidos</li>
-                <li class="flex items-start gap-2"><span class="text-blue-600 mt-1">✓</span> Check-in flexible y autónomo</li>
-                <li class="flex items-start gap-2"><span class="text-blue-600 mt-1">✓</span> Atención personalizada con Sandra IA</li>
+                <li class="flex items-start gap-2"><span class="text-blue-600 mt-1">✓</span> Protocolos adaptados a cada
+                  propiedad</li>
+                <li class="flex items-start gap-2"><span class="text-blue-600 mt-1">✓</span> Disponibilidad los 365
+                  días, festivos incluidos</li>
+                <li class="flex items-start gap-2"><span class="text-blue-600 mt-1">✓</span> Check-in flexible y
+                  autónomo</li>
+                <li class="flex items-start gap-2"><span class="text-blue-600 mt-1">✓</span> Atención personalizada con
+                  Sandra IA</li>
               </ul>
             </div>
           </div>
@@ -248,10 +500,12 @@
       <!-- FEATURED LISTINGS -->
       <section class="py-24 px-6 max-w-7xl mx-auto">
         <h2 class="text-3xl md:text-4xl font-bold text-slate-900 mb-4 text-center">Alojamientos Destacados</h2>
-        <p class="text-slate-600 text-center mb-12 max-w-xl mx-auto">Una selección curada de nuestros mejores alojamientos.</p>
+        <p class="text-slate-600 text-center mb-12 max-w-xl mx-auto">Una selección curada de nuestros mejores
+          alojamientos.</p>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" id="featured-grid"></div>
         <div class="mt-10 text-center">
-          <a href="#alojamientos" class="nav-link inline-block btn-primary px-8 py-3 rounded-xl font-bold">Ver todos los alojamientos</a>
+          <a href="#alojamientos" class="nav-link inline-block btn-primary px-8 py-3 rounded-xl font-bold">Ver todos los
+            alojamientos</a>
         </div>
       </section>
 
@@ -259,91 +513,149 @@
       <section class="bg-white py-16 md:py-24 border-t border-slate-200">
         <div class="max-w-7xl mx-auto px-6 grid md:grid-cols-2 gap-8 md:gap-12 items-end">
           <div class="order-2 md:order-1">
-            <span class="text-blue-600 font-bold tracking-wider uppercase text-sm mb-2 block">Tecnología de Vanguardia</span>
+            <span class="text-blue-600 font-bold tracking-wider uppercase text-sm mb-2 block">Tecnología de
+              Vanguardia</span>
             <h2 class="text-3xl md:text-4xl font-bold text-slate-900 mb-6">Tu Asistente Personal de Viaje</h2>
-            <p class="text-slate-600 mb-6">Nuestra asistente virtual, <strong>Sandra IA</strong>, está disponible 24/7 para mejorar su experiencia. Ahora con capacidad de <strong>videollamada conversacional</strong>.</p>
+            <p class="text-slate-600 mb-6">Nuestra asistente virtual, <strong>Sandra IA</strong>, está disponible 24/7
+              para mejorar su experiencia. Ahora con capacidad de <strong>videollamada conversacional</strong>.</p>
             <div class="bg-blue-50/40 p-6 rounded-2xl border border-blue-100/50">
               <h4 class="font-bold text-slate-800 mb-2 flex items-center gap-2">
-                <svg class="w-5 h-5 text-[#25D366]" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.008-.57-.008-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
+                <svg class="w-5 h-5 text-[#25D366]" fill="currentColor" viewBox="0 0 24 24">
+                  <path
+                    d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.008-.57-.008-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
+                </svg>
                 Certificación WhatsApp Business
               </h4>
-              <p class="text-sm text-slate-600">Sandra gestiona consultas cumpliendo con Meta y GDPR. <a href="#legal" class="text-blue-600 nav-link">Leer política</a>.</p>
+              <p class="text-sm text-slate-600">Sandra gestiona consultas cumpliendo con Meta y GDPR. <a href="#legal"
+                  class="text-blue-600 nav-link">Leer política</a>.</p>
             </div>
           </div>
           <!-- ⚠️ LAYOUT PROTECTED: SANDRA VIDEO CALL INTERFACE - NO MODIFICAR SIN AUTORIZACIÓN -->
-          <div id="sandra-embedded-interface" class="relative w-full max-w-xs mx-auto order-1 md:order-2 flex justify-center md:justify-end items-end">
-            <div class="relative bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-3xl overflow-hidden shadow-2xl flex flex-col border-2 border-blue-200/50" style="aspect-ratio: 9/16; height: 580px; max-height: calc(100vh - 150px);">
+          <div id="sandra-embedded-interface"
+            class="relative w-full max-w-xs mx-auto order-1 md:order-2 flex justify-center md:justify-end items-end">
+            <div
+              class="relative bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-3xl overflow-hidden shadow-2xl flex flex-col border-2 border-blue-200/50"
+              style="aspect-ratio: 9/16; height: 580px; max-height: calc(100vh - 150px);">
               <!-- Header de Videollamada -->
-              <div class="absolute top-0 left-0 right-0 px-4 pt-3 pb-2 flex justify-between items-center z-20 bg-gradient-to-b from-blue-600/90 to-transparent backdrop-blur-md">
+              <div
+                class="absolute top-0 left-0 right-0 px-4 pt-3 pb-2 flex justify-between items-center z-20 bg-gradient-to-b from-blue-600/90 to-transparent backdrop-blur-md">
                 <div class="flex items-center gap-2">
                   <div class="w-2 h-2 rounded-full bg-green-400 animate-pulse shadow-lg shadow-green-400/50"></div>
                   <span class="text-white text-xs font-semibold">Videollamada</span>
                 </div>
                 <div class="flex items-center gap-2 bg-white/20 px-2 py-1 rounded-full backdrop-blur-sm">
-                  <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
+                  <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <path
+                      d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z" />
+                  </svg>
                   <span class="text-white text-[10px] font-medium">24/7</span>
                 </div>
               </div>
-              
+
               <!-- Área Principal de Video -->
-              <div class="flex-1 relative bg-gradient-to-br from-blue-100 via-indigo-100 to-purple-100 flex items-center justify-center overflow-hidden">
+              <div
+                class="flex-1 relative bg-gradient-to-br from-blue-100 via-indigo-100 to-purple-100 flex items-center justify-center overflow-hidden">
                 <!-- Avatar/Placeholder de Video -->
                 <div class="absolute inset-0 flex items-center justify-center">
-                  <div class="relative w-32 h-32 rounded-full bg-gradient-to-br from-blue-400 via-indigo-400 to-purple-400 flex items-center justify-center shadow-2xl border-4 border-white/50 overflow-hidden">
+                  <div
+                    class="relative w-32 h-32 rounded-full bg-gradient-to-br from-blue-400 via-indigo-400 to-purple-400 flex items-center justify-center shadow-2xl border-4 border-white/50 overflow-hidden">
                     <!-- Selector de carga para avatar -->
-                    <label for="sandra-avatar-upload" class="absolute inset-0 flex items-center justify-center cursor-pointer z-10 group">
+                    <label for="sandra-avatar-upload"
+                      class="absolute inset-0 flex items-center justify-center cursor-pointer z-10 group">
                       <input type="file" id="sandra-avatar-upload" accept="image/*,video/*" class="hidden">
-                      <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center">
-                        <svg class="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                      <div
+                        class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center">
+                        <svg class="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none"
+                          viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
                       </div>
                     </label>
                     <!-- Avatar fijo por defecto (foto) -->
-                    <img id="sandra-avatar-image" class="absolute inset-0 w-full h-full object-cover rounded-full" src="assets/images/sandra-avatar.png" alt="Sandra Avatar" onerror="this.style.display='none'; document.getElementById('sandra-avatar-icon').style.display='block';">
+                    <img id="sandra-avatar-image" class="absolute inset-0 w-full h-full object-cover rounded-full"
+                      src="assets/images/sandra-avatar.png" alt="Sandra Avatar"
+                      onerror="this.style.display='none'; document.getElementById('sandra-avatar-icon').style.display='block';">
                     <!-- Avatar por defecto (icono) - solo si falla la imagen -->
-                    <svg id="sandra-avatar-icon" class="w-16 h-16 text-white hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                    <svg id="sandra-avatar-icon" class="w-16 h-16 text-white hidden" fill="none" viewBox="0 0 24 24"
+                      stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
                     <!-- Avatar cargado (video) -->
-                    <video id="sandra-avatar-video" class="absolute inset-0 w-full h-full object-cover rounded-full hidden" autoplay muted loop playsinline></video>
+                    <video id="sandra-avatar-video"
+                      class="absolute inset-0 w-full h-full object-cover rounded-full hidden" autoplay muted loop
+                      playsinline></video>
                   </div>
                   <!-- Ondas de audio animadas -->
                   <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div class="w-40 h-40 rounded-full border-2 border-blue-300/30 animate-ping"></div>
-                    <div class="absolute w-48 h-48 rounded-full border-2 border-indigo-300/20 animate-ping" style="animation-delay: 0.5s;"></div>
-                    <div class="absolute w-56 h-56 rounded-full border-2 border-purple-300/10 animate-ping" style="animation-delay: 1s;"></div>
+                    <div class="absolute w-48 h-48 rounded-full border-2 border-indigo-300/20 animate-ping"
+                      style="animation-delay: 0.5s;"></div>
+                    <div class="absolute w-56 h-56 rounded-full border-2 border-purple-300/10 animate-ping"
+                      style="animation-delay: 1s;"></div>
                   </div>
                 </div>
-                
+
                 <!-- Video stream (se muestra cuando hay llamada activa) -->
-                <img src="/assets/images/sandra-avatar.png" class="absolute inset-0 w-full h-full object-cover hidden" alt="Sandra Avatar" id="sandra-avatar-img" onerror="this.src='https://placehold.co/400x700/3b82f6/ffffff?text=Sandra+IA'">
-                <video id="sandra-video-stream" class="absolute inset-0 w-full h-full object-cover hidden" playsinline></video>
-                <div id="sandra-voice-pulse" class="absolute w-32 h-32 rounded-full bg-blue-500/30 blur-xl animate-pulse hidden"></div>
-                
+                <img src="/assets/images/sandra-avatar.png" class="absolute inset-0 w-full h-full object-cover hidden"
+                  alt="Sandra Avatar" id="sandra-avatar-img"
+                  onerror="this.src='https://placehold.co/400x700/3b82f6/ffffff?text=Sandra+IA'">
+                <video id="sandra-video-stream" class="absolute inset-0 w-full h-full object-cover hidden"
+                  playsinline></video>
+                <div id="sandra-voice-pulse"
+                  class="absolute w-32 h-32 rounded-full bg-blue-500/30 blur-xl animate-pulse hidden"></div>
+
                 <!-- Indicador de estado -->
-                <div class="absolute top-20 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-md px-4 py-2 rounded-full shadow-lg z-10">
+                <div
+                  class="absolute top-20 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-md px-4 py-2 rounded-full shadow-lg z-10">
                   <span class="text-blue-600 text-xs font-semibold">
                     Llámanos
                   </span>
                 </div>
               </div>
-              
+
               <!-- Control Bar (Bottom) - Estilo Gemini -->
-              <div class="absolute bottom-0 left-0 right-0 pb-4 pt-3 px-4 bg-gradient-to-t from-slate-900/95 via-slate-800/90 to-transparent backdrop-blur-lg">
+              <div
+                class="absolute bottom-0 left-0 right-0 pb-4 pt-3 px-4 bg-gradient-to-t from-slate-900/95 via-slate-800/90 to-transparent backdrop-blur-lg">
                 <div class="flex items-center justify-center gap-3">
-                  <button id="btn-cam-toggle" class="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-all backdrop-blur-sm border border-white/20">
-                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                  <button id="btn-cam-toggle"
+                    class="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-all backdrop-blur-sm border border-white/20">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
                   </button>
-                  <button id="btn-mute-toggle" class="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-all backdrop-blur-sm border border-white/20" title="Silenciar micrófono">
-                    <svg id="mic-icon" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
-                    <svg id="mic-muted-icon" class="w-5 h-5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" clip-rule="evenodd"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/></svg>
+                  <button id="btn-mute-toggle"
+                    class="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-all backdrop-blur-sm border border-white/20"
+                    title="Silenciar micrófono">
+                    <svg id="mic-icon" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                    </svg>
+                    <svg id="mic-muted-icon" class="w-5 h-5 hidden" fill="none" viewBox="0 0 24 24"
+                      stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+                        clip-rule="evenodd" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                    </svg>
                   </button>
-                  <button id="btn-call-toggle" class="w-14 h-14 rounded-full bg-green-500 hover:bg-green-600 flex items-center justify-center text-white shadow-2xl transition-all ring-4 ring-green-500/30">
-                    <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M3 21l3-3m0 0V9a6 6 0 0112 0v9m-3-3l3 3m-3-3h6m-6 0V9a3 3 0 00-3-3H9a3 3 0 00-3 3v9"/></svg>
+                  <button id="btn-call-toggle"
+                    class="w-14 h-14 rounded-full bg-green-500 hover:bg-green-600 flex items-center justify-center text-white shadow-2xl transition-all ring-4 ring-green-500/30">
+                    <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M3 21l3-3m0 0V9a6 6 0 0112 0v9m-3-3l3 3m-3-3h6m-6 0V9a3 3 0 00-3-3H9a3 3 0 00-3 3v9" />
+                    </svg>
                   </button>
                 </div>
               </div>
-              
+
               <!-- Subtitles -->
               <div id="sandra-subtitles" class="absolute bottom-20 left-0 right-0 text-center px-4 hidden z-30">
-                <span class="bg-slate-900/80 backdrop-blur-md text-white px-4 py-2 rounded-xl text-sm font-medium shadow-xl border border-white/10">Espero tu respuesta...</span>
+                <span
+                  class="bg-slate-900/80 backdrop-blur-md text-white px-4 py-2 rounded-xl text-sm font-medium shadow-xl border border-white/10">Espero
+                  tu respuesta...</span>
               </div>
             </div>
           </div>
@@ -362,62 +674,62 @@
 
   <!-- Persistencia del Hero (solo imagen): aplica + guarda, sin tocar la lógica de llamada -->
   <script>
-    (function () {
-      const heroBg = document.getElementById('hero-background-image');
-      const heroVideo = document.getElementById('hero-video');
-      const heroInput = document.getElementById('hero-media-upload');
-      const STORAGE_KEY = 'gv-hero-image';
-      let currentObjectUrl = null;
+      (function () {
+        const heroBg = document.getElementById('hero-background-image');
+        const heroVideo = document.getElementById('hero-video');
+        const heroInput = document.getElementById('hero-media-upload');
+        const STORAGE_KEY = 'gv-hero-image';
+        let currentObjectUrl = null;
 
-      const applyHeroImage = (url) => {
-        if (heroBg) heroBg.style.backgroundImage = `url('${url}')`;
-        if (heroVideo) heroVideo.setAttribute('poster', url);
-      };
+        const applyHeroImage = (url) => {
+          if (heroBg) heroBg.style.backgroundImage = `url('${url}')`;
+          if (heroVideo) heroVideo.setAttribute('poster', url);
+        };
 
-      const revokeCurrentObjectUrl = () => {
-        if (currentObjectUrl) {
-          URL.revokeObjectURL(currentObjectUrl);
-          currentObjectUrl = null;
-        }
-      };
-
-      // 1) Cargar imagen persistida (localStorage)
-      try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) applyHeroImage(saved);
-      } catch (err) {
-        console.warn('No se pudo leer la imagen guardada del Hero', err);
-      }
-
-      // 2) Al subir imagen: mostrar y persistir (sin tocar vídeo/llamada)
-      if (heroInput) {
-        heroInput.addEventListener('change', (e) => {
-          const file = e.target.files && e.target.files[0];
-          if (!file) return;
-
-          if (!file.type || !file.type.startsWith('image/')) {
-            // No forzamos nada: si no es imagen, salimos sin romper el flujo.
-            return;
+        const revokeCurrentObjectUrl = () => {
+          if (currentObjectUrl) {
+            URL.revokeObjectURL(currentObjectUrl);
+            currentObjectUrl = null;
           }
+        };
 
-          // Mostrar al instante
-          revokeCurrentObjectUrl();
-          currentObjectUrl = URL.createObjectURL(file);
-          applyHeroImage(currentObjectUrl);
+        // 1) Cargar imagen persistida (localStorage)
+        try {
+          const saved = localStorage.getItem(STORAGE_KEY);
+          if (saved) applyHeroImage(saved);
+        } catch (err) {
+          console.warn('No se pudo leer la imagen guardada del Hero', err);
+        }
 
-          // Persistir (dataURL)
-          const reader = new FileReader();
-          reader.onload = () => {
-            try {
-              localStorage.setItem(STORAGE_KEY, String(reader.result || ''));
-            } catch (err) {
-              console.warn('No se pudo guardar la imagen del Hero (localStorage)', err);
+        // 2) Al subir imagen: mostrar y persistir (sin tocar vídeo/llamada)
+        if (heroInput) {
+          heroInput.addEventListener('change', (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+
+            if (!file.type || !file.type.startsWith('image/')) {
+              // No forzamos nada: si no es imagen, salimos sin romper el flujo.
+              return;
             }
-          };
-          reader.readAsDataURL(file);
-        });
-      }
-    })();
+
+            // Mostrar al instante
+            revokeCurrentObjectUrl();
+            currentObjectUrl = URL.createObjectURL(file);
+            applyHeroImage(currentObjectUrl);
+
+            // Persistir (dataURL)
+            const reader = new FileReader();
+            reader.onload = () => {
+              try {
+                localStorage.setItem(STORAGE_KEY, String(reader.result || ''));
+              } catch (err) {
+                console.warn('No se pudo guardar la imagen del Hero (localStorage)', err);
+              }
+            };
+            reader.readAsDataURL(file);
+          });
+        }
+      })();
   </script>
 
   <!-- SANDRA WIDGET SCRIPT -->
@@ -426,10 +738,10 @@
     class SandraGateway {
       constructor() {
         // Dynamic base URL detection - En localhost usar servidor MCP directamente
-        const isLocalhost = window.location.hostname === 'localhost' || 
-                           window.location.hostname === '127.0.0.1' ||
-                           window.location.port === '4042';
-        
+        const isLocalhost = window.location.hostname === 'localhost' ||
+          window.location.hostname === '127.0.0.1' ||
+          window.location.port === '4042';
+
         if (isLocalhost) {
           this.baseUrl = 'http://localhost:4042/api';
         } else {
@@ -449,7 +761,7 @@
             const errorData = await response.json().catch(() => ({}));
             throw new Error(errorData.error || `HTTP ${response.status}`);
           }
-          
+
           const data = await response.json();
           console.log(`[Chat] Respuesta recibida del modelo: ${data.model || 'groq'}`);
           return data.reply;
@@ -609,7 +921,7 @@
           if (!text) return;
           this.addMessage(text, 'user');
           input.value = '';
-          
+
           // Asegurar que el prompt de llamada esté visible después de enviar mensaje
           if (!this.activeCall && !this.chatLocked) {
             const callPrompt = document.getElementById('sandra-call-prompt');
@@ -618,7 +930,7 @@
               callPrompt.style.visibility = 'visible';
             }
           }
-          
+
           this.showTyping(true);
           try {
             const response = await this.gateway.sendMessage(text);
@@ -663,101 +975,101 @@
           });
         }
 
-	        if (btnCallToggle) {
-	            btnCallToggle.addEventListener('click', () => {
-	                // Toggle logic: for now, it starts call if not started
-	                if (!this.activeCall) {
-	                    this.startConversationalCall();
-		                } else {
-		                    // Hang up
-		                    try { this.activeCall.close(); } catch (_) {}
-		                    this.activeCall = null;
-		                    this.stopAudioCapture();
-		                    this.setHeroCallActive(false);
-		                    console.log("Call ended by user");
-	                    // Optionally reset UI to idle state
-	                }
-	            });
-	        }
+        if (btnCallToggle) {
+          btnCallToggle.addEventListener('click', () => {
+            // Toggle logic: for now, it starts call if not started
+            if (!this.activeCall) {
+              this.startConversationalCall();
+            } else {
+              // Hang up
+              try { this.activeCall.close(); } catch (_) { }
+              this.activeCall = null;
+              this.stopAudioCapture();
+              this.setHeroCallActive(false);
+              console.log("Call ended by user");
+              // Optionally reset UI to idle state
+            }
+          });
+        }
 
-	        if (btnMuteToggle) {
-	          btnMuteToggle.addEventListener('click', () => {
-	            this.isMicrophoneMuted = !this.isMicrophoneMuted;
-	            const micIcon = document.getElementById('mic-icon');
-	            const micMutedIcon = document.getElementById('mic-muted-icon');
-	            if (this.isMicrophoneMuted) {
-	              micIcon && micIcon.classList.add('hidden');
-	              micMutedIcon && micMutedIcon.classList.remove('hidden');
-	              btnMuteToggle.classList.add('bg-red-500/40');
-	            } else {
-	              micMutedIcon && micMutedIcon.classList.add('hidden');
-	              micIcon && micIcon.classList.remove('hidden');
-	              btnMuteToggle.classList.remove('bg-red-500/40');
-	            }
-	          });
-	        }
+        if (btnMuteToggle) {
+          btnMuteToggle.addEventListener('click', () => {
+            this.isMicrophoneMuted = !this.isMicrophoneMuted;
+            const micIcon = document.getElementById('mic-icon');
+            const micMutedIcon = document.getElementById('mic-muted-icon');
+            if (this.isMicrophoneMuted) {
+              micIcon && micIcon.classList.add('hidden');
+              micMutedIcon && micMutedIcon.classList.remove('hidden');
+              btnMuteToggle.classList.add('bg-red-500/40');
+            } else {
+              micMutedIcon && micMutedIcon.classList.add('hidden');
+              micIcon && micIcon.classList.remove('hidden');
+              btnMuteToggle.classList.remove('bg-red-500/40');
+            }
+          });
+        }
 
-		        if (btnSearchAi) {
-		            btnSearchAi.addEventListener('click', () => {
-		                this.startConversationalCall();
-		                // Optionally hide the hero search bar to focus on video
-		                const searchContainer = document.getElementById('search-container');
-		                if (searchContainer) searchContainer.style.opacity = '0'; // Fade out
-		            });
-		        }
-	      }
+        if (btnSearchAi) {
+          btnSearchAi.addEventListener('click', () => {
+            this.startConversationalCall();
+            // Optionally hide the hero search bar to focus on video
+            const searchContainer = document.getElementById('search-container');
+            if (searchContainer) searchContainer.style.opacity = '0'; // Fade out
+          });
+        }
+      }
 
-	      setHeroCallActive(active) {
-	        const heroBg = document.getElementById('hero-background-image');
-	        const heroVideo = document.getElementById('hero-video');
-	        const searchContainer = document.getElementById('search-container');
+      setHeroCallActive(active) {
+        const heroBg = document.getElementById('hero-background-image');
+        const heroVideo = document.getElementById('hero-video');
+        const searchContainer = document.getElementById('search-container');
 
-	        if (searchContainer) {
-	          searchContainer.style.opacity = active ? '0' : '1';
-	          searchContainer.style.pointerEvents = active ? 'none' : 'auto';
-	        }
+        if (searchContainer) {
+          searchContainer.style.opacity = active ? '0' : '1';
+          searchContainer.style.pointerEvents = active ? 'none' : 'auto';
+        }
 
-	        if (heroBg) {
-	          heroBg.classList.toggle('hero-motion', !!active);
-	        }
+        if (heroBg) {
+          heroBg.classList.toggle('hero-motion', !!active);
+        }
 
-	        // En modo sin video, aseguramos que el <video> no se muestre ni cargue.
-	        if (heroVideo && !this.useVideo) {
-	          try {
-	            heroVideo.pause();
-	            heroVideo.currentTime = 0;
-	          } catch (_) {}
-	          heroVideo.style.display = 'none';
-	          heroVideo.style.opacity = '0';
-	          const source = heroVideo.querySelector('source');
-	          if (source) source.removeAttribute('src');
-	          try { heroVideo.load(); } catch (_) {}
-	        }
+        // En modo sin video, aseguramos que el <video> no se muestre ni cargue.
+        if (heroVideo && !this.useVideo) {
+          try {
+            heroVideo.pause();
+            heroVideo.currentTime = 0;
+          } catch (_) { }
+          heroVideo.style.display = 'none';
+          heroVideo.style.opacity = '0';
+          const source = heroVideo.querySelector('source');
+          if (source) source.removeAttribute('src');
+          try { heroVideo.load(); } catch (_) { }
+        }
 
-	        if (!active) {
-	          this.chatLocked = false;
-	          if (this.ringTimeout) {
-	            clearTimeout(this.ringTimeout);
-	            this.ringTimeout = null;
-	          }
-	        }
-	      }
+        if (!active) {
+          this.chatLocked = false;
+          if (this.ringTimeout) {
+            clearTimeout(this.ringTimeout);
+            this.ringTimeout = null;
+          }
+        }
+      }
 
-	      startConversationalCall() {
-	        console.log('Iniciando llamada conversacional...');
-	        if (this.chatLocked || this.activeCall || this.ringTimeout) return;
-	        this.chatLocked = true;
-	        
-	        // Ocultar prompt de llamada cuando inicia
-	        const callPrompt = document.getElementById('sandra-call-prompt');
-	        if (callPrompt) callPrompt.style.display = 'none';
-	        
-	        // Mostrar controles de llamada
-	        const callControls = document.getElementById('sandra-call-controls');
-	        if (callControls) callControls.classList.remove('hidden');
-	        
-	        this.playRingtone();
-	      }
+      startConversationalCall() {
+        console.log('Iniciando llamada conversacional...');
+        if (this.chatLocked || this.activeCall || this.ringTimeout) return;
+        this.chatLocked = true;
+
+        // Ocultar prompt de llamada cuando inicia
+        const callPrompt = document.getElementById('sandra-call-prompt');
+        if (callPrompt) callPrompt.style.display = 'none';
+
+        // Mostrar controles de llamada
+        const callControls = document.getElementById('sandra-call-controls');
+        if (callControls) callControls.classList.remove('hidden');
+
+        this.playRingtone();
+      }
 
       ensureAudioContext() {
         if (this.audioCtx) return this.audioCtx;
@@ -774,8 +1086,8 @@
         }
         if (this._ringNodes && this._ringNodes.length) {
           for (const n of this._ringNodes) {
-            try { if (typeof n.stop === 'function') n.stop(0); } catch (_) {}
-            try { if (typeof n.disconnect === 'function') n.disconnect(); } catch (_) {}
+            try { if (typeof n.stop === 'function') n.stop(0); } catch (_) { }
+            try { if (typeof n.disconnect === 'function') n.disconnect(); } catch (_) { }
           }
           this._ringNodes = [];
         }
@@ -800,7 +1112,7 @@
           return;
         }
 
-        try { if (ctx.state === 'suspended') ctx.resume(); } catch (_) {}
+        try { if (ctx.state === 'suspended') ctx.resume(); } catch (_) { }
 
         const scheduleRing = (start, dur, freq = 425) => {
           const osc = ctx.createOscillator();
@@ -871,7 +1183,7 @@
             const bg = window.getComputedStyle(heroImage).backgroundImage || '';
             const m = bg.match(/url\(["']?(.*?)["']?\)/i);
             if (m && m[1]) heroVideo.setAttribute('poster', m[1]);
-          } catch (_) {}
+          } catch (_) { }
 
           heroImage.style.display = 'block';
           heroImage.style.opacity = '1';
@@ -900,297 +1212,300 @@
           heroVideo.load();
           heroVideo.play().catch(e => console.log('Error al reproducir video:', e));
         }
-	        // Start Real Time Call (WebSocket + Audio Capture)
-	        this.startRealTimeCall();
-	      }
+        // Start Real Time Call (WebSocket + Audio Capture)
+        this.startRealTimeCall();
+      }
 
-	      async getMcpConfig() {
-	        if (this._mcpConfigPromise) return this._mcpConfigPromise;
-	        this._mcpConfigPromise = (async () => {
-	          try {
-	            const res = await fetch('/api/config', { cache: 'no-store' });
-	            if (!res.ok) throw new Error(`config ${res.status}`);
-	            const cfg = await res.json();
-	            return {
-	              MCP_SERVER_URL: cfg && cfg.MCP_SERVER_URL ? cfg.MCP_SERVER_URL : 'https://pwa-imbf.onrender.com',
-	              MCP_TOKEN: cfg && cfg.MCP_TOKEN ? cfg.MCP_TOKEN : null
-	            };
-	          } catch (err) {
-	            console.warn('[MCP] No se pudo cargar /api/config, usando fallback', err);
-	            return { MCP_SERVER_URL: 'https://pwa-imbf.onrender.com', MCP_TOKEN: null };
-	          }
-	        })();
-	        return this._mcpConfigPromise;
-	      }
+      async getMcpConfig() {
+        if (this._mcpConfigPromise) return this._mcpConfigPromise;
+        this._mcpConfigPromise = (async () => {
+          try {
+            const res = await fetch('/api/config', { cache: 'no-store' });
+            if (!res.ok) throw new Error(`config ${res.status}`);
+            const cfg = await res.json();
+            return {
+              MCP_SERVER_URL: cfg && cfg.MCP_SERVER_URL ? cfg.MCP_SERVER_URL : 'https://pwa-imbf.onrender.com',
+              MCP_TOKEN: cfg && cfg.MCP_TOKEN ? cfg.MCP_TOKEN : null
+            };
+          } catch (err) {
+            console.warn('[MCP] No se pudo cargar /api/config, usando fallback', err);
+            return { MCP_SERVER_URL: 'https://pwa-imbf.onrender.com', MCP_TOKEN: null };
+          }
+        })();
+        return this._mcpConfigPromise;
+      }
 
-	      buildWebSocketUrl(mcpServerUrl, token) {
+      buildWebSocketUrl(mcpServerUrl, token) {
         // En localhost, usar ws://localhost:4042
         if (mcpServerUrl && (mcpServerUrl.includes('localhost') || mcpServerUrl.includes('127.0.0.1'))) {
           return 'ws://localhost:4042';
         }
-	        let url;
-	        try {
-	          url = new URL(String(mcpServerUrl || ''));
-	        } catch (_) {
-	          url = new URL('https://pwa-imbf.onrender.com');
-	        }
+        let url;
+        try {
+          url = new URL(String(mcpServerUrl || ''));
+        } catch (_) {
+          url = new URL('https://pwa-imbf.onrender.com');
+        }
 
-	        const isRender = url.hostname.includes('onrender.com');
-	        url.protocol = (url.protocol === 'https:') ? 'wss:' : 'ws:';
-	        url.pathname = '/';
+        const isRender = url.hostname.includes('onrender.com');
 
-	        if (isRender) {
-	          url.port = '';
-	        } else if (!url.port) {
-	          url.port = '4042';
-	        }
+        // FIX: Force WSS for Render to avoid Mixed Content
+        if (isRender) {
+          url.protocol = 'wss:';
+          url.port = '';
+        } else {
+          url.protocol = (url.protocol === 'https:') ? 'wss:' : 'ws:';
+          if (!url.port) url.port = '4042';
+        }
 
-	        url.search = token ? `?token=${encodeURIComponent(String(token))}` : '';
-	        return url.toString();
-	      }
+        url.pathname = '/';
 
-	      clearResponseWatchdog() {
-	        if (this.responseWatchdogTimeout) {
-	          clearTimeout(this.responseWatchdogTimeout);
-	          this.responseWatchdogTimeout = null;
-	        }
-	      }
+        url.search = token ? `?token=${encodeURIComponent(String(token))}` : '';
+        return url.toString();
+      }
 
-	      startResponseWatchdog() {
-	        this.clearResponseWatchdog();
-	        this.responseWatchdogTimeout = setTimeout(() => {
-	          this.responseWatchdogTimeout = null;
-	          if (!this.activeCall) return;
-	          if (!this.awaitingResponse) return;
-	          console.warn('[MCP] Watchdog: sin respuesta, reanudando escucha');
-	          this.awaitingResponse = false;
-	        }, 12000);
-	      }
+      clearResponseWatchdog() {
+        if (this.responseWatchdogTimeout) {
+          clearTimeout(this.responseWatchdogTimeout);
+          this.responseWatchdogTimeout = null;
+        }
+      }
 
-	      hangupCall() {
+      startResponseWatchdog() {
+        this.clearResponseWatchdog();
+        this.responseWatchdogTimeout = setTimeout(() => {
+          this.responseWatchdogTimeout = null;
+          if (!this.activeCall) return;
+          if (!this.awaitingResponse) return;
+          console.warn('[MCP] Watchdog: sin respuesta, reanudando escucha');
+          this.awaitingResponse = false;
+        }, 12000);
+      }
+
+      hangupCall() {
         console.log('📞 Colgando llamada...');
-        
+
         // Cerrar WebSocket
         if (this.activeCall) {
           try {
             this.activeCall.close();
-          } catch (_) {}
+          } catch (_) { }
           this.activeCall = null;
         }
-        
+
         // Detener captura de audio
         this.stopAudioCapture();
-        
+
         // Limpiar estado
         this.chatLocked = false;
         this.setHeroCallActive(false);
         this.awaitingResponse = false;
         this.isSpeaking = false;
-        
+
         // Ocultar controles de llamada
         const callControls = document.getElementById('sandra-call-controls');
         if (callControls) callControls.classList.add('hidden');
-        
+
         // SIEMPRE mostrar prompt de llamada cuando se cuelga
         const callPrompt = document.getElementById('sandra-call-prompt');
         if (callPrompt) {
           callPrompt.style.display = 'flex';
           callPrompt.style.visibility = 'visible';
         }
-        
+
         console.log('✅ Llamada colgada correctamente');
       }
 
       stopAudioCapture() {
-	        this.clearResponseWatchdog();
-	        this.awaitingResponse = false;
-	        this.isSpeaking = false;
+        this.clearResponseWatchdog();
+        this.awaitingResponse = false;
+        this.isSpeaking = false;
 
-	        if (this.mediaRecorder) {
-	          try {
-	            if (this.mediaRecorder.state === 'recording' || this.mediaRecorder.state === 'paused') {
-	              this.mediaRecorder.stop();
-	            }
-	          } catch (_) {}
-	          this.mediaRecorder = null;
-	        }
+        if (this.mediaRecorder) {
+          try {
+            if (this.mediaRecorder.state === 'recording' || this.mediaRecorder.state === 'paused') {
+              this.mediaRecorder.stop();
+            }
+          } catch (_) { }
+          this.mediaRecorder = null;
+        }
 
-	        if (this.stream) {
-	          try {
-	            this.stream.getTracks().forEach(t => t.stop());
-	          } catch (_) {}
-	          this.stream = null;
-	        }
-	      }
+        if (this.stream) {
+          try {
+            this.stream.getTracks().forEach(t => t.stop());
+          } catch (_) { }
+          this.stream = null;
+        }
+      }
 
-	      async startRealTimeCall() {
-	        // Ocultar prompt de llamada cuando inicia la llamada real
-	        const callPrompt = document.getElementById('sandra-call-prompt');
-	        if (callPrompt) callPrompt.style.display = 'none';
-	        
-	        const cfg = await this.getMcpConfig();
-	        const wsUrl = this.buildWebSocketUrl(cfg.MCP_SERVER_URL, cfg.MCP_TOKEN);
-	        const ws = new WebSocket(wsUrl);
-	        this.activeCall = ws;
+      async startRealTimeCall() {
+        // Ocultar prompt de llamada cuando inicia la llamada real
+        const callPrompt = document.getElementById('sandra-call-prompt');
+        if (callPrompt) callPrompt.style.display = 'none';
+
+        const cfg = await this.getMcpConfig();
+        const wsUrl = this.buildWebSocketUrl(cfg.MCP_SERVER_URL, cfg.MCP_TOKEN);
+        const ws = new WebSocket(wsUrl);
+        this.activeCall = ws;
 
         ws.onopen = async () => {
-            console.log('✅ WebSocket conectado (Enterprise Mode)');
-            
-            // 1. HANDSHAKE: Iniciar sesión Deepgram
-            // Usamos 16000 o 48000 según contexto, pero Deepgram suele manejarlo.
-            // Enviamos config explícito para despertar el servidor.
-            ws.send(JSON.stringify({
-              type: 'config',
-              sampleRate: this.audioCtx ? this.audioCtx.sampleRate : 48000
-            }));
+          console.log('✅ WebSocket conectado (Enterprise Mode)');
 
-            // 2. LEGACY READY (Opcional, para mensaje de bienvenida si el servidor lo requiere por compatibilidad)
-            ws.send(JSON.stringify({
-              route: 'conserje',
-              action: 'message',
-              payload: { type: 'ready', message: 'Cliente Enterprise listo' }
-            }));
+          // 1. HANDSHAKE: Iniciar sesión Deepgram
+          // Usamos 16000 o 48000 según contexto, pero Deepgram suele manejarlo.
+          // Enviamos config explícito para despertar el servidor.
+          ws.send(JSON.stringify({
+            type: 'config',
+            sampleRate: this.audioCtx ? this.audioCtx.sampleRate : 48000
+          }));
 
-            // Start Microphone Capture
+          // 2. LEGACY READY (Opcional, para mensaje de bienvenida si el servidor lo requiere por compatibilidad)
+          ws.send(JSON.stringify({
+            route: 'conserje',
+            action: 'message',
+            payload: { type: 'ready', message: 'Cliente Enterprise listo' }
+          }));
+
+          // Start Microphone Capture
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+                channelCount: 1
+              }
+            });
+
+            this.stream = stream;
+
+            const preferredMime = 'audio/webm;codecs=opus';
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true,
-                        channelCount: 1
-                    }
-                });
+              if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(preferredMime)) {
+                this.mediaRecorder = new MediaRecorder(stream, { mimeType: preferredMime });
+              } else {
+                this.mediaRecorder = new MediaRecorder(stream);
+              }
+            } catch (_) {
+              this.mediaRecorder = new MediaRecorder(stream);
+            }
 
-                this.stream = stream;
+            this.mediaRecorder.ondataavailable = (event) => {
+              try {
+                if (!event.data || event.data.size <= 0) return;
+                if (!this.activeCall || ws.readyState !== WebSocket.OPEN) return;
+                if (this.isMicrophoneMuted || this.isSpeaking || this.awaitingResponse) return;
+                // Eliminar restricción de tamaño mínimo para streaming fluido
+                // if (event.data.size < this.minRecordedBytes) return;
 
-                const preferredMime = 'audio/webm;codecs=opus';
-                try {
-                  if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(preferredMime)) {
-                    this.mediaRecorder = new MediaRecorder(stream, { mimeType: preferredMime });
-                  } else {
-                    this.mediaRecorder = new MediaRecorder(stream);
-                  }
-                } catch (_) {
-                  this.mediaRecorder = new MediaRecorder(stream);
-                }
-                
-                this.mediaRecorder.ondataavailable = (event) => {
-                  try {
-                    if (!event.data || event.data.size <= 0) return;
-                    if (!this.activeCall || ws.readyState !== WebSocket.OPEN) return;
-                    if (this.isMicrophoneMuted || this.isSpeaking || this.awaitingResponse) return;
-                    // Eliminar restricción de tamaño mínimo para streaming fluido
-                    // if (event.data.size < this.minRecordedBytes) return;
-
-                    // ENTERPRISE STREAMING: Enviar Binario Puro
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                      if (ws.readyState === WebSocket.OPEN) {
-                         ws.send(reader.result); // ArrayBuffer
-                      }
-                    };
-                    reader.readAsArrayBuffer(event.data);
-                    
-                  } catch (err) {
-                    console.error('[MCP] Error en ondataavailable', err);
+                // ENTERPRISE STREAMING: Enviar Binario Puro
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                  if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(reader.result); // ArrayBuffer
                   }
                 };
+                reader.readAsArrayBuffer(event.data);
 
-                this.mediaRecorder.start(250); // Slices de 250ms para latencia aceptable
-                console.log("🎤 Microphone recording started (Enterprise Streaming)");
+              } catch (err) {
+                console.error('[MCP] Error en ondataavailable', err);
+              }
+            };
 
-            } catch (err) {
-                console.error("Error accessing microphone:", err);
-                alert("Error: No se pudo acceder al micrófono.");
-                this.stopAudioCapture();
-                try { ws.close(); } catch (_) {}
-            }
+            this.mediaRecorder.start(250); // Slices de 250ms para latencia aceptable
+            console.log("🎤 Microphone recording started (Enterprise Streaming)");
+
+          } catch (err) {
+            console.error("Error accessing microphone:", err);
+            alert("Error: No se pudo acceder al micrófono.");
+            this.stopAudioCapture();
+            try { ws.close(); } catch (_) { }
+          }
         };
 
         ws.onmessage = (event) => {
-            let data;
+          let data;
+          try {
+            data = JSON.parse(event.data);
+            console.log('[MCP] Mensaje recibido del servidor:', {
+              route: data.route,
+              action: data.action,
+              hasPayload: !!data.payload,
+              payloadKeys: data.payload ? Object.keys(data.payload) : []
+            });
+          } catch (err) {
+            console.error('[MCP] Error parseando mensaje:', err, 'Raw:', event.data);
+            return;
+          }
+
+          // Manejar mensaje de conexión del sistema
+          if (data.route === 'system' && data.action === 'connected') {
+            console.log('[MCP] ✅ Conectado al servidor MCP, clientId:', data.clientId);
+            return;
+          }
+
+          // Manejar respuesta de audio TTS
+          if (data.route === 'audio' && data.action === 'tts' && data.payload && data.payload.audio) {
+            console.log('[MCP] ✅ Recibida respuesta de audio TTS');
+            this.clearResponseWatchdog();
+            this.awaitingResponse = false;
+            // Detectar si es el saludo inicial
+            const isWelcome = data.payload.isWelcome || (!this.currentAudio && !this.isSpeaking);
+            this.playAudioResponse(data.payload.audio, isWelcome);
+            return;
+          }
+
+          // Manejar mensaje de noSpeech (sin transcripción)
+          if (data.route === 'conserje' && data.action === 'message' && data.payload && data.payload.type === 'noSpeech' && data.payload.message) {
+            console.log('[MCP] ⚠️ No se detectó habla, solicitando TTS del mensaje');
+            this.clearResponseWatchdog();
+            this.awaitingResponse = false;
             try {
-              data = JSON.parse(event.data);
-              console.log('[MCP] Mensaje recibido del servidor:', {
-                route: data.route,
-                action: data.action,
-                hasPayload: !!data.payload,
-                payloadKeys: data.payload ? Object.keys(data.payload) : []
-              });
+              ws.send(JSON.stringify({
+                route: 'audio',
+                action: 'tts',
+                payload: { text: data.payload.message }
+              }));
             } catch (err) {
-              console.error('[MCP] Error parseando mensaje:', err, 'Raw:', event.data);
-              return;
+              console.error('[MCP] Error solicitando TTS para noSpeech:', err);
             }
+            return;
+          }
 
-            // Manejar mensaje de conexión del sistema
-            if (data.route === 'system' && data.action === 'connected') {
-              console.log('[MCP] ✅ Conectado al servidor MCP, clientId:', data.clientId);
-              return;
-            }
+          // Manejar errores del servidor (con o sin route/action)
+          if (data.error) {
+            console.error('[MCP] ❌ Error del servidor:', data.error);
+            this.clearResponseWatchdog();
+            this.awaitingResponse = false;
 
-            // Manejar respuesta de audio TTS
-            if (data.route === 'audio' && data.action === 'tts' && data.payload && data.payload.audio) {
-              console.log('[MCP] ✅ Recibida respuesta de audio TTS');
-              this.clearResponseWatchdog();
-              this.awaitingResponse = false;
-              // Detectar si es el saludo inicial
-              const isWelcome = data.payload.isWelcome || (!this.currentAudio && !this.isSpeaking);
-              this.playAudioResponse(data.payload.audio, isWelcome);
-              return;
+            // Si es error de transcripción, enviar mensaje de error al usuario
+            if (data.payload && data.payload.type === 'transcription_error') {
+              console.warn('[MCP] ⚠️ Error de transcripción, reintentando...');
+              // No hacer nada, el watchdog reintentará
             }
+            return;
+          }
 
-            // Manejar mensaje de noSpeech (sin transcripción)
-            if (data.route === 'conserje' && data.action === 'message' && data.payload && data.payload.type === 'noSpeech' && data.payload.message) {
-              console.log('[MCP] ⚠️ No se detectó habla, solicitando TTS del mensaje');
-              this.clearResponseWatchdog();
-              this.awaitingResponse = false;
-              try {
-                ws.send(JSON.stringify({
-                  route: 'audio',
-                  action: 'tts',
-                  payload: { text: data.payload.message }
-                }));
-              } catch (err) {
-                console.error('[MCP] Error solicitando TTS para noSpeech:', err);
-              }
-              return;
-            }
+          // Manejar respuestas de STT con error
+          if (data.route === 'audio' && data.action === 'stt' && data.payload && data.payload.error) {
+            console.error('[MCP] ❌ Error en STT:', data.payload.error);
+            this.clearResponseWatchdog();
+            this.awaitingResponse = false;
+            return;
+          }
 
-            // Manejar errores del servidor (con o sin route/action)
-            if (data.error) {
-              console.error('[MCP] ❌ Error del servidor:', data.error);
-              this.clearResponseWatchdog();
-              this.awaitingResponse = false;
-              
-              // Si es error de transcripción, enviar mensaje de error al usuario
-              if (data.payload && data.payload.type === 'transcription_error') {
-                console.warn('[MCP] ⚠️ Error de transcripción, reintentando...');
-                // No hacer nada, el watchdog reintentará
-              }
-              return;
-            }
-
-            // Manejar respuestas de STT con error
-            if (data.route === 'audio' && data.action === 'stt' && data.payload && data.payload.error) {
-              console.error('[MCP] ❌ Error en STT:', data.payload.error);
-              this.clearResponseWatchdog();
-              this.awaitingResponse = false;
-              return;
-            }
-
-            // Log para mensajes no manejados
-            if (data.route !== 'system' && data.action !== 'connected') {
-              console.log('[MCP] ⚠️ Mensaje no manejado:', data);
-            }
+          // Log para mensajes no manejados
+          if (data.route !== 'system' && data.action !== 'connected') {
+            console.log('[MCP] ⚠️ Mensaje no manejado:', data);
+          }
         };
 
-	        ws.onclose = () => {
-	            console.log("WebSocket connection closed");
-	            this.stopAudioCapture();
-	            this.activeCall = null;
-	            this.setHeroCallActive(false);
-	        };
+        ws.onclose = () => {
+          console.log("WebSocket connection closed");
+          this.stopAudioCapture();
+          this.activeCall = null;
+          this.setHeroCallActive(false);
+        };
       }
 
       addMessage(text, type) {
@@ -1202,7 +1517,7 @@
             callPrompt.style.visibility = 'visible';
           }
         }
-        
+
         const container = document.getElementById('sandra-messages');
         const isUser = type === 'user';
         const html = `
@@ -1216,126 +1531,126 @@
 
       showTyping(show) {
         const el = document.getElementById('sandra-typing');
-        if(show) el.classList.remove('hidden'); else el.classList.add('hidden');
+        if (show) el.classList.remove('hidden'); else el.classList.add('hidden');
       }
 
       // AUDIO FIX: Improved playAudioResponse with 3s delay on revoke
-	      playAudioResponse(audioBase64, isWelcome = false) {
-	        console.log('[AUDIO] playAudioResponse called with isWelcome:', isWelcome, 'audioBase64 length:', audioBase64?.length);
+      playAudioResponse(audioBase64, isWelcome = false) {
+        console.log('[AUDIO] playAudioResponse called with isWelcome:', isWelcome, 'audioBase64 length:', audioBase64?.length);
 
-	        if (!audioBase64 || typeof audioBase64 !== 'string') {
-	          console.error('[AUDIO] ❌ Audio base64 inválido:', typeof audioBase64, audioBase64);
-	          this.isSpeaking = false;
-	          return;
-	        }
+        if (!audioBase64 || typeof audioBase64 !== 'string') {
+          console.error('[AUDIO] ❌ Audio base64 inválido:', typeof audioBase64, audioBase64);
+          this.isSpeaking = false;
+          return;
+        }
 
-	        if (audioBase64.length < 100) {
-	          console.error('[AUDIO] ❌ Audio base64 muy pequeño:', audioBase64.length, 'bytes');
-	          this.isSpeaking = false;
-	          return;
-	        }
+        if (audioBase64.length < 100) {
+          console.error('[AUDIO] ❌ Audio base64 muy pequeño:', audioBase64.length, 'bytes');
+          this.isSpeaking = false;
+          return;
+        }
 
-	        if (this.currentAudio) {
-	          this.currentAudio.pause();
-	          if (this.currentAudio._blobUrl) URL.revokeObjectURL(this.currentAudio._blobUrl);
-	        }
+        if (this.currentAudio) {
+          this.currentAudio.pause();
+          if (this.currentAudio._blobUrl) URL.revokeObjectURL(this.currentAudio._blobUrl);
+        }
 
-	        this.isSpeaking = true;
+        this.isSpeaking = true;
 
-	        let blobUrl;
-	        try {
-	          const byteCharacters = atob(audioBase64);
-	          console.log('[AUDIO] atob decodificado:', byteCharacters.length, 'caracteres');
+        let blobUrl;
+        try {
+          const byteCharacters = atob(audioBase64);
+          console.log('[AUDIO] atob decodificado:', byteCharacters.length, 'caracteres');
 
-	          const byteNumbers = new Array(byteCharacters.length);
-	          for (let i = 0; i < byteCharacters.length; i++) {
-	            byteNumbers[i] = byteCharacters.charCodeAt(i);
-	          }
-	          const byteArray = new Uint8Array(byteNumbers);
-	          console.log('[AUDIO] Uint8Array creado:', byteArray.length, 'bytes');
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          console.log('[AUDIO] Uint8Array creado:', byteArray.length, 'bytes');
 
-	          // Usar audio/mpeg en lugar de audio/mp3 para mejor compatibilidad
-	          const blob = new Blob([byteArray], { type: 'audio/mpeg' });
-	          blobUrl = URL.createObjectURL(blob);
+          // Usar audio/mpeg en lugar de audio/mp3 para mejor compatibilidad
+          const blob = new Blob([byteArray], { type: 'audio/mpeg' });
+          blobUrl = URL.createObjectURL(blob);
 
-	          console.log('[AUDIO] ✅ Blob creado:', { size: blob.size, type: blob.type, blobUrl: blobUrl.substring(0, 50) });
-	        } catch (error) {
-	          console.error('[AUDIO] ❌ Error decodificando base64:', error);
-	          this.isSpeaking = false;
-	          return;
-	        }
+          console.log('[AUDIO] ✅ Blob creado:', { size: blob.size, type: blob.type, blobUrl: blobUrl.substring(0, 50) });
+        } catch (error) {
+          console.error('[AUDIO] ❌ Error decodificando base64:', error);
+          this.isSpeaking = false;
+          return;
+        }
 
-	        const audio = new Audio(blobUrl);
-	        audio._blobUrl = blobUrl;
-	        this.currentAudio = audio;
+        const audio = new Audio(blobUrl);
+        audio._blobUrl = blobUrl;
+        this.currentAudio = audio;
 
-	        console.log('[AUDIO] Audio element creado, intentando reproducir...');
+        console.log('[AUDIO] Audio element creado, intentando reproducir...');
 
-	        // Para el saludo inicial, esperar a que el buffer esté completamente cargado
-	        if (isWelcome) {
-	          console.log('[AUDIO] ⏳ Esperando buffer del saludo...');
-	          const checkBuffer = () => {
-	            if (audio.readyState >= 3) { // HAVE_FUTURE_DATA o HAVE_ENOUGH_DATA
-	              console.log('[AUDIO] ✅ Saludo inicial listo (readyState:', audio.readyState, '), reproduciendo...');
-	              audio.play().then(() => {
-	                console.log('[AUDIO] ✅ Saludo reproduciéndose');
-	              }).catch(e => {
-	                console.error("[AUDIO] ❌ Error en play():", e.name, e.message);
-	                this.isSpeaking = false;
-	              });
-	            } else {
-	              setTimeout(checkBuffer, 100);
-	            }
-	          };
-	          audio.addEventListener('loadeddata', () => {
-	            console.log('[AUDIO] ✅ Evento loadeddata disparado');
-	            audio.play().then(() => {
-	              console.log('[AUDIO] ✅ Saludo reproduciéndose después de loadeddata');
-	            }).catch(e => {
-	              console.error("[AUDIO] ❌ Error en play() después de loadeddata:", e.name, e.message);
-	              this.isSpeaking = false;
-	            });
-	          });
-	          audio.addEventListener('canplay', () => {
-	            console.log('[AUDIO] ✅ Evento canplay disparado');
-	          });
-	          checkBuffer();
-	        } else {
-	          console.log('[AUDIO] ▶️  Reproduciendo audio normal...');
-	          audio.play().then(() => {
-	            console.log('[AUDIO] ✅ Audio reproduciéndose');
-	          }).catch(e => {
-	            console.error("[AUDIO] ❌ Error en play():", e.name, e.message);
-	            this.isSpeaking = false;
-	          });
-	        }
+        // Para el saludo inicial, esperar a que el buffer esté completamente cargado
+        if (isWelcome) {
+          console.log('[AUDIO] ⏳ Esperando buffer del saludo...');
+          const checkBuffer = () => {
+            if (audio.readyState >= 3) { // HAVE_FUTURE_DATA o HAVE_ENOUGH_DATA
+              console.log('[AUDIO] ✅ Saludo inicial listo (readyState:', audio.readyState, '), reproduciendo...');
+              audio.play().then(() => {
+                console.log('[AUDIO] ✅ Saludo reproduciéndose');
+              }).catch(e => {
+                console.error("[AUDIO] ❌ Error en play():", e.name, e.message);
+                this.isSpeaking = false;
+              });
+            } else {
+              setTimeout(checkBuffer, 100);
+            }
+          };
+          audio.addEventListener('loadeddata', () => {
+            console.log('[AUDIO] ✅ Evento loadeddata disparado');
+            audio.play().then(() => {
+              console.log('[AUDIO] ✅ Saludo reproduciéndose después de loadeddata');
+            }).catch(e => {
+              console.error("[AUDIO] ❌ Error en play() después de loadeddata:", e.name, e.message);
+              this.isSpeaking = false;
+            });
+          });
+          audio.addEventListener('canplay', () => {
+            console.log('[AUDIO] ✅ Evento canplay disparado');
+          });
+          checkBuffer();
+        } else {
+          console.log('[AUDIO] ▶️  Reproduciendo audio normal...');
+          audio.play().then(() => {
+            console.log('[AUDIO] ✅ Audio reproduciéndose');
+          }).catch(e => {
+            console.error("[AUDIO] ❌ Error en play():", e.name, e.message);
+            this.isSpeaking = false;
+          });
+        }
 
-	        audio.addEventListener('error', (e) => {
-	          console.error('[AUDIO] ❌ Error evento de audio:', audio.error?.message || audio.error?.code);
-	          this.isSpeaking = false;
-	        });
+        audio.addEventListener('error', (e) => {
+          console.error('[AUDIO] ❌ Error evento de audio:', audio.error?.message || audio.error?.code);
+          this.isSpeaking = false;
+        });
 
-	        audio.onended = () => {
-	          console.log('[AUDIO] ✅ Audio finalizado');
-	          this.isSpeaking = false;
-	          // CRITICAL FIX: Wait 3 seconds before revoking to prevent cutting off the end
-	          setTimeout(() => {
+        audio.onended = () => {
+          console.log('[AUDIO] ✅ Audio finalizado');
+          this.isSpeaking = false;
+          // CRITICAL FIX: Wait 3 seconds before revoking to prevent cutting off the end
+          setTimeout(() => {
             if (audio._blobUrl) {
               URL.revokeObjectURL(audio._blobUrl);
               audio._blobUrl = null;
             }
             this.currentAudio = null;
-	          }, 3000);
-	        };
+          }, 3000);
+        };
 
-	        console.log('[AUDIO] ▶️  Llamando play() inicial...');
-	        audio.play().then(() => {
-	          console.log('[AUDIO] ✅ play() promise resuelto');
-	        }).catch(e => {
-	          console.error("[AUDIO] ❌ play() promise rechazado:", e.name, e.message);
-	          this.isSpeaking = false;
-	        });
-	      }
+        console.log('[AUDIO] ▶️  Llamando play() inicial...');
+        audio.play().then(() => {
+          console.log('[AUDIO] ✅ play() promise resuelto');
+        }).catch(e => {
+          console.error("[AUDIO] ❌ play() promise rechazado:", e.name, e.message);
+          this.isSpeaking = false;
+        });
+      }
     }
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -1344,4 +1659,5 @@
   </script>
   <script src="/assets/js/websocket-stream-client.js" defer></script>
 </body>
+
 </html>
