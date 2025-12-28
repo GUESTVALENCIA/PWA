@@ -69,8 +69,8 @@ class QwenService {
 
     const systemPrompt = `Eres Sandra, la conserje virtual de GuestsValencia. ${context}`;
 
-    // Modelos disponibles en Groq (2025) - Usar modelo actual
-    const model = 'llama-3.1-70b-versatile'; // Modelo actual disponible en Groq
+    // Modelos disponibles en Groq (2025) - Usar modelo confirmado
+    const model = 'llama-3.1-8b-instant'; // Modelo confirmado funcionando en Groq
     
     const response = await this.makeRequest(
       'api.groq.com',
