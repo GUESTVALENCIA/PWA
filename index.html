@@ -622,9 +622,11 @@
         if (acceptCallBtn) {
           acceptCallBtn.addEventListener('click', () => {
             this.startConversationalCall();
-            if (callPrompt) callPrompt.style.display = 'none';
+            // NO ocultar el prompt, solo ocultar cuando hay llamada activa
             const callControls = document.getElementById('sandra-call-controls');
             if (callControls) callControls.classList.remove('hidden');
+            // Ocultar prompt solo durante la llamada
+            if (callPrompt) callPrompt.style.display = 'none';
             // Hide chat window when starting call
             toggleChat();
           });
@@ -632,7 +634,9 @@
 
         if (declineCallBtn) {
           declineCallBtn.addEventListener('click', () => {
-            if (callPrompt) callPrompt.style.display = 'none';
+            // NO ocultar el prompt, debe estar siempre visible
+            // Solo ocultar si el usuario declina explícitamente
+            // if (callPrompt) callPrompt.style.display = 'none';
             // Logic to continue chat only
           });
         }
@@ -730,9 +734,9 @@
 	        if (this.chatLocked || this.activeCall || this.ringTimeout) return;
 	        this.chatLocked = true;
 	        
-	        // Ocultar botón de llamada cuando inicia
-	        const callBtn = document.getElementById('sandra-call-btn');
-	        if (callBtn) callBtn.style.display = 'none';
+	        // Ocultar prompt de llamada cuando inicia
+	        const callPrompt = document.getElementById('sandra-call-prompt');
+	        if (callPrompt) callPrompt.style.display = 'none';
 	        
 	        // Mostrar controles de llamada
 	        const callControls = document.getElementById('sandra-call-controls');
@@ -969,11 +973,11 @@
         const callControls = document.getElementById('sandra-call-controls');
         if (callControls) callControls.classList.add('hidden');
         
-        // SIEMPRE mostrar botón de llamada cuando se cuelga
-        const callBtn = document.getElementById('sandra-call-btn');
-        if (callBtn) {
-          callBtn.style.display = 'flex';
-          callBtn.style.visibility = 'visible';
+        // SIEMPRE mostrar prompt de llamada cuando se cuelga
+        const callPrompt = document.getElementById('sandra-call-prompt');
+        if (callPrompt) {
+          callPrompt.style.display = 'flex';
+          callPrompt.style.visibility = 'visible';
         }
         
         console.log('✅ Llamada colgada correctamente');
@@ -1002,6 +1006,10 @@
 	      }
 
 	      async startRealTimeCall() {
+	        // Ocultar prompt de llamada cuando inicia la llamada real
+	        const callPrompt = document.getElementById('sandra-call-prompt');
+	        if (callPrompt) callPrompt.style.display = 'none';
+	        
 	        const cfg = await this.getMcpConfig();
 	        const wsUrl = this.buildWebSocketUrl(cfg.MCP_SERVER_URL, cfg.MCP_TOKEN);
 	        const ws = new WebSocket(wsUrl);
@@ -1197,12 +1205,12 @@
       }
 
       addMessage(text, type) {
-        // Asegurar que el botón de llamada esté visible cuando se envía mensaje (si no hay llamada activa)
+        // Asegurar que el prompt de llamada esté visible cuando se envía mensaje (si no hay llamada activa)
         if (!this.activeCall && !this.chatLocked) {
-          const callBtn = document.getElementById('sandra-call-btn');
-          if (callBtn) {
-            callBtn.style.display = 'flex';
-            callBtn.style.visibility = 'visible';
+          const callPrompt = document.getElementById('sandra-call-prompt');
+          if (callPrompt) {
+            callPrompt.style.display = 'flex';
+            callPrompt.style.visibility = 'visible';
           }
         }
         

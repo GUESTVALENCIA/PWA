@@ -114,7 +114,11 @@ class WebSocketStreamClient {
       console.log('[WEBSOCKET-CLIENT] 📡 Cargando configuración del servidor MCP...');
       
       // Fetch configuration from API
-      const response = await fetch('/api/config', {
+      // En localhost, usar el servidor MCP directamente
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const configUrl = isLocalhost ? 'http://localhost:4042/api/config' : '/api/config';
+      
+      const response = await fetch(configUrl, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
