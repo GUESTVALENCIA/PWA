@@ -23,24 +23,19 @@ class NeonService {
   async initialize() {
     try {
       logger.info('Initializing NEON database schema...');
-      const schemaPath = './database/schema.sql';
-      const fs = await import('fs');
-      const schema = fs.readFileSync(schemaPath, 'utf-8');
 
-      // Execute schema
-      const statements = schema.split(';').filter(s => s.trim());
-      for (const statement of statements) {
-        if (statement.trim()) {
-          await this.sql(statement);
-        }
+      // Simple health check - if this works, database is accessible
+      const result = await this.sql('SELECT 1 as connected');
+
+      if (result && result.length > 0) {
+        this.initialized = true;
+        logger.info('✅ Database connection verified');
+        return true;
       }
-
-      this.initialized = true;
-      logger.info('✅ Database schema initialized successfully');
-      return true;
     } catch (error) {
       logger.error('❌ Database initialization failed:', error);
-      throw error;
+      // Don't throw - allow fallback mode to continue
+      return false;
     }
   }
 
