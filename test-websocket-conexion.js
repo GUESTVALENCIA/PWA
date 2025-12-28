@@ -7,7 +7,7 @@
 const WebSocket = require('ws');
 
 const MCP_SERVER_URL = 'https://pwa-imbf.onrender.com';
-const VERCEL_CONFIG_URL = 'https://pwa-chi-six.vercel.app/api/config';
+const VERCEL_CONFIG_URL = 'https://guestsvalencia.es/api/config';
 
 console.log('🧪 TEST DE CONEXIÓN WEBSOCKET REAL\n');
 console.log('='.repeat(60));
