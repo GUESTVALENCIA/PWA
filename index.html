@@ -1423,15 +1423,26 @@
           }
         };
 
-        ws.onmessage = (event) => {
+        ws.onmessage = async (event) => {
+          // 1. MANEJO BINARIO (Audio Streaming desde Servidor)
+          if (event.data instanceof Blob) {
+            const arrayBuffer = await event.data.arrayBuffer();
+            this.handleAudioChunk(arrayBuffer);
+            return;
+          }
+          if (event.data instanceof ArrayBuffer) {
+            this.handleAudioChunk(event.data);
+            return;
+          }
+
+          // 2. MANEJO JSON (Control)
           let data;
           try {
             data = JSON.parse(event.data);
             console.log('[MCP] Mensaje recibido del servidor:', {
               route: data.route,
               action: data.action,
-              hasPayload: !!data.payload,
-              payloadKeys: data.payload ? Object.keys(data.payload) : []
+              hasPayload: !!data.payload
             });
           } catch (err) {
             console.error('[MCP] Error parseando mensaje:', err, 'Raw:', event.data);
@@ -1532,6 +1543,22 @@
       showTyping(show) {
         const el = document.getElementById('sandra-typing');
         if (show) el.classList.remove('hidden'); else el.classList.add('hidden');
+      }
+
+      // BINARY STREAMING PLAYER
+      handleAudioChunk(arrayBuffer) {
+        if (!this.audioCtx) this.ensureAudioContext();
+        if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
+
+        console.log(`[AUDIO-STREAM] Recibido chunk: ${arrayBuffer.byteLength} bytes`);
+
+        // Decodificar y reproducir
+        this.audioCtx.decodeAudioData(arrayBuffer, (buffer) => {
+          const source = this.audioCtx.createBufferSource();
+          source.buffer = buffer;
+          source.connect(this.audioCtx.destination);
+          source.start(0);
+        }, (e) => console.error("Error decodificando audio stream:", e));
       }
 
       // AUDIO FIX: Improved playAudioResponse with 3s delay on revoke
