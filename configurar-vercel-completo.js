@@ -216,8 +216,8 @@ async function main() {
 
     if (currentVarsMap[key]) {
       // Variable existe, actualizar
-      const updated = await updateEnvVar(currentVarsMap[key].id, key, value);
-      if (updated) updated++;
+      const result = await updateEnvVar(currentVarsMap[key].id, key, value);
+      if (result) updated++;
       else errors++;
     } else {
       // Variable nueva, crear
