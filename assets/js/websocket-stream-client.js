@@ -724,6 +724,116 @@ class WebSocketStreamClient {
   }
 
   /**
+   * Handle audio response from server (base64 audio)
+   */
+  async handleAudioResponse(payload) {
+    try {
+      const audioBase64 = payload.audio || payload.payload?.audio;
+      const text = payload.text || payload.payload?.text;
+      const isWelcome = payload.isWelcome || payload.payload?.isWelcome || false;
+      const format = payload.format || payload.payload?.format || 'mp3';
+
+      if (!audioBase64) {
+        console.error('[WEBSOCKET-CLIENT] ❌ Audio base64 no encontrado en payload');
+        return;
+      }
+
+      console.log('[WEBSOCKET-CLIENT] 🎵 Recibido audio del servidor:', {
+        format,
+        isWelcome,
+        textLength: text?.length || 0,
+        audioLength: audioBase64.length
+      });
+
+      // Reproducir audio base64
+      await this.playBase64Audio(audioBase64, format, isWelcome);
+
+      // Si hay texto, también mostrarlo
+      if (text) {
+        this.displayResponseComplete(text);
+        // Agregar a historial
+        this.conversationHistory.push({
+          role: 'assistant',
+          content: text,
+          timestamp: new Date()
+        });
+      }
+
+    } catch (err) {
+      console.error('[WEBSOCKET-CLIENT] ❌ Error manejando respuesta de audio:', err);
+    }
+  }
+
+  /**
+   * Play base64 audio using HTML5 Audio element
+   */
+  async playBase64Audio(base64Audio, format = 'mp3', isWelcome = false) {
+    return new Promise((resolve, reject) => {
+      try {
+        // Convert base64 to blob
+        const binaryString = atob(base64Audio);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        
+        const mimeType = format === 'mp3' ? 'audio/mpeg' : `audio/${format}`;
+        const blob = new Blob([bytes], { type: mimeType });
+        const audioUrl = URL.createObjectURL(blob);
+
+        // Create audio element
+        const audio = new Audio(audioUrl);
+        audio.preload = 'auto';
+        audio.volume = 1.0;
+
+        // For welcome audio, wait for buffer to be ready
+        if (isWelcome) {
+          audio.addEventListener('canplaythrough', () => {
+            console.log('[WEBSOCKET-CLIENT] ✅ Audio buffer cargado, reproduciendo...');
+            audio.play().then(() => {
+              console.log('[WEBSOCKET-CLIENT] ✅ Audio de bienvenida reproduciéndose');
+            }).catch(err => {
+              console.error('[WEBSOCKET-CLIENT] ❌ Error reproduciendo audio:', err);
+              reject(err);
+            });
+          }, { once: true });
+
+          audio.addEventListener('error', (err) => {
+            console.error('[WEBSOCKET-CLIENT] ❌ Error cargando audio:', err);
+            URL.revokeObjectURL(audioUrl);
+            reject(err);
+          });
+        } else {
+          // For regular audio, play immediately
+          audio.play().then(() => {
+            console.log('[WEBSOCKET-CLIENT] ✅ Audio reproduciéndose');
+          }).catch(err => {
+            console.error('[WEBSOCKET-CLIENT] ❌ Error reproduciendo audio:', err);
+            reject(err);
+          });
+        }
+
+        // Clean up when done
+        audio.addEventListener('ended', () => {
+          console.log('[WEBSOCKET-CLIENT] ✅ Audio terminado');
+          URL.revokeObjectURL(audioUrl);
+          resolve();
+        }, { once: true });
+
+        audio.addEventListener('error', (err) => {
+          console.error('[WEBSOCKET-CLIENT] ❌ Error en audio:', err);
+          URL.revokeObjectURL(audioUrl);
+          reject(err);
+        }, { once: true });
+
+      } catch (err) {
+        console.error('[WEBSOCKET-CLIENT] ❌ Error procesando audio base64:', err);
+        reject(err);
+      }
+    });
+  }
+
+  /**
    * Play voice response using voice library manager
    */
   async playVoiceResponse(text, responseType = 'general') {
