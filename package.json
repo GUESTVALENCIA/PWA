@@ -11,10 +11,10 @@
     "test": "cross-env NODE_ENV=test jest"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.27.0",
+    "@anthropic-ai/sdk": "^0.71.2",
     "@cartesia/cartesia-js": "^2.2.9",
-    "@deepgram/sdk": "^3.4.0",
-    "@google/generative-ai": "^0.18.0",
+    "@deepgram/sdk": "^4.11.3",
+    "@google/generative-ai": "^0.24.1",
     "axios": "^1.13.2",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
