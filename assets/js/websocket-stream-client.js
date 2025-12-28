@@ -30,56 +30,89 @@ class WebSocketStreamClient {
     this.reconnectTimeout = null;
     this.isReconnecting = false;
     this.shouldReconnect = true;
+    this.configLoaded = false; // Flag to prevent init before config
 
     // Configuration - will be loaded from API
     this.config = {
-      wsUrl: null, // Will be set after loading config
+      wsUrl: null, // CRITICAL: Must be loaded from /api/config, NEVER use window.location
       audioMimeType: 'audio/webm;codecs=opus',
       audioSampleRate: 48000,
       audioChannels: 1,
       chunkDuration: 100 // ms between chunks
     };
 
-    // Load config and initialize
-    this.loadConfigAndInit();
+    // CRITICAL: Load config FIRST, then initialize
+    // DO NOT attempt connection until config is loaded
+    this.loadConfigAndInit().catch(err => {
+      console.error('[WEBSOCKET-CLIENT] ❌ Error fatal en inicialización:', err);
+    });
   }
 
   /**
    * Load configuration from API and initialize WebSocket
+   * CRITICAL: This MUST complete before any connection attempt
    */
   async loadConfigAndInit() {
     try {
-      console.log('[WEBSOCKET-CLIENT] 📡 Cargando configuración del servidor...');
+      console.log('[WEBSOCKET-CLIENT] 📡 Cargando configuración del servidor MCP...');
       
-      const response = await fetch('/api/config');
+      // Fetch configuration from API
+      const response = await fetch('/api/config', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        cache: 'no-cache' // Prevent caching
+      });
+      
       if (!response.ok) {
-        throw new Error('No se pudo cargar la configuración');
+        throw new Error(`HTTP ${response.status}: No se pudo cargar la configuración`);
       }
       
       const config = await response.json();
-      const mcpServerUrl = config.MCP_SERVER_URL || 'https://pwa-imbf.onrender.com';
       
-      // Convert HTTP/HTTPS URL to WebSocket URL
+      // Validate MCP_SERVER_URL
+      if (!config.MCP_SERVER_URL) {
+        throw new Error('MCP_SERVER_URL no está en la respuesta del servidor');
+      }
+      
+      const mcpServerUrl = config.MCP_SERVER_URL.trim().replace(/\/$/, ''); // Remove trailing slash
+      
+      // CRITICAL: Convert HTTP/HTTPS URL to WebSocket URL
+      // NEVER use window.location.host - always use the MCP server URL
       const wsUrl = this.convertToWebSocketUrl(mcpServerUrl);
+      
+      // Validate the WebSocket URL
+      if (!wsUrl || !wsUrl.startsWith('ws://') && !wsUrl.startsWith('wss://')) {
+        throw new Error(`URL WebSocket inválida: ${wsUrl}`);
+      }
       
       this.config.wsUrl = wsUrl;
       this.config.mcpToken = config.MCP_TOKEN || null;
+      this.configLoaded = true;
       
-      console.log('[WEBSOCKET-CLIENT] ✅ Configuración cargada:', {
-        mcpServerUrl,
-        wsUrl,
-        hasToken: !!this.config.mcpToken
-      });
+      console.log('[WEBSOCKET-CLIENT] ✅ Configuración cargada correctamente:');
+      console.log('[WEBSOCKET-CLIENT]   - MCP Server:', mcpServerUrl);
+      console.log('[WEBSOCKET-CLIENT]   - WebSocket URL:', wsUrl);
+      console.log('[WEBSOCKET-CLIENT]   - Token:', this.config.mcpToken ? 'Configurado' : 'No requerido');
 
-      // Initialize WebSocket connection
+      // NOW initialize WebSocket connection
       await this.init();
       
     } catch (err) {
       console.error('[WEBSOCKET-CLIENT] ❌ Error cargando configuración:', err);
-      // Fallback to default if config fails
+      console.error('[WEBSOCKET-CLIENT] Stack:', err.stack);
+      
+      // Fallback to default MCP server (Render)
       const defaultUrl = 'wss://pwa-imbf.onrender.com';
       this.config.wsUrl = defaultUrl;
-      console.warn('[WEBSOCKET-CLIENT] ⚠️  Usando URL por defecto:', defaultUrl);
+      this.config.mcpToken = null;
+      this.configLoaded = true;
+      
+      console.warn('[WEBSOCKET-CLIENT] ⚠️  Usando URL por defecto (Render):', defaultUrl);
+      console.warn('[WEBSOCKET-CLIENT] ⚠️  Esto puede indicar un problema con /api/config');
+      
+      // Try to initialize with fallback
       await this.init();
     }
   }
@@ -108,8 +141,17 @@ class WebSocketStreamClient {
 
   /**
    * Initialize WebSocket connection
+   * CRITICAL: Only called after config is loaded
    */
   async init() {
+    // CRITICAL CHECK: Config must be loaded first
+    if (!this.configLoaded) {
+      console.error('[WEBSOCKET-CLIENT] ❌ Intento de conexión antes de cargar configuración');
+      console.error('[WEBSOCKET-CLIENT] ❌ Esto NO debería pasar - cargando configuración ahora...');
+      await this.loadConfigAndInit();
+      return;
+    }
+
     // Prevent multiple simultaneous connection attempts
     if (this.isReconnecting || (this.ws && this.ws.readyState === WebSocket.CONNECTING)) {
       console.log('[WEBSOCKET-CLIENT] ⏸️  Ya hay una conexión en progreso, esperando...');
@@ -124,8 +166,19 @@ class WebSocketStreamClient {
       return;
     }
 
+    // CRITICAL: Validate WebSocket URL
     if (!this.config.wsUrl) {
       console.error('[WEBSOCKET-CLIENT] ❌ URL de WebSocket no configurada');
+      console.error('[WEBSOCKET-CLIENT] ❌ Esto indica un error en la carga de configuración');
+      return;
+    }
+
+    // CRITICAL: NEVER use window.location for WebSocket URL
+    if (this.config.wsUrl.includes(window.location.hostname) && !this.config.wsUrl.includes('pwa-imbf.onrender.com')) {
+      console.error('[WEBSOCKET-CLIENT] ❌ ERROR CRÍTICO: URL incorrecta detectada');
+      console.error('[WEBSOCKET-CLIENT] ❌ URL:', this.config.wsUrl);
+      console.error('[WEBSOCKET-CLIENT] ❌ Vercel no soporta WebSocket - debe usar servidor MCP');
+      this.showError('Error de configuración: URL WebSocket incorrecta');
       return;
     }
 
@@ -144,10 +197,43 @@ class WebSocketStreamClient {
 
       // Build WebSocket URL with token if available
       let wsUrl = this.config.wsUrl;
+      
+      // CRITICAL: Final validation - NEVER connect to Vercel or use /ws/stream path
+      const blockedPatterns = [
+        'vercel.app',
+        'pwa-chi-six',
+        '/ws/stream',
+        window.location.hostname + '/ws',
+        window.location.host + '/ws'
+      ];
+      
+      const isBlocked = blockedPatterns.some(pattern => wsUrl.includes(pattern));
+      
+      if (isBlocked) {
+        console.error('[WEBSOCKET-CLIENT] ❌ ERROR CRÍTICO: URL bloqueada detectada');
+        console.error('[WEBSOCKET-CLIENT] ❌ URL:', wsUrl);
+        console.error('[WEBSOCKET-CLIENT] ❌ Vercel no soporta WebSocket - debe usar servidor MCP en Render');
+        console.error('[WEBSOCKET-CLIENT] ❌ Recargando configuración...');
+        
+        // Force reload config
+        this.configLoaded = false;
+        this.config.wsUrl = null;
+        await this.loadConfigAndInit();
+        return;
+      }
+      
+      // Validate that URL points to Render MCP server
+      if (!wsUrl.includes('pwa-imbf.onrender.com') && !wsUrl.includes('localhost')) {
+        console.warn('[WEBSOCKET-CLIENT] ⚠️  URL no es el servidor MCP esperado:', wsUrl);
+        console.warn('[WEBSOCKET-CLIENT] ⚠️  Esperado: wss://pwa-imbf.onrender.com');
+      }
+      
       if (this.config.mcpToken) {
         wsUrl += `?token=${encodeURIComponent(this.config.mcpToken)}`;
       }
 
+      console.log('[WEBSOCKET-CLIENT] 🔌 Conectando a servidor MCP:', wsUrl);
+      console.log('[WEBSOCKET-CLIENT] ✅ URL validada correctamente');
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
