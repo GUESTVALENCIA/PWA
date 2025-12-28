@@ -165,6 +165,7 @@ wss.on('connection', (ws, req) => {
 
       // If config message
       if (data.type === 'config') {
+        console.log(`🔴 HANDSHAKE RECEIVED: ${JSON.stringify(data)}`);
         console.log(`[WS] Config received: ${data.sampleRate}`);
         // Start Deepgram Stream
         ws.dgSession.startStream(async (transcriptData) => {
