@@ -1,0 +1,32 @@
+{
+  "version": "1.0.0",
+  "updated_at": "2025-01-01T00:00:00Z",
+  "projects": [
+    {
+      "id": "proj-realtime-voice",
+      "name": "realtime-voice-system",
+      "path": "C:/Users/clayt/OneDrive/GUESTVALENCIAPWA/realtime-voice-system",
+      "status": "active",
+      "lock_status": "unlocked",
+      "context": {
+        "description": "Sistema universal de llamadas en tiempo real con IA"
+      }
+    },
+    {
+      "id": "proj-pwa-ecommerce",
+      "name": "pwa-ecommerce",
+      "path": "C:/Users/clayt/Projects/pwa-ecommerce",
+      "status": "active",
+      "lock_status": "unlocked",
+      "context": {}
+    },
+    {
+      "id": "proj-ia-assistant",
+      "name": "ia-assistant",
+      "path": "C:/Users/clayt/Projects/ia-assistant",
+      "status": "active",
+      "lock_status": "unlocked",
+      "context": {}
+    }
+  ]
+}
