@@ -18,13 +18,22 @@ dotenv.config();
 import { MCPServer } from './src/core/mcp-server.js';
 import { ProjectManager } from './src/core/project-manager.js';
 import { StateManager } from './src/core/state-manager.js';
+import { SystemEventEmitter } from './src/core/event-emitter.js';
 import { initWebSocketServer } from './src/websocket/socket-server.js';
-import { logger } from './src/utils/logger.js';
+import logger from './src/utils/logger.js';
 import authMiddleware from './src/middleware/auth.js';
-import { projectDetector } from './src/middleware/project-detector.js';
-import { accessControl } from './src/middleware/access-control.js';
-import { rateLimiter } from './src/middleware/rate-limiter.js';
-import { errorHandler } from './src/middleware/error-handler.js';
+import projectDetector from './src/middleware/project-detector.js';
+import accessControl from './src/middleware/access-control.js';
+import rateLimiter from './src/middleware/rate-limiter.js';
+import errorHandler from './src/middleware/error-handler.js';
+
+// Services
+import NeonService from './src/services/neon-service.js';
+import ProposalService from './src/services/proposal-service.js';
+import ReviewService from './src/services/review-service.js';
+import UnificationService from './src/services/unification-service.js';
+import ImplementationService from './src/services/implementation-service.js';
+import ContextBuilder from './src/services/context-builder.js';
 
 // ===== IMPORTS RUTAS =====
 import projectRoutes from './src/routes/projects.js';
@@ -47,6 +56,13 @@ const HOST = process.env.HOST || 'localhost';
 let mcpServer = null;
 let projectManager = null;
 let stateManager = null;
+let systemEventEmitter = null;
+let neonService = null;
+let proposalService = null;
+let reviewService = null;
+let unificationService = null;
+let implementationService = null;
+let contextBuilder = null;
 
 // ===== MIDDLEWARE GLOBAL =====
 app.use(helmet());
@@ -95,23 +111,70 @@ async function startup() {
   try {
     logger.info('🚀 Iniciando MCP Orchestrator...');
 
-    // Inicializar servicios
+    // 1. Inicializar evento emitter
+    systemEventEmitter = new SystemEventEmitter();
+
+    // 2. Inicializar estado base
     stateManager = new StateManager();
     projectManager = new ProjectManager(stateManager);
+
+    // 3. Inicializar NEON Database
+    if (!process.env.NEON_DATABASE_URL) {
+      logger.warn('⚠️ NEON_DATABASE_URL not configured. Using in-memory database only.');
+      neonService = null;
+    } else {
+      neonService = new NeonService(process.env.NEON_DATABASE_URL);
+      try {
+        await neonService.initialize();
+        logger.info('✅ NEON Database initialized');
+      } catch (dbError) {
+        logger.warn('⚠️ NEON Database initialization failed. Using fallback:', dbError.message);
+        // Continue with in-memory fallback
+      }
+    }
+
+    // 4. Inicializar servicios
+    proposalService = new ProposalService(neonService, stateManager, systemEventEmitter);
+    reviewService = new ReviewService(neonService, stateManager, systemEventEmitter);
+    unificationService = new UnificationService(neonService, proposalService, reviewService, systemEventEmitter);
+    implementationService = new ImplementationService(neonService, systemEventEmitter, projectManager);
+    contextBuilder = new ContextBuilder(neonService);
+
+    // 5. Inicializar MCP Server
     mcpServer = new MCPServer(projectManager, stateManager);
 
-    // Cargar proyectos
+    // 6. Cargar proyectos
     await projectManager.loadProjects();
 
-    // Iniciar servidor
+    // 7. Hacer servicios disponibles en req.services para las rutas
+    app.use((req, res, next) => {
+      req.services = {
+        proposal: proposalService,
+        review: reviewService,
+        unification: unificationService,
+        implementation: implementationService,
+        context: contextBuilder,
+        neon: neonService,
+        project: projectManager,
+        state: stateManager,
+        events: systemEventEmitter
+      };
+      next();
+    });
+
+    // 8. Inicializar WebSocket con servicios
+    initWebSocketServer(wss, stateManager, systemEventEmitter, neonService);
+
+    // 9. Iniciar servidor HTTP
     server.listen(PORT, HOST, () => {
       logger.info(`✅ MCP Server running on http://${HOST}:${PORT}`);
-      logger.info(`📡 WebSocket on ws://${HOST}:${process.env.WS_PORT || 3001}`);
-      logger.info(`🗄️ NEON Database: ${process.env.NEON_DATABASE_URL ? 'Conectado' : 'No configurado'}`);
+      logger.info(`📡 WebSocket on ws://${HOST}:${PORT}`);
+      logger.info(`🗄️ NEON Database: ${neonService ? 'Connected' : 'Fallback mode'}`);
+      logger.info(`🔧 Services initialized: ${neonService ? 'All' : 'Core only'}`);
     });
 
   } catch (error) {
-    logger.error('❌ Error durante startup:', error);
+    logger.error('❌ Error during startup:', error);
     process.exit(1);
   }
 }
@@ -136,4 +199,18 @@ process.on('SIGINT', async () => {
 // ===== INICIAR =====
 startup();
 
-export { app, server, wss, mcpServer, projectManager, stateManager };
+export {
+  app,
+  server,
+  wss,
+  mcpServer,
+  projectManager,
+  stateManager,
+  systemEventEmitter,
+  neonService,
+  proposalService,
+  reviewService,
+  unificationService,
+  implementationService,
+  contextBuilder
+};
