@@ -1058,6 +1058,13 @@
 		          // Iniciar grabación de audio
 		          await wsClient.startListening();
 		          
+		          // Enviar mensaje "ready" para recibir saludo inicial
+		          console.log('[CALL] 📤 Enviando mensaje "ready" al servidor...');
+		          wsClient.sendMCP('conserje', 'message', {
+		            type: 'ready',
+		            message: 'Cliente listo para recibir saludo'
+		          });
+		          
 		          console.log('[CALL] ✅ Llamada iniciada correctamente');
 		          
 		          // Actualizar UI
