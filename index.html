@@ -73,7 +73,7 @@
     .page{display:none}.page.active{display:block}
     .lightbox{display:none;position:fixed;z-index:1000;inset:0;background:rgba(11,16,32,0.95);backdrop-filter:blur(8px);justify-content:center;align-items:center}
     .lightbox.show{display:flex}
-    #sandra-widget-container{position:fixed;bottom:20px;right:20px;z-index:9999}
+    /* #sandra-widget-container{position:fixed;bottom:20px;right:20px;z-index:9999} */ /* DESACTIVADO para evitar conflictos */
     #search-container.active{box-shadow:0 0 0 3px rgba(59,130,246,0.5),0 0 20px rgba(59,130,246,0.3),0 0 40px rgba(59,130,246,0.2)}
     #search-container.active .glass{border-color:rgba(59,130,246,0.5)}
     .ai-search-active{animation:pulse-glow 2s ease-in-out infinite}
@@ -473,21 +473,21 @@
       'use strict';
       
       class HeroConversationalCall {
-        constructor() {
+      constructor() {
           this.activeCall = null;
           this.chatLocked = false;
-          this.ringTimeout = null;
+        this.ringTimeout = null;
           this.mediaRecorder = null;
           this.stream = null;
-          this.isMicrophoneMuted = false;
-          this.isSpeaking = false;
-          this.awaitingResponse = false;
-          this.responseWatchdogTimeout = null;
+        this.isMicrophoneMuted = false;
+        this.isSpeaking = false;
+        this.awaitingResponse = false;
+	        this.responseWatchdogTimeout = null;
           this.currentAudio = null;
           this.useVideo = true; // Activar video del hero
           this.recordingSliceMs = 1000; // 1 segundo de chunks
           this.minRecordedBytes = 1000; // Mínimo de bytes para enviar
-          this._mcpConfigPromise = null;
+	        this._mcpConfigPromise = null;
           this.audioCtx = null; // AudioContext para ringtone
           this._ringNodes = []; // Nodos de audio para ringtone
         }
@@ -531,40 +531,40 @@
 
           url.search = token ? `?token=${encodeURIComponent(String(token))}` : '';
           return url.toString();
-        }
+	      }
 
-        setHeroCallActive(active) {
-          const heroBg = document.getElementById('hero-background-image');
-          const heroVideo = document.getElementById('hero-video');
-          const searchContainer = document.getElementById('search-container');
-          const callControlsBar = document.getElementById('call-controls-bar');
+	      setHeroCallActive(active) {
+	        const heroBg = document.getElementById('hero-background-image');
+	        const heroVideo = document.getElementById('hero-video');
+	        const searchContainer = document.getElementById('search-container');
+	        const callControlsBar = document.getElementById('call-controls-bar');
 
-          if (searchContainer) {
+	        if (searchContainer) {
             searchContainer.classList.toggle('call-hidden', active);
-          }
+	        }
 
-          if (callControlsBar) {
+	        if (callControlsBar) {
             callControlsBar.classList.toggle('active', active);
-          }
+	        }
 
           if (heroBg) {
             heroBg.classList.toggle('hero-motion', !!active);
           }
 
-          if (heroVideo && !this.useVideo) {
-            try {
-              heroVideo.pause();
-              heroVideo.currentTime = 0;
-            } catch (_) {}
-            heroVideo.style.display = 'none';
-            heroVideo.style.opacity = '0';
-            const source = heroVideo.querySelector('source');
-            if (source) source.removeAttribute('src');
-            try { heroVideo.load(); } catch (_) {}
-          }
+	        if (heroVideo && !this.useVideo) {
+	          try {
+	            heroVideo.pause();
+	            heroVideo.currentTime = 0;
+	          } catch (_) {}
+	          heroVideo.style.display = 'none';
+	          heroVideo.style.opacity = '0';
+	          const source = heroVideo.querySelector('source');
+	          if (source) source.removeAttribute('src');
+	          try { heroVideo.load(); } catch (_) {}
+	        }
 
-          if (!active) {
-            this.chatLocked = false;
+		        if (!active) {
+		          this.chatLocked = false;
             if (this.ringTimeout) {
               clearTimeout(this.ringTimeout);
               this.ringTimeout = null;
@@ -576,194 +576,194 @@
           console.log('[HERO-CALL] Iniciando llamada conversacional...');
           if (this.chatLocked || this.activeCall || this.ringTimeout) {
             console.warn('[HERO-CALL] Llamada ya en curso o bloqueada');
-            return;
-          }
+		          return;
+		        }
           this.chatLocked = true;
           this.playRingtone();
-        }
+		      }
 
-        ensureAudioContext() {
-          if (this.audioCtx) return this.audioCtx;
-          const Ctx = window.AudioContext || window.webkitAudioContext;
-          if (!Ctx) return null;
-          this.audioCtx = new Ctx();
-          return this.audioCtx;
-        }
+		      ensureAudioContext() {
+		        if (this.audioCtx) return this.audioCtx;
+		        const Ctx = window.AudioContext || window.webkitAudioContext;
+		        if (!Ctx) return null;
+		        this.audioCtx = new Ctx();
+		        return this.audioCtx;
+		      }
 
-        stopRingtone() {
-          if (this.ringTimeout) {
-            clearTimeout(this.ringTimeout);
-            this.ringTimeout = null;
-          }
-          if (this._ringNodes && this._ringNodes.length) {
-            for (const n of this._ringNodes) {
-              try { if (typeof n.stop === 'function') n.stop(0); } catch (_) {}
-              try { if (typeof n.disconnect === 'function') n.disconnect(); } catch (_) {}
-            }
-            this._ringNodes = [];
-          }
-        }
+		      stopRingtone() {
+		        if (this.ringTimeout) {
+		          clearTimeout(this.ringTimeout);
+		          this.ringTimeout = null;
+		        }
+		        if (this._ringNodes && this._ringNodes.length) {
+		          for (const n of this._ringNodes) {
+		            try { if (typeof n.stop === 'function') n.stop(0); } catch (_) {}
+		            try { if (typeof n.disconnect === 'function') n.disconnect(); } catch (_) {}
+		          }
+		          this._ringNodes = [];
+		        }
+		      }
 
-        playRingtone() {
+      playRingtone() {
           console.log('[HERO-CALL] 🔔 Iniciando ringtone...');
-          this.stopRingtone();
+        this.stopRingtone();
 
-          const ctx = this.ensureAudioContext();
-          if (!ctx) {
-            this.ringTimeout = setTimeout(() => {
-              this.ringTimeout = null;
-              if (!this.chatLocked) return;
-              if (this.useVideo) {
-                this.transitionHeroToVideo();
-                this.startVideoStream();
-              } else {
-                this.startRealTimeCall();
-              }
-            }, 3000);
-            return;
-          }
-
-          try { if (ctx.state === 'suspended') ctx.resume(); } catch (_) {}
-
-          const scheduleRing = (start, dur, freq = 425) => {
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(freq, start);
-            gain.gain.setValueAtTime(0.0001, start);
-            gain.gain.exponentialRampToValueAtTime(0.18, start + 0.02);
-            gain.gain.setValueAtTime(0.18, start + Math.max(0.05, dur - 0.04));
-            gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
-            osc.connect(gain).connect(ctx.destination);
-            osc.start(start);
-            osc.stop(start + dur);
-            this._ringNodes.push(osc, gain);
-          };
-
-          const scheduleClac = (t) => {
-            const len = Math.floor(ctx.sampleRate * 0.03);
-            const buffer = ctx.createBuffer(1, len, ctx.sampleRate);
-            const data = buffer.getChannelData(0);
-            for (let i = 0; i < len; i++) {
-              const env = Math.exp(-i / (len / 6));
-              data[i] = (Math.random() * 2 - 1) * env;
-            }
-            const src = ctx.createBufferSource();
-            const gain = ctx.createGain();
-            src.buffer = buffer;
-            gain.gain.setValueAtTime(0.35, t);
-            gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
-            src.connect(gain).connect(ctx.destination);
-            src.start(t);
-            src.stop(t + 0.04);
-            this._ringNodes.push(src, gain);
-          };
-
-          const now = ctx.currentTime + 0.02;
-          const dur = 1.15;
-          const gap = 0.35;
-          scheduleRing(now, dur);
-          scheduleRing(now + dur + gap, dur);
-          scheduleClac(now + (dur * 2) + gap + 0.05);
-
-          const totalMs = Math.ceil(((dur * 2) + gap + 0.25) * 1000);
+        const ctx = this.ensureAudioContext();
+        if (!ctx) {
           this.ringTimeout = setTimeout(() => {
             this.ringTimeout = null;
             if (!this.chatLocked) return;
-            console.log('[HERO-CALL] ✅ Ringtone completado, descolgando llamada...');
-            this.setHeroCallActive(true);
             if (this.useVideo) {
               this.transitionHeroToVideo();
               this.startVideoStream();
             } else {
-              this.startRealTimeCall();
+                this.startRealTimeCall();
             }
-          }, totalMs);
+          }, 3000);
+          return;
         }
 
-        transitionHeroToVideo() {
+        try { if (ctx.state === 'suspended') ctx.resume(); } catch (_) {}
+
+        const scheduleRing = (start, dur, freq = 425) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, start);
+          gain.gain.setValueAtTime(0.0001, start);
+          gain.gain.exponentialRampToValueAtTime(0.18, start + 0.02);
+          gain.gain.setValueAtTime(0.18, start + Math.max(0.05, dur - 0.04));
+          gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+          osc.connect(gain).connect(ctx.destination);
+          osc.start(start);
+          osc.stop(start + dur);
+          this._ringNodes.push(osc, gain);
+        };
+
+        const scheduleClac = (t) => {
+          const len = Math.floor(ctx.sampleRate * 0.03);
+          const buffer = ctx.createBuffer(1, len, ctx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < len; i++) {
+            const env = Math.exp(-i / (len / 6));
+            data[i] = (Math.random() * 2 - 1) * env;
+          }
+          const src = ctx.createBufferSource();
+          const gain = ctx.createGain();
+          src.buffer = buffer;
+          gain.gain.setValueAtTime(0.35, t);
+          gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+          src.connect(gain).connect(ctx.destination);
+          src.start(t);
+          src.stop(t + 0.04);
+          this._ringNodes.push(src, gain);
+        };
+
+        const now = ctx.currentTime + 0.02;
+        const dur = 1.15;
+        const gap = 0.35;
+        scheduleRing(now, dur);
+        scheduleRing(now + dur + gap, dur);
+        scheduleClac(now + (dur * 2) + gap + 0.05);
+
+        const totalMs = Math.ceil(((dur * 2) + gap + 0.25) * 1000);
+        this.ringTimeout = setTimeout(() => {
+          this.ringTimeout = null;
+          if (!this.chatLocked) return;
+            console.log('[HERO-CALL] ✅ Ringtone completado, descolgando llamada...');
+            this.setHeroCallActive(true);
+          if (this.useVideo) {
+            this.transitionHeroToVideo();
+            this.startVideoStream();
+          } else {
+              this.startRealTimeCall();
+          }
+        }, totalMs);
+      }
+
+      transitionHeroToVideo() {
           console.log('[HERO-CALL] 🎬 Transición: Imagen estática → Video');
-          if (!this.useVideo) return;
-          const heroImage = document.getElementById('hero-background-image');
-          const heroVideo = document.getElementById('hero-video');
+        if (!this.useVideo) return;
+        const heroImage = document.getElementById('hero-background-image');
+        const heroVideo = document.getElementById('hero-video');
 
-          if (heroImage && heroVideo) {
-            try {
-              const bg = window.getComputedStyle(heroImage).backgroundImage || '';
-              const m = bg.match(/url\(["']?(.*?)["']?\)/i);
-              if (m && m[1]) heroVideo.setAttribute('poster', m[1]);
-            } catch (_) {}
+        if (heroImage && heroVideo) {
+          try {
+            const bg = window.getComputedStyle(heroImage).backgroundImage || '';
+            const m = bg.match(/url\(["']?(.*?)["']?\)/i);
+            if (m && m[1]) heroVideo.setAttribute('poster', m[1]);
+          } catch (_) {}
 
-            heroImage.style.display = 'block';
-            heroImage.style.opacity = '1';
+          heroImage.style.display = 'block';
+          heroImage.style.opacity = '1';
 
-            heroVideo.style.display = 'block';
-            heroVideo.style.opacity = '0';
-            heroVideo.style.transition = 'opacity 0.8s ease-in';
+          heroVideo.style.display = 'block';
+          heroVideo.style.opacity = '0';
+          heroVideo.style.transition = 'opacity 0.8s ease-in';
 
-            requestAnimationFrame(() => {
-              heroVideo.style.opacity = '1';
-            });
-          }
+          requestAnimationFrame(() => {
+            heroVideo.style.opacity = '1';
+          });
         }
+      }
 
-        startVideoStream() {
+      startVideoStream() {
           console.log('[HERO-CALL] 🎥 Iniciando stream de video...');
-          if (!this.useVideo) {
+        if (!this.useVideo) {
             this.startRealTimeCall();
-            return;
-          }
-          const heroVideo = document.getElementById('hero-video');
-          const videoSource = heroVideo.querySelector('source');
+          return;
+        }
+        const heroVideo = document.getElementById('hero-video');
+        const videoSource = heroVideo.querySelector('source');
 
-          if (heroVideo && videoSource) {
-            videoSource.src = 'assets/videos/sandra-call-1.mp4';
-            heroVideo.load();
+        if (heroVideo && videoSource) {
+          videoSource.src = 'assets/videos/sandra-call-1.mp4';
+          heroVideo.load();
             heroVideo.currentTime = 0;
             heroVideo.play().catch(e => console.log('[HERO-CALL] Error al reproducir video:', e));
-          }
+        }
           this.startRealTimeCall();
-        }
+      }
 
-        clearResponseWatchdog() {
-          if (this.responseWatchdogTimeout) {
-            clearTimeout(this.responseWatchdogTimeout);
-            this.responseWatchdogTimeout = null;
-          }
-        }
+	      clearResponseWatchdog() {
+	        if (this.responseWatchdogTimeout) {
+	          clearTimeout(this.responseWatchdogTimeout);
+	          this.responseWatchdogTimeout = null;
+	        }
+	      }
 
-        startResponseWatchdog() {
-          this.clearResponseWatchdog();
-          this.responseWatchdogTimeout = setTimeout(() => {
-            this.responseWatchdogTimeout = null;
-            if (!this.activeCall) return;
-            if (!this.awaitingResponse) return;
+	      startResponseWatchdog() {
+	        this.clearResponseWatchdog();
+	        this.responseWatchdogTimeout = setTimeout(() => {
+	          this.responseWatchdogTimeout = null;
+	          if (!this.activeCall) return;
+	          if (!this.awaitingResponse) return;
             console.warn('[HERO-CALL] ⚠️ Watchdog: sin respuesta, reanudando escucha');
-            this.awaitingResponse = false;
-          }, 12000);
-        }
+	          this.awaitingResponse = false;
+	        }, 12000);
+	      }
 
-        stopAudioCapture() {
-          this.clearResponseWatchdog();
-          this.awaitingResponse = false;
-          this.isSpeaking = false;
+	      stopAudioCapture() {
+	        this.clearResponseWatchdog();
+	        this.awaitingResponse = false;
+	        this.isSpeaking = false;
 
-          if (this.mediaRecorder) {
-            try {
-              if (this.mediaRecorder.state === 'recording' || this.mediaRecorder.state === 'paused') {
-                this.mediaRecorder.stop();
-              }
-            } catch (_) {}
-            this.mediaRecorder = null;
-          }
+	        if (this.mediaRecorder) {
+	          try {
+	            if (this.mediaRecorder.state === 'recording' || this.mediaRecorder.state === 'paused') {
+	              this.mediaRecorder.stop();
+	            }
+	          } catch (_) {}
+	          this.mediaRecorder = null;
+	        }
 
-          if (this.stream) {
-            try {
-              this.stream.getTracks().forEach(t => t.stop());
-            } catch (_) {}
-            this.stream = null;
-          }
-        }
+	        if (this.stream) {
+	          try {
+	            this.stream.getTracks().forEach(t => t.stop());
+	          } catch (_) {}
+	          this.stream = null;
+	        }
+	      }
 
         async startRealTimeCall() {
           const cfg = await this.getMcpConfig();
@@ -898,44 +898,44 @@
           };
         }
 
-        playAudioResponse(audioBase64) {
-          if (this.currentAudio) {
-            this.currentAudio.pause();
-            if (this.currentAudio._blobUrl) URL.revokeObjectURL(this.currentAudio._blobUrl);
-          }
+		      playAudioResponse(audioBase64) {
+		        if (this.currentAudio) {
+		          this.currentAudio.pause();
+		          if (this.currentAudio._blobUrl) URL.revokeObjectURL(this.currentAudio._blobUrl);
+		        }
 
-          this.isSpeaking = true;
+		        this.isSpeaking = true;
 
-          const byteCharacters = atob(audioBase64);
-          const byteNumbers = new Array(byteCharacters.length);
-          for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i);
-          }
-          const byteArray = new Uint8Array(byteNumbers);
-          const blob = new Blob([byteArray], { type: 'audio/mp3' });
-          const blobUrl = URL.createObjectURL(blob);
+	        const byteCharacters = atob(audioBase64);
+	        const byteNumbers = new Array(byteCharacters.length);
+	        for (let i = 0; i < byteCharacters.length; i++) {
+	          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'audio/mp3' });
+        const blobUrl = URL.createObjectURL(blob);
 
-          const audio = new Audio(blobUrl);
-          audio._blobUrl = blobUrl;
-          this.currentAudio = audio;
+        const audio = new Audio(blobUrl);
+	        audio._blobUrl = blobUrl;
+	        this.currentAudio = audio;
 
-          audio.onerror = () => {
-            this.isSpeaking = false;
-          };
+	        audio.onerror = () => {
+	          this.isSpeaking = false;
+	        };
 
-          audio.onended = () => {
-            this.isSpeaking = false;
-            setTimeout(() => {
-              if (audio._blobUrl) {
-                URL.revokeObjectURL(audio._blobUrl);
-                audio._blobUrl = null;
-              }
-            }, 3000);
-          };
+		        audio.onended = () => {
+		          this.isSpeaking = false;
+		          setTimeout(() => {
+		            if (audio._blobUrl) {
+		              URL.revokeObjectURL(audio._blobUrl);
+              audio._blobUrl = null;
+            }
+	          }, 3000);
+	        };
 
           audio.play().catch(err => {
             console.error('[HERO-CALL] ❌ Error reproduciendo audio:', err);
-            this.isSpeaking = false;
+	          this.isSpeaking = false;
           });
         }
 
