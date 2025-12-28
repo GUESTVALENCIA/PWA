@@ -1257,14 +1257,25 @@
 
 	        this.isSpeaking = true;
 
-	        const byteCharacters = atob(audioBase64);
-	        const byteNumbers = new Array(byteCharacters.length);
-	        for (let i = 0; i < byteCharacters.length; i++) {
-	          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        // Decodificar base64 a audio
+        try {
+          const byteCharacters = atob(audioBase64);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          
+          // Usar audio/mpeg en lugar de audio/mp3 para mejor compatibilidad
+          const blob = new Blob([byteArray], { type: 'audio/mpeg' });
+          const blobUrl = URL.createObjectURL(blob);
+          
+          console.log('[AUDIO] Blob creado:', { size: blob.size, type: blob.type });
+        } catch (error) {
+          console.error('[AUDIO] Error decodificando base64:', error);
+          this.isSpeaking = false;
+          return;
         }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: 'audio/mp3' });
-        const blobUrl = URL.createObjectURL(blob);
 
         const audio = new Audio(blobUrl);
 	        audio._blobUrl = blobUrl;

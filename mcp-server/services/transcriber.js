@@ -59,11 +59,34 @@ class TranscriberService {
       'binary'
     );
 
-    if (!response.results || !response.results.channels || !response.results.channels[0]) {
-      throw new Error('Respuesta inválida de Deepgram');
+    // Validar respuesta de Deepgram con mejor manejo de errores
+    if (!response || typeof response !== 'object') {
+      console.error('[DEEPGRAM] Respuesta no es un objeto:', typeof response);
+      throw new Error('Respuesta inválida de Deepgram: no es un objeto');
     }
 
-    return response.results.channels[0].alternatives[0].transcript;
+    if (!response.results) {
+      console.error('[DEEPGRAM] Respuesta sin results:', JSON.stringify(response).substring(0, 200));
+      throw new Error('Respuesta inválida de Deepgram: sin results');
+    }
+
+    if (!response.results.channels || !Array.isArray(response.results.channels) || response.results.channels.length === 0) {
+      console.error('[DEEPGRAM] Respuesta sin channels:', JSON.stringify(response.results).substring(0, 200));
+      throw new Error('Respuesta inválida de Deepgram: sin channels');
+    }
+
+    if (!response.results.channels[0].alternatives || !Array.isArray(response.results.channels[0].alternatives) || response.results.channels[0].alternatives.length === 0) {
+      console.error('[DEEPGRAM] Respuesta sin alternatives:', JSON.stringify(response.results.channels[0]).substring(0, 200));
+      throw new Error('Respuesta inválida de Deepgram: sin alternatives');
+    }
+
+    const transcript = response.results.channels[0].alternatives[0].transcript;
+    if (!transcript || typeof transcript !== 'string') {
+      console.error('[DEEPGRAM] Transcript inválido:', transcript);
+      throw new Error('Respuesta inválida de Deepgram: transcript no es string');
+    }
+
+    return transcript;
   }
 
   makeRequest(hostname, path, data, headers, dataType = 'json') {

@@ -240,8 +240,11 @@ class WebSocketStreamClient {
     const isRender = this.config.wsUrl && this.config.wsUrl.includes('pwa-imbf.onrender.com');
     const isVercel = this.config.wsUrl && (this.config.wsUrl.includes('vercel.app') || this.config.wsUrl.includes('vercel.com'));
     
-    // Solo bloquear si es Vercel y NO es localhost ni Render
-    if (isVercel && !isLocalhost && !isRender) {
+    // PERMITIR localhost siempre - NO bloquearlo
+    if (isLocalhost) {
+      console.log('[WEBSOCKET-CLIENT] ✅ Localhost detectado, permitiendo conexión');
+    } else if (isVercel && !isRender) {
+      // Solo bloquear si es Vercel y NO es Render ni localhost
       console.error('[WEBSOCKET-CLIENT] ❌ ERROR CRÍTICO: URL incorrecta detectada');
       console.error('[WEBSOCKET-CLIENT] ❌ URL:', this.config.wsUrl);
       console.error('[WEBSOCKET-CLIENT] ❌ Vercel no soporta WebSocket - debe usar servidor MCP');
