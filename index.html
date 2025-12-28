@@ -877,9 +877,35 @@
 		        }
 		      }
 
-		      hangupCall(reason = 'user') {
+		      async hangupCall(reason = 'user') {
+		        console.log('[CALL] 📴 Colgando llamada. Razón:', reason);
+		        
+		        // 1. Detener ringtone
 		        this.stopRingtone && this.stopRingtone();
+		        
+		        // 2. Detener captura de audio (legacy)
 		        this.stopAudioCapture();
+		        
+		        // 3. Cerrar WebSocket y detener grabación
+		        if (this.activeCall && this.activeCall.type === 'websocket' && this.activeCall.client) {
+		          const wsClient = this.activeCall.client;
+		          console.log('[CALL] 🔌 Cerrando conexión WebSocket...');
+		          
+		          try {
+		            // Usar método disconnect que cierra todo correctamente
+		            await wsClient.disconnect();
+		            console.log('[CALL] ✅ WebSocket y grabación cerrados correctamente');
+		          } catch (err) {
+		            console.error('[CALL] ❌ Error cerrando WebSocket:', err);
+		            // Fallback: intentar cerrar manualmente
+		            try {
+		              if (wsClient.isRecording) await wsClient.stopListening();
+		              if (wsClient.ws) wsClient.ws.close();
+		            } catch (_) {}
+		          }
+		        }
+		        
+		        // 4. Limpiar estado legacy (OpenAI Realtime)
 		        this.isPaused = false;
 		        this.setMicrophoneMuted(false);
 
@@ -912,6 +938,7 @@
             this.realtimeLastResponseId = null;
             this.realtimeFallbackUsed = false;
 
+		        // 5. Resetear UI
 		        const pauseIcon = document.getElementById('hero-pause-icon');
 		        const resumeIcon = document.getElementById('hero-resume-icon');
 		        if (pauseIcon && resumeIcon) {
@@ -920,11 +947,16 @@
 		        }
 
 		        try { if (this.currentAudio) this.currentAudio.pause(); } catch (_) {}
-		        try { if (this.activeCall) this.activeCall.close(); } catch (_) {}
+		        
+		        // 6. Limpiar activeCall
 		        this.activeCall = null;
+		        this.chatLocked = false;
+		        
+		        // 7. Resetear hero
 		        this.setHeroCallActive(false);
 		        if (this.cameraStream) this.toggleCamera();
 
+            // 8. Actualizar controles de llamada
             const callControls = document.getElementById('sandra-call-controls');
             if (callControls) callControls.classList.add('hidden');
 
@@ -936,12 +968,15 @@
             const unlockBtn = document.getElementById('sandra-audio-unlock-btn');
             if (unlockBtn) unlockBtn.classList.add('hidden');
 
+            // 9. Rehabilitar chat
             const inputEl = document.getElementById('sandra-input');
             if (inputEl) inputEl.disabled = false;
             const sendEl = document.getElementById('sandra-send-btn');
             if (sendEl) sendEl.disabled = false;
             const micButton = document.getElementById('sandra-mic-btn');
             if (micButton) micButton.disabled = false;
+            
+            console.log('[CALL] ✅ Llamada colgada correctamente');
 		      }
 
 		      ensureAudioContext() {
@@ -967,11 +1002,76 @@
 		      }
 
 		      startConversationalCall(source = 'hero') {
-		        console.log('Iniciando llamada conversacional...');
-		        if (this.chatLocked || this.activeCall || this.ringTimeout) return;
+		        console.log('[CALL] 📞 Iniciando llamada conversacional...');
+		        if (this.chatLocked || this.activeCall || this.ringTimeout) {
+		          console.warn('[CALL] ⚠️  Llamada ya en progreso o bloqueada');
+		          return;
+		        }
 		        this.chatLocked = true;
 		        if (source === 'hero') this.setHeroCallActive(true);
 		        this.playRingtone();
+		      }
+
+		      /**
+		       * Iniciar llamada WebSocket después de los 2 tonos
+		       * Conecta con el servidor MCP y comienza a grabar audio
+		       */
+		      async startWebSocketCall() {
+		        console.log('[CALL] 🔌 Iniciando conexión WebSocket para llamada...');
+		        
+		        try {
+		          // Verificar que el cliente WebSocket esté disponible
+		          if (!window.websocketStreamClient) {
+		            console.error('[CALL] ❌ WebSocket client no está disponible');
+		            this.hangupCall('error');
+		            return;
+		          }
+
+		          const wsClient = window.websocketStreamClient;
+		          
+		          // Verificar que esté conectado
+		          if (!wsClient.isConnected) {
+		            console.log('[CALL] ⏳ Esperando conexión WebSocket...');
+		            // Esperar hasta 5 segundos a que se conecte
+		            let attempts = 0;
+		            while (!wsClient.isConnected && attempts < 50) {
+		              await new Promise(resolve => setTimeout(resolve, 100));
+		              attempts++;
+		            }
+		            
+		            if (!wsClient.isConnected) {
+		              console.error('[CALL] ❌ No se pudo conectar al servidor WebSocket');
+		              this.hangupCall('error');
+		              return;
+		            }
+		          }
+
+		          // Marcar llamada como activa
+		          this.activeCall = {
+		            type: 'websocket',
+		            client: wsClient,
+		            startTime: Date.now()
+		          };
+
+		          console.log('[CALL] ✅ WebSocket conectado, iniciando grabación...');
+		          
+		          // Iniciar grabación de audio
+		          await wsClient.startListening();
+		          
+		          console.log('[CALL] ✅ Llamada iniciada correctamente');
+		          
+		          // Actualizar UI
+		          const callStatus = document.getElementById('sandra-call-status');
+		          if (callStatus) callStatus.textContent = 'En llamada...';
+		          
+		          // Ocultar prompt de llamada
+		          const callPrompt = document.getElementById('sandra-call-prompt');
+		          if (callPrompt) callPrompt.style.display = 'none';
+		          
+		        } catch (err) {
+		          console.error('[CALL] ❌ Error iniciando llamada WebSocket:', err);
+		          this.hangupCall('error');
+		        }
 		      }
 
 		      updateChatInputState() {
@@ -1066,9 +1166,9 @@
             this.transitionHeroToVideo();
             this.startVideoStream();
           } else {
-            // TODO: Reemplazar con WebSocket Enterprise Stream
-            console.warn('[DEPRECATED] startRealTimeCall() ha sido removido. Se implementará WebSocket Enterprise Stream.');
-            // this.startRealTimeCall();
+            // Iniciar WebSocket Enterprise Stream después de los 2 tonos
+            console.log('[CALL] ✅ Iniciando WebSocket Enterprise Stream...');
+            this.startWebSocketCall();
           }
         }, totalMs);
       }
