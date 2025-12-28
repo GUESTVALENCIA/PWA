@@ -464,8 +464,8 @@
     })();
   </script>
 
-  <!-- SANDRA WIDGET GALAXY (único widget limpio) -->
-  <script src="/assets/js/galaxy/WIDGET_INYECTABLE.js" defer></script>
+  <!-- SANDRA WIDGET GALAXY (DESACTIVADO para evitar conflictos con llamadas del hero) -->
+  <!-- <script src="/assets/js/galaxy/WIDGET_INYECTABLE.js" defer></script> -->
   
   <!-- SISTEMA DE LLAMADAS CONVERSACIONALES DESDE HERO (RESTAURADO) -->
   <script>
@@ -488,6 +488,8 @@
           this.recordingSliceMs = 1000; // 1 segundo de chunks
           this.minRecordedBytes = 1000; // Mínimo de bytes para enviar
           this._mcpConfigPromise = null;
+          this.audioCtx = null; // AudioContext para ringtone
+          this._ringNodes = []; // Nodos de audio para ringtone
         }
 
         async getMcpConfig() {
@@ -580,42 +582,103 @@
           this.playRingtone();
         }
 
+        ensureAudioContext() {
+          if (this.audioCtx) return this.audioCtx;
+          const Ctx = window.AudioContext || window.webkitAudioContext;
+          if (!Ctx) return null;
+          this.audioCtx = new Ctx();
+          return this.audioCtx;
+        }
+
+        stopRingtone() {
+          if (this.ringTimeout) {
+            clearTimeout(this.ringTimeout);
+            this.ringTimeout = null;
+          }
+          if (this._ringNodes && this._ringNodes.length) {
+            for (const n of this._ringNodes) {
+              try { if (typeof n.stop === 'function') n.stop(0); } catch (_) {}
+              try { if (typeof n.disconnect === 'function') n.disconnect(); } catch (_) {}
+            }
+            this._ringNodes = [];
+          }
+        }
+
         playRingtone() {
           console.log('[HERO-CALL] 🔔 Iniciando ringtone...');
-          if (this.ringTimeout) clearTimeout(this.ringTimeout);
-          
-          // Reproducir tono de llamada (2 tonos)
-          const ringtone = new AudioContext();
-          const playTone = (frequency, duration, delay) => {
-            setTimeout(() => {
-              const oscillator = ringtone.createOscillator();
-              const gainNode = ringtone.createGain();
-              oscillator.connect(gainNode);
-              gainNode.connect(ringtone.destination);
-              oscillator.frequency.value = frequency;
-              oscillator.type = 'sine';
-              gainNode.gain.setValueAtTime(0.3, ringtone.currentTime);
-              gainNode.gain.exponentialRampToValueAtTime(0.01, ringtone.currentTime + duration);
-              oscillator.start(ringtone.currentTime);
-              oscillator.stop(ringtone.currentTime + duration);
-            }, delay);
+          this.stopRingtone();
+
+          const ctx = this.ensureAudioContext();
+          if (!ctx) {
+            this.ringTimeout = setTimeout(() => {
+              this.ringTimeout = null;
+              if (!this.chatLocked) return;
+              if (this.useVideo) {
+                this.transitionHeroToVideo();
+                this.startVideoStream();
+              } else {
+                this.startRealTimeCall();
+              }
+            }, 3000);
+            return;
+          }
+
+          try { if (ctx.state === 'suspended') ctx.resume(); } catch (_) {}
+
+          const scheduleRing = (start, dur, freq = 425) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, start);
+            gain.gain.setValueAtTime(0.0001, start);
+            gain.gain.exponentialRampToValueAtTime(0.18, start + 0.02);
+            gain.gain.setValueAtTime(0.18, start + Math.max(0.05, dur - 0.04));
+            gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+            osc.connect(gain).connect(ctx.destination);
+            osc.start(start);
+            osc.stop(start + dur);
+            this._ringNodes.push(osc, gain);
           };
-          
-          playTone(800, 0.2, 0);
-          playTone(800, 0.2, 500);
-          
+
+          const scheduleClac = (t) => {
+            const len = Math.floor(ctx.sampleRate * 0.03);
+            const buffer = ctx.createBuffer(1, len, ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < len; i++) {
+              const env = Math.exp(-i / (len / 6));
+              data[i] = (Math.random() * 2 - 1) * env;
+            }
+            const src = ctx.createBufferSource();
+            const gain = ctx.createGain();
+            src.buffer = buffer;
+            gain.gain.setValueAtTime(0.35, t);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+            src.connect(gain).connect(ctx.destination);
+            src.start(t);
+            src.stop(t + 0.04);
+            this._ringNodes.push(src, gain);
+          };
+
+          const now = ctx.currentTime + 0.02;
+          const dur = 1.15;
+          const gap = 0.35;
+          scheduleRing(now, dur);
+          scheduleRing(now + dur + gap, dur);
+          scheduleClac(now + (dur * 2) + gap + 0.05);
+
+          const totalMs = Math.ceil(((dur * 2) + gap + 0.25) * 1000);
           this.ringTimeout = setTimeout(() => {
             this.ringTimeout = null;
-            console.log('[HERO-CALL] ✅ Segundo ring completado, descolgando llamada...');
+            if (!this.chatLocked) return;
+            console.log('[HERO-CALL] ✅ Ringtone completado, descolgando llamada...');
             this.setHeroCallActive(true);
-
             if (this.useVideo) {
               this.transitionHeroToVideo();
               this.startVideoStream();
             } else {
               this.startRealTimeCall();
             }
-          }, 3000);
+          }, totalMs);
         }
 
         transitionHeroToVideo() {
