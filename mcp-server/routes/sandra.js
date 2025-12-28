@@ -193,10 +193,25 @@ router.post('/chat', async (req, res) => {
     const { message, role } = req.body;
     if (!message) return res.status(400).json({ error: 'Missing message' });
 
-    const reply = await orchestrator.generateResponse(message, role || 'hospitality');
+    // USAR GROQ (Qwen) directamente - NO OpenAI/Gemini
+    const services = req.app.locals.services;
+    if (!services || !services.qwen) {
+      throw new Error('Servicio Qwen no disponible');
+    }
+
+    if (!services.qwen.isReady()) {
+      throw new Error('Servicio Qwen no está listo. Verifica GROQ_API_KEY.');
+    }
+
+    const response = await services.qwen.processMessage(message, {
+      role: role || 'conserje',
+      context: 'Eres Sandra, la conserje virtual de GuestsValencia. Eres amable, profesional y siempre disponible para ayudar.'
+    });
+
+    const reply = (response && typeof response === 'object') ? response.text : String(response || '');
     res.json({ reply });
   } catch (error) {
-    console.error("Sandra Chat Error:", error);
+    console.error("[GROQ] Sandra Chat Error:", error);
     res.status(500).json({ error: error.message });
   }
 });
