@@ -46,7 +46,7 @@ const sandraRoutes = require('./routes/sandra'); // NEW: Routes from api-gateway
 
 const QwenService = require('./services/qwen'); // Multi-provider (Qwen/Gemini/OpenAI) con fallback a GPT-4o
 
-const CartesiaService = require('./services/cartesia');
+const StaticVoiceService = require('./services/voice-static'); // Voz estática Sandra (sin Cartesia)
 
 const BridgeDataService = require('./services/bridgeData');
 
@@ -104,7 +104,7 @@ const services = {
 
   qwen: new QwenService(), // Servicio principal para LLM (fallback a GPT-4o si Gemini falla)
 
-  cartesia: new CartesiaService(),
+  voice: new StaticVoiceService(), // Voz estática Sandra (sin latencia de API)
 
   bridgeData: new BridgeDataService(),
 
@@ -196,7 +196,7 @@ app.get(['/health', '/healthz'], (req, res) => {
 
       qwen: services.qwen.isReady(),
 
-      cartesia: services.cartesia.isReady(),
+      voice: services.voice.isReady(),
 
       bridgeData: services.bridgeData.isReady(),
 
@@ -236,7 +236,7 @@ app.get('/api/status', authMiddleware, (req, res) => {
 
       qwen: services.qwen.getStatus(),
 
-      cartesia: services.cartesia.getStatus(),
+      voice: services.voice.getStatus(),
 
       bridgeData: services.bridgeData.getStatus(),
 
@@ -498,13 +498,16 @@ async function handleAudioRoute(action, payload, services, ws) {
 
     case 'tts':
 
-      const audio = await services.cartesia.textToSpeech(payload.text, payload.voiceId);
+      // CAMBIO: Usar voz estática de Sandra en lugar de Cartesia (cero latencia)
+      const audio = await services.voice.textToSpeech(payload.text, payload.voiceId);
 
-      return { 
+      console.log('[VOICE] ✅ Voz estática Sandra retornada (sin latencia Cartesia)');
 
-        payload: { 
+      return {
 
-          audio, 
+        payload: {
+
+          audio,
 
           format: 'mp3',
 
@@ -585,7 +588,7 @@ async function handleAudioRoute(action, payload, services, ws) {
 
       console.log(' [MCP] Respuesta de IA (texto):', aiText);
 
-      const responseAudio = await services.cartesia.textToSpeech(aiText, payload.voiceId);
+      const responseAudio = await services.voice.textToSpeech(aiText, payload.voiceId);
 
       
 
@@ -667,11 +670,11 @@ async function handleConserjeRoute(action, payload, services, ws) {
         const voiceId = payload?.config?.voice_id || null;
 
         try {
-          if (!services.cartesia || !services.cartesia.isReady()) {
-            throw new Error('Cartesia no esta disponible para el saludo en vivo');
+          if (!services.voice || !services.voice.isReady()) {
+            throw new Error('Voz estática no está disponible para el saludo');
           }
 
-          const welcomeAudio = await services.cartesia.textToSpeech(welcomeText, voiceId);
+          const welcomeAudio = await services.voice.textToSpeech(welcomeText, voiceId);
           ws.send(JSON.stringify({
             route: 'audio',
             action: 'tts',

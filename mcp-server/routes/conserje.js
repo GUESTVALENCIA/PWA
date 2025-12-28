@@ -103,7 +103,7 @@ module.exports = (services) => {
       const llmText = (llmResponse && typeof llmResponse === 'object') ? llmResponse.text : String(llmResponse || '');
       
       // 3. Text-to-Speech (TTS)
-      const audioResponse = await services.cartesia.textToSpeech(llmText);
+      const audioResponse = await services.voice.textToSpeech(llmText);
       
       res.json({
         success: true,
