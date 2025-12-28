@@ -7,11 +7,21 @@ export default function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // Detectar si estamos en localhost
+  const isLocalhost = req.headers.host && (
+    req.headers.host.includes('localhost') || 
+    req.headers.host.includes('127.0.0.1') ||
+    req.headers.host.includes(':3000') ||
+    req.headers.host.includes(':4042')
+  );
+
   // Obtener variables de entorno
   const config = {
-    // URL del servidor MCP en Render (producción)
-    // Por defecto usa Render si no está configurada la variable
-    MCP_SERVER_URL: process.env.MCP_SERVER_URL || 'https://pwa-imbf.onrender.com',
+    // URL del servidor MCP
+    // En localhost usa localhost:4042, en producción usa Render
+    MCP_SERVER_URL: isLocalhost 
+      ? 'http://localhost:4042'
+      : (process.env.MCP_SERVER_URL || 'https://pwa-imbf.onrender.com'),
     MCP_TOKEN: process.env.MCP_TOKEN || null, // No exponer si no está configurado
     // Añadir otras configuraciones necesarias aquí
   };
