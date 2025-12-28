@@ -66,7 +66,7 @@ const services = {
   publicAPIs: new PublicAPIsService(),
 
   // Enterprise Streaming
-  deepgramStreaming: new DeepgramStreamingService(process.env.DEEPGRAM_API_KEY),
+  deepgramStreaming: new DeepgramStreamingService('50895f2c294f1b90a36d755f789fdd5839ce77ae'),
   llmStreaming: new LLMStreamingService(),
   ttsStreaming: new TTSStreamingService()
 };
@@ -146,7 +146,7 @@ wss.on('connection', (ws, req) => {
   // PIPELINE STATE
   ws.isProcessing = false;
   // Instantiate streaming session for this client
-  ws.dgSession = new DeepgramStreamingService(process.env.DEEPGRAM_API_KEY);
+  ws.dgSession = new DeepgramStreamingService('50895f2c294f1b90a36d755f789fdd5839ce77ae');
 
   ws.on('pong', () => { ws.isAlive = true; });
 
