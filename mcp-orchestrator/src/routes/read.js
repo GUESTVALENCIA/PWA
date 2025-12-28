@@ -1,43 +1,54 @@
 /**
- * Ruta de Lectura (READ ONLY)
- * GET /api/projects/:projectId/read
+ * Read-Only Routes
+ * GET /api/projects/:projectId/read - Get read-only project information
  */
 
 import express from 'express';
-import { projectManager, stateManager } from '../../server.js';
-import { logger } from '../utils/logger.js';
+import logger from '../utils/logger.js';
 
 const router = express.Router();
 
-router.get('/projects/:projectId/read', (req, res) => {
+/**
+ * GET /api/projects/:projectId/read
+ * Get read-only access to project information
+ */
+router.get('/projects/:projectId/read', async (req, res, next) => {
   try {
     const { projectId } = req.params;
-    const project = projectManager.getProject(projectId);
+    const agentId = req.agent?.id || 'unknown';
 
+    const { project: projectManager, neon: neonService } = req.services;
+
+    // Get project
+    const project = projectManager.getProject(projectId);
     if (!project) {
-      return res.status(404).json({ error: 'Proyecto no encontrado' });
+      return res.status(404).json({ error: 'Project not found' });
     }
 
-    const proposals = Array.from(stateManager.proposals.values())
-      .filter(p => p.project_id === projectId);
+    // Get lock status if database available
+    let lockStatus = { status: 'unknown' };
+    if (neonService) {
+      lockStatus = await neonService.checkProjectLock(projectId) || { status: 'unlocked' };
+    }
 
     res.json({
-      projectId: project.id,
+      id: project.id,
       name: project.name,
+      path: project.path,
       status: project.status,
-      lock_status: project.lock_status,
+      lock_status: lockStatus.status,
+      locked_by: lockStatus.locked_by || null,
+      locked_at: lockStatus.locked_at || null,
       permissions: {
         read: true,
-        propose: !projectManager.isProjectLocked(projectId),
-        implement: false
+        propose: lockStatus.status === 'unlocked' || lockStatus.locked_by === agentId,
+        implement: lockStatus.locked_by === agentId
       },
-      context: project.context,
-      activeProposals: proposals.length,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    logger.error('Error en READ:', error);
-    res.status(500).json({ error: error.message });
+    logger.error('Failed to read project:', error);
+    next(error);
   }
 });
 
