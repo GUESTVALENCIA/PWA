@@ -637,6 +637,14 @@
           });
         }
 
+        // Hangup button listener
+        const hangupBtn = document.getElementById('sandra-hangup-btn');
+        if (hangupBtn) {
+          hangupBtn.addEventListener('click', () => {
+            this.hangupCall();
+          });
+        }
+
 	        if (btnCallToggle) {
 	            btnCallToggle.addEventListener('click', () => {
 	                // Toggle logic: for now, it starts call if not started
@@ -928,7 +936,37 @@
 	        }, 12000);
 	      }
 
-	      stopAudioCapture() {
+	      hangupCall() {
+        console.log('📞 Colgando llamada...');
+        
+        // Cerrar WebSocket
+        if (this.activeCall) {
+          try {
+            this.activeCall.close();
+          } catch (_) {}
+          this.activeCall = null;
+        }
+        
+        // Detener captura de audio
+        this.stopAudioCapture();
+        
+        // Limpiar estado
+        this.setHeroCallActive(false);
+        this.awaitingResponse = false;
+        this.isSpeaking = false;
+        
+        // Ocultar controles de llamada
+        const callControls = document.getElementById('sandra-call-controls');
+        if (callControls) callControls.classList.add('hidden');
+        
+        // Mostrar botón de llamada
+        const callBtn = document.getElementById('sandra-call-btn');
+        if (callBtn) callBtn.style.display = 'flex';
+        
+        console.log('✅ Llamada colgada correctamente');
+      }
+
+      stopAudioCapture() {
 	        this.clearResponseWatchdog();
 	        this.awaitingResponse = false;
 	        this.isSpeaking = false;
@@ -1109,16 +1147,32 @@
               return;
             }
 
-            // Manejar errores del servidor
+            // Manejar errores del servidor (con o sin route/action)
             if (data.error) {
               console.error('[MCP] ❌ Error del servidor:', data.error);
+              this.clearResponseWatchdog();
+              this.awaitingResponse = false;
+              
+              // Si es error de transcripción, enviar mensaje de error al usuario
+              if (data.payload && data.payload.type === 'transcription_error') {
+                console.warn('[MCP] ⚠️ Error de transcripción, reintentando...');
+                // No hacer nada, el watchdog reintentará
+              }
+              return;
+            }
+
+            // Manejar respuestas de STT con error
+            if (data.route === 'audio' && data.action === 'stt' && data.payload && data.payload.error) {
+              console.error('[MCP] ❌ Error en STT:', data.payload.error);
               this.clearResponseWatchdog();
               this.awaitingResponse = false;
               return;
             }
 
             // Log para mensajes no manejados
-            console.log('[MCP] ⚠️ Mensaje no manejado:', data);
+            if (data.route !== 'system' && data.action !== 'connected') {
+              console.log('[MCP] ⚠️ Mensaje no manejado:', data);
+            }
         };
 
 	        ws.onclose = () => {

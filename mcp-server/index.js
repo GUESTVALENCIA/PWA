@@ -410,7 +410,13 @@ wss.on('connection', (ws, req) => {
 
       console.error('Error procesando mensaje WebSocket:', error);
 
-      ws.send(JSON.stringify({ error: error.message }));
+      // Enviar error con formato correcto (route y action)
+      ws.send(JSON.stringify({ 
+        route: route || 'system',
+        action: action || 'error',
+        error: error.message,
+        payload: { error: error.message }
+      }));
 
     }
 
@@ -498,9 +504,24 @@ async function handleAudioRoute(action, payload, services, ws) {
 
     case 'stt':
 
-      const transcript = await services.transcriber.transcribe(payload.audio);
-
-      console.log(' [MCP] Audio transcrito:', transcript);
+      let transcript;
+      try {
+        transcript = await services.transcriber.transcribe(payload.audio);
+        console.log(' [MCP] Audio transcrito:', transcript);
+      } catch (transcribeError) {
+        console.error(' [MCP] Error en transcripción:', transcribeError.message);
+        // Enviar error al cliente en formato correcto
+        ws.send(JSON.stringify({
+          route: 'audio',
+          action: 'stt',
+          error: transcribeError.message,
+          payload: {
+            error: 'No se pudo transcribir el audio. Por favor, intenta de nuevo.',
+            type: 'transcription_error'
+          }
+        }));
+        return null;
+      }
 
       
 
