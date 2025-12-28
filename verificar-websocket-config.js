@@ -11,7 +11,7 @@ const VERCEL_API_TOKEN = 'i1lM2Keza4869FscLnkWquYi';
 const VERCEL_API_URL = 'api.vercel.com';
 const PROJECT_ID = 'prj_xXv3QbfvVdW18VTNijbaxOlv2wI2';
 const MCP_SERVER_URL = 'https://pwa-imbf.onrender.com';
-const VERCEL_DEPLOYMENT_URL = 'https://pwa-chi-six.vercel.app';
+const VERCEL_DEPLOYMENT_URL = 'https://guestsvalencia.es';
 
 console.log('🔍 VERIFICACIÓN COMPLETA DEL SISTEMA WEBSOCKET\n');
 console.log('='.repeat(60));
