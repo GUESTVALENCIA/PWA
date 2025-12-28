@@ -2,7 +2,7 @@
  * Middleware para detectar proyecto actual
  */
 
-export const projectDetector = (req, res, next) => {
+const projectDetector = (req, res, next) => {
   // Detectar proyecto desde URL params
   let projectId = req.params.projectId;
 
@@ -24,3 +24,5 @@ export const projectDetector = (req, res, next) => {
   req.projectId = projectId;
   next();
 };
+
+export default projectDetector;

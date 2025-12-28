@@ -6,7 +6,7 @@ const requestCounts = new Map();
 const WINDOW = 60000; // 1 minuto
 const LIMIT = 100;
 
-export const rateLimiter = (req, res, next) => {
+const rateLimiter = (req, res, next) => {
   const agentId = req.agent?.id || 'anonymous';
   const now = Date.now();
 
@@ -34,3 +34,5 @@ export const rateLimiter = (req, res, next) => {
 
   next();
 };
+
+export default rateLimiter;
