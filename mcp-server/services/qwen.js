@@ -69,27 +69,55 @@ class QwenService {
 
     const systemPrompt = `Eres Sandra, la conserje virtual de GuestsValencia. ${context}`;
 
-    const response = await this.makeRequest(
-      'api.groq.com',
-      '/openai/v1/chat/completions',
-      {
-        model: 'qwen/qwen-2.5-72b-instruct',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: message }
-        ],
-        temperature: 0.7,
-        max_tokens: 2000
-      },
-      {
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-        'Content-Type': 'application/json'
-      }
-    );
+    // Modelos disponibles en Groq (2025)
+    // Intentar primero con qwen2.5-72b-instruct (sin prefijo qwen/)
+    let model = 'qwen2.5-72b-instruct';
+    let response;
+    
+    try {
+      response = await this.makeRequest(
+        'api.groq.com',
+        '/openai/v1/chat/completions',
+        {
+          model: model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: message }
+          ],
+          temperature: 0.7,
+          max_tokens: 2000
+        },
+        {
+          'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      );
+    } catch (error) {
+      // Si falla, intentar con otro modelo disponible
+      console.warn(`[GROQ] Modelo ${model} no disponible, intentando con mixtral-8x7b-32768`);
+      model = 'mixtral-8x7b-32768';
+      response = await this.makeRequest(
+        'api.groq.com',
+        '/openai/v1/chat/completions',
+        {
+          model: model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: message }
+          ],
+          temperature: 0.7,
+          max_tokens: 2000
+        },
+        {
+          'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      );
+    }
 
     return {
       text: response.choices[0].message.content,
-      model: 'qwen/qwen-2.5-72b-instruct',
+      model: model,
       usage: response.usage
     };
   }

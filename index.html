@@ -425,9 +425,13 @@
     // Sandra Gateway Client
     class SandraGateway {
       constructor() {
-        // Dynamic base URL detection
-        if (window.location.hostname === 'localhost' || window.location.port === '4040') {
-          this.baseUrl = '/api';
+        // Dynamic base URL detection - En localhost usar servidor MCP directamente
+        const isLocalhost = window.location.hostname === 'localhost' || 
+                           window.location.hostname === '127.0.0.1' ||
+                           window.location.port === '4042';
+        
+        if (isLocalhost) {
+          this.baseUrl = 'http://localhost:4042/api';
         } else {
           this.baseUrl = '/api';
         }

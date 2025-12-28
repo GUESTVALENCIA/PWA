@@ -258,7 +258,7 @@ async function callGroq(message, systemPrompt) {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: 'qwen/qwen-2.5-72b-instruct',
+      model: 'qwen2.5-72b-instruct', // Modelo correcto sin prefijo qwen/
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: message }
