@@ -448,6 +448,17 @@ class WebSocketStreamClient {
         }
         break;
 
+      case 'audio':
+        if (action === 'tts') {
+          this.handleAudioResponse(payload);
+        } else if (action === 'stt') {
+          // STT response (transcription result)
+          if (payload.transcript) {
+            this.handleTranscription({ text: payload.transcript });
+          }
+        }
+        break;
+
       case 'error':
         console.error('[WEBSOCKET-CLIENT] ❌ Error del servidor:', payload.message || payload.error);
         this.showError(payload.message || payload.error || 'Error desconocido');
