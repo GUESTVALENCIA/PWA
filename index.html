@@ -745,7 +745,8 @@
         if (isLocalhost) {
           this.baseUrl = 'http://localhost:4042/api';
         } else {
-          this.baseUrl = '/api';
+          // FIX: Use absolute URL for Render Backend in production
+          this.baseUrl = 'https://pwa-imbf.onrender.com/api';
         }
       }
 
