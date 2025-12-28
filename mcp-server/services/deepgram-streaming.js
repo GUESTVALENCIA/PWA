@@ -8,7 +8,7 @@ class DeepgramStreamingService {
         this.keepAliveInterval = null;
     }
 
-    startStream(onTranscript) {
+    startStream(sampleRate, onTranscript) {
         try {
             this.connection = this.client.listen.live({
                 model: 'nova-2-phonecall',
@@ -19,7 +19,7 @@ class DeepgramStreamingService {
                 vad_events: true,
                 no_delay: true,
                 encoding: 'linear16', // Raw PCM
-                sample_rate: 24000     // Matches client
+                sample_rate: sampleRate || 24000     // Dynamic from client
             });
 
             this.connection.on(LiveTranscriptionEvents.Open, () => {

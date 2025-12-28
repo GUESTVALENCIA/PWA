@@ -130,7 +130,7 @@ class WebSocketStreamClient {
       // Send handshake
       this.ws.send(JSON.stringify({
         type: 'config',
-        sampleRate: this.config.sampleRate
+        sampleRate: this.audioContext.sampleRate // Use ACTUAL hardware sample rate
       }));
     };
 
