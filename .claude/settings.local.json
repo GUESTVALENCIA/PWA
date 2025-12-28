@@ -32,7 +32,9 @@
       "Bash(node trigger-render-deploy.js:*)",
       "Bash(node force-render-config.js:*)",
       "Bash(tail:*)",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(node check-render-status.js:*)",
+      "Bash(node manual-trigger-deploy.js:*)"
     ]
   }
 }
