@@ -43,70 +43,66 @@ class TranscriberService {
     if (typeof audioData === 'string') {
       // Validar que base64 no esté vacío
       if (audioData.length === 0) {
-        throw new Error('Audio data is empty');
+        // Silencio/vacío no es error, retornamos string vacío
+        return '';
       }
 
       try {
         audioBuffer = Buffer.from(audioData, 'base64');
       } catch (error) {
-        throw new Error(`Invalid base64 audio data: ${error.message}`);
+        console.warn('[DEEPGRAM] Invalid base64, treating as silence:', error.message);
+        return '';
       }
 
       // Validar tamaño del buffer decodificado
-      if (audioBuffer.length === 0) {
-        throw new Error('Decoded audio buffer is empty');
-      }
-
       if (audioBuffer.length < 100) {
-        throw new Error(`Audio buffer too small (${audioBuffer.length} bytes). Minimum 100 bytes required`);
+        // Audio muy corto es probablemente silencio
+        return '';
       }
     } else {
       audioBuffer = audioData;
     }
 
-    console.log(`[DEEPGRAM] Sending ${audioBuffer.length} bytes to Deepgram API (model: ${this.model}, language: ${this.language})`);
+    // console.log(`[DEEPGRAM] Sending ${audioBuffer.length} bytes to Deepgram API`);
 
-    // Deepgram detecta automáticamente el formato, pero especificamos webm para mayor claridad
-    // ya que el widget graba en audio/webm;codecs=opus
-    const response = await this.makeRequest(
-      'api.deepgram.com',
-      `/v1/listen?model=${this.model}&language=${this.language}&punctuate=true&smart_format=true`,
-      audioBuffer,
-      {
-        'Authorization': `Token ${this.apiKey}`,
-        'Content-Type': 'audio/webm;codecs=opus'
-      },
-      'binary'
-    );
+    try {
+      // Deepgram detecta automáticamente el formato, pero especificamos webm para mayor claridad
+      const response = await this.makeRequest(
+        'api.deepgram.com',
+        `/v1/listen?model=${this.model}&language=${this.language}&punctuate=true&smart_format=true`,
+        audioBuffer,
+        {
+          'Authorization': `Token ${this.apiKey}`,
+          'Content-Type': 'audio/webm;codecs=opus'
+        },
+        'binary'
+      );
 
-    // Validar respuesta de Deepgram con mejor manejo de errores
-    if (!response || typeof response !== 'object') {
-      console.error('[DEEPGRAM] Respuesta no es un objeto:', typeof response);
-      throw new Error('Respuesta inválida de Deepgram: no es un objeto');
+      // Validar respuesta de Deepgram con mejor manejo de errores
+      if (!response || typeof response !== 'object') {
+        throw new Error('Respuesta inválida de Deepgram: no es un objeto JSON');
+      }
+
+      // Si hay error en la respuesta JSON
+      if (response.error) {
+        throw new Error(`Deepgram API Error: ${response.error.message || response.error}`);
+      }
+
+      // Tratar falta de resultados como silencio (no error)
+      if (!response.results || !response.results.channels || !response.results.channels[0].alternatives) {
+        // console.log('[DEEPGRAM] Respuesta válida pero sin transcripción (silencio)');
+        return '';
+      }
+
+      const transcript = response.results.channels[0].alternatives[0].transcript;
+      return transcript || ''; // Retornar vacío si transcript es null/undefined
+
+    } catch (error) {
+      console.error('[DEEPGRAM] Transaction Error:', error.message);
+      // En caso de error de red o API, retornamos vacío para no romper el flujo, 
+      // pero logueamos el error.
+      return '';
     }
-
-    if (!response.results) {
-      console.error('[DEEPGRAM] Respuesta sin results:', JSON.stringify(response).substring(0, 200));
-      throw new Error('Respuesta inválida de Deepgram: sin results');
-    }
-
-    if (!response.results.channels || !Array.isArray(response.results.channels) || response.results.channels.length === 0) {
-      console.error('[DEEPGRAM] Respuesta sin channels:', JSON.stringify(response.results).substring(0, 200));
-      throw new Error('Respuesta inválida de Deepgram: sin channels');
-    }
-
-    if (!response.results.channels[0].alternatives || !Array.isArray(response.results.channels[0].alternatives) || response.results.channels[0].alternatives.length === 0) {
-      console.error('[DEEPGRAM] Respuesta sin alternatives:', JSON.stringify(response.results.channels[0]).substring(0, 200));
-      throw new Error('Respuesta inválida de Deepgram: sin alternatives');
-    }
-
-    const transcript = response.results.channels[0].alternatives[0].transcript;
-    if (!transcript || typeof transcript !== 'string') {
-      console.error('[DEEPGRAM] Transcript inválido:', transcript);
-      throw new Error('Respuesta inválida de Deepgram: transcript no es string');
-    }
-
-    return transcript;
   }
 
   makeRequest(hostname, path, data, headers, dataType = 'json') {
