@@ -2278,7 +2278,7 @@
 
       return new Promise((resolve, reject) => {
 
-        const audio = new Audio(`data:audio/mp3;base64,${audioBase64}`);
+        const audio = new Audio(`data:audio/mpeg;base64,${audioBase64}`);
 
         this.currentAudio = audio;
 

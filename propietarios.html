@@ -3752,7 +3752,7 @@
 	          byteNumbers[i] = byteCharacters.charCodeAt(i);
         }
         const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: 'audio/mp3' });
+        const blob = new Blob([byteArray], { type: 'audio/mpeg' });
         const blobUrl = URL.createObjectURL(blob);
 
         const audio = new Audio(blobUrl);

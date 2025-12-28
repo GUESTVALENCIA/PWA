@@ -19,7 +19,8 @@
       "Bash(__NEW_LINE__ echo \"\")",
       "Bash(config \")",
       "Bash(npm install)",
-      "Bash(timeout 5 npm start:*)"
+      "Bash(timeout 5 npm start:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfix: Corregir errores de API de conversación \\(Deepgram y audio MIME\\)\n\n- Deepgram: Agregar validación de código HTTP antes de parsear JSON\n- Deepgram: Mejorar validación de audio base64 y tamaño de buffer\n- Deepgram: Corregir Content-Type con parámetro ;codecs=opus\n- Deepgram: Agregar logging para debugging de errores\n- Audio: Cambiar MIME type de audio/mp3 a audio/mpeg en todos los archivos\n- Audio: Incluir mejor manejo de errores HTTP de Deepgram\n\nFixes: Respuesta inválida de Deepgram, NotSupportedError en reproducción de audio\n\n🤖 Generated with Claude Code\n\nCo-Authored-By: Claude Haiku 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }
