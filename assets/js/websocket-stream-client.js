@@ -204,6 +204,15 @@ class WebSocketStreamClient {
       source.connect(this.workletNode);
       this.workletNode.connect(this.audioContext.destination); // Keep alive
 
+      // CRITICAL: Force initialization of server-side stream
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        console.log('[WEBSOCKET-CLIENT] Sending config handshake for new call...');
+        this.ws.send(JSON.stringify({
+          type: 'config',
+          sampleRate: this.config.sampleRate
+        }));
+      }
+
       this.isRecording = true;
       console.log('[WEBSOCKET-CLIENT] Listening (Low Latency Mode)');
 
