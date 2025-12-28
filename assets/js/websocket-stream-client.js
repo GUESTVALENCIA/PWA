@@ -72,15 +72,21 @@ class WebSocketStreamClient {
   }
 
   async loadConfig() {
-    // Config loader logic - FORCED LOCALHOST FOR DEBUGGING
     try {
-      console.log('[WEBSOCKET-CLIENT] 🔧 MODO DEBUG: Forzando conexión a Localhost');
-      this.config.wsUrl = 'ws://localhost:4042';
-      this.config.mcpToken = null;
-      console.log('[WEBSOCKET-CLIENT] Config loaded (FORCED):', this.config.wsUrl);
+      const isLocal = window.location.hostname.includes('localhost');
+      const configUrl = isLocal ? 'http://localhost:4042/api/config' : '/api/config';
+      const res = await fetch(configUrl);
+      const data = await res.json();
+
+      let wsUrl = data.MCP_SERVER_URL || 'wss://pwa-imbf.onrender.com';
+      wsUrl = wsUrl.replace('http', 'ws');
+
+      this.config.wsUrl = wsUrl;
+      this.config.mcpToken = data.MCP_TOKEN;
+      console.log('[WEBSOCKET-CLIENT] Config loaded:', this.config.wsUrl);
     } catch (e) {
       console.warn('[WEBSOCKET-CLIENT] Config load failed, using fallback.');
-      this.config.wsUrl = 'ws://localhost:4042';
+      this.config.wsUrl = 'wss://pwa-imbf.onrender.com';
     }
   }
 
