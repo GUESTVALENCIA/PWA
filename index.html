@@ -433,19 +433,24 @@
         }
       }
 
-      async sendMessage(message, role = 'hospitality') {
+      async sendMessage(message, role = 'hospitality', model = 'groq') {
         try {
           const response = await fetch(`${this.baseUrl}/sandra/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message, role })
+            body: JSON.stringify({ message, role, model })
           });
 
-          if (!response.ok) throw new Error('Gateway Error');
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `HTTP ${response.status}`);
+          }
+          
           const data = await response.json();
+          console.log(`[Chat] Respuesta recibida del modelo: ${data.model || 'groq'}`);
           return data.reply;
         } catch (error) {
-          console.error('Conversation Error:', error);
+          console.error('[Chat] Error:', error);
           throw error;
         }
       }

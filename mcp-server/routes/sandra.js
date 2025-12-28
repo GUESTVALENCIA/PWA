@@ -190,31 +190,174 @@ const orchestrator = new AIOrchestrator();
 // Routes
 router.post('/chat', async (req, res) => {
   try {
-    const { message, role } = req.body;
+    const { message, role, model = 'groq' } = req.body;
     if (!message) return res.status(400).json({ error: 'Missing message' });
 
-    // USAR GROQ (Qwen) directamente - NO OpenAI/Gemini
-    const services = req.app.locals.services;
-    if (!services || !services.qwen) {
-      throw new Error('Servicio Qwen no disponible');
+    const systemPrompt = 'Eres Sandra, la conserje virtual de GuestsValencia. Eres amable, profesional y siempre disponible para ayudar.';
+    let reply;
+
+    // Selector de modelo: groq (default), openai, anthropic, gemini
+    switch (model.toLowerCase()) {
+      case 'groq':
+      case 'qwen':
+        // GROQ (gratis para producción) - DEFAULT
+        if (!process.env.GROQ_API_KEY) {
+          throw new Error('GROQ_API_KEY no configurada');
+        }
+        reply = await callGroq(message, systemPrompt);
+        break;
+
+      case 'openai':
+      case 'gpt':
+        // OpenAI GPT-4o
+        if (!process.env.OPENAI_API_KEY) {
+          throw new Error('OPENAI_API_KEY no configurada');
+        }
+        reply = await callOpenAI(message, systemPrompt);
+        break;
+
+      case 'anthropic':
+      case 'claude':
+        // Anthropic Claude
+        if (!process.env.ANTHROPIC_API_KEY) {
+          throw new Error('ANTHROPIC_API_KEY no configurada');
+        }
+        reply = await callAnthropic(message, systemPrompt);
+        break;
+
+      case 'gemini':
+        // Google Gemini
+        if (!process.env.GEMINI_API_KEY) {
+          throw new Error('GEMINI_API_KEY no configurada');
+        }
+        reply = await callGemini(message, systemPrompt);
+        break;
+
+      default:
+        // Fallback a Groq si el modelo no es reconocido
+        console.warn(`Modelo desconocido "${model}", usando Groq por defecto`);
+        if (!process.env.GROQ_API_KEY) {
+          throw new Error('GROQ_API_KEY no configurada');
+        }
+        reply = await callGroq(message, systemPrompt);
     }
 
-    if (!services.qwen.isReady()) {
-      throw new Error('Servicio Qwen no está listo. Verifica GROQ_API_KEY.');
-    }
-
-    const response = await services.qwen.processMessage(message, {
-      role: role || 'conserje',
-      context: 'Eres Sandra, la conserje virtual de GuestsValencia. Eres amable, profesional y siempre disponible para ayudar.'
-    });
-
-    const reply = (response && typeof response === 'object') ? response.text : String(response || '');
-    res.json({ reply });
+    res.json({ reply, model: model.toLowerCase() });
   } catch (error) {
-    console.error("[GROQ] Sandra Chat Error:", error);
+    console.error(`[${req.body.model || 'groq'}] Sandra Chat Error:`, error);
     res.status(500).json({ error: error.message });
   }
 });
+
+// Función para llamar a Groq (Qwen)
+async function callGroq(message, systemPrompt) {
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'qwen/qwen-2.5-72b-instruct',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: message }
+      ],
+      temperature: 0.7,
+      max_tokens: 2000
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Groq API Error: ${response.status} - ${errorText.slice(0, 200)}`);
+  }
+
+  const data = await response.json();
+  return data.choices[0].message.content;
+}
+
+// Función para llamar a OpenAI
+async function callOpenAI(message, systemPrompt) {
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: message }
+      ],
+      temperature: 0.7,
+      max_tokens: 2000
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenAI API Error: ${response.status} - ${errorText.slice(0, 200)}`);
+  }
+
+  const data = await response.json();
+  return data.choices[0].message.content;
+}
+
+// Función para llamar a Anthropic (Claude)
+async function callAnthropic(message, systemPrompt) {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': process.env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: 2000,
+      system: systemPrompt,
+      messages: [
+        { role: 'user', content: message }
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Anthropic API Error: ${response.status} - ${errorText.slice(0, 200)}`);
+  }
+
+  const data = await response.json();
+  return data.content[0].text;
+}
+
+// Función para llamar a Gemini
+async function callGemini(message, systemPrompt) {
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      contents: [{
+        parts: [{ text: `${systemPrompt}\n\nUser: ${message}` }]
+      }]
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Gemini API Error: ${response.status} - ${errorText.slice(0, 200)}`);
+  }
+
+  const data = await response.json();
+  if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+    throw new Error('Gemini API: Respuesta inválida');
+  }
+  return data.candidates[0].content.parts[0].text;
+}
 
 router.post('/voice', async (req, res) => {
   try {
