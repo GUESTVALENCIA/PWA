@@ -6,10 +6,40 @@
  * - Sends audio chunks to WebSocket server
  * - Receives transcription and response streaming
  * - Integrates with voice library manager for Sandra voice
+ * 
+ * CRITICAL: This client ALWAYS connects to MCP server on Render (wss://pwa-imbf.onrender.com)
+ * NEVER connects to Vercel - Vercel does not support WebSocket
  */
+
+// CRITICAL: Global validation - block any WebSocket connection to Vercel
+(function() {
+  const originalWebSocket = window.WebSocket;
+  window.WebSocket = function(url, protocols) {
+    if (typeof url === 'string') {
+      if (url.includes('vercel.app') || url.includes('pwa-chi-six') || url.includes('/ws/stream')) {
+        console.error('[WEBSOCKET-CLIENT] ❌ BLOQUEO GLOBAL: Intento de conectar a Vercel bloqueado');
+        console.error('[WEBSOCKET-CLIENT] ❌ URL bloqueada:', url);
+        console.error('[WEBSOCKET-CLIENT] ✅ Redirigiendo a servidor MCP en Render');
+        url = 'wss://pwa-imbf.onrender.com';
+      }
+    }
+    return new originalWebSocket(url, protocols);
+  };
+  // Copy static properties
+  Object.setPrototypeOf(window.WebSocket, originalWebSocket);
+  Object.getOwnPropertyNames(originalWebSocket).forEach(prop => {
+    if (prop !== 'prototype' && prop !== 'length' && prop !== 'name') {
+      window.WebSocket[prop] = originalWebSocket[prop];
+    }
+  });
+})();
 
 class WebSocketStreamClient {
   constructor() {
+    // CRITICAL: Block any attempt to use Vercel URL immediately
+    console.log('[WEBSOCKET-CLIENT] 🚀 Inicializando cliente WebSocket...');
+    console.log('[WEBSOCKET-CLIENT] ⚠️  NUNCA usar window.location para WebSocket');
+    
     this.ws = null;
     this.mediaRecorder = null;
     this.audioChunks = [];
@@ -33,6 +63,7 @@ class WebSocketStreamClient {
     this.configLoaded = false; // Flag to prevent init before config
 
     // Configuration - will be loaded from API
+    // CRITICAL: wsUrl MUST be null initially and loaded from /api/config
     this.config = {
       wsUrl: null, // CRITICAL: Must be loaded from /api/config, NEVER use window.location
       audioMimeType: 'audio/webm;codecs=opus',
@@ -43,9 +74,35 @@ class WebSocketStreamClient {
 
     // CRITICAL: Load config FIRST, then initialize
     // DO NOT attempt connection until config is loaded
+    // This is the ONLY way to get the WebSocket URL
     this.loadConfigAndInit().catch(err => {
       console.error('[WEBSOCKET-CLIENT] ❌ Error fatal en inicialización:', err);
+      // Even on error, use Render fallback, NEVER Vercel
+      this.config.wsUrl = 'wss://pwa-imbf.onrender.com';
+      this.configLoaded = true;
+    this.init();
     });
+  }
+  
+  /**
+   * CRITICAL: Override any attempt to set incorrect URL
+   * This method blocks setting wsUrl to Vercel or incorrect values
+   */
+  setWsUrl(url) {
+    if (!url) {
+      this.config.wsUrl = null;
+      return;
+    }
+    
+    // Block Vercel URLs
+    if (url.includes('vercel.app') || url.includes('pwa-chi-six') || url.includes('/ws/stream')) {
+      console.error('[WEBSOCKET-CLIENT] ❌ BLOQUEADO: Intento de establecer URL incorrecta:', url);
+      console.error('[WEBSOCKET-CLIENT] ❌ Usando servidor MCP en Render en su lugar');
+      this.config.wsUrl = 'wss://pwa-imbf.onrender.com';
+      return;
+    }
+    
+    this.config.wsUrl = url;
   }
 
   /**
@@ -87,7 +144,8 @@ class WebSocketStreamClient {
         throw new Error(`URL WebSocket inválida: ${wsUrl}`);
       }
       
-      this.config.wsUrl = wsUrl;
+      // Use setter to ensure validation
+      this.setWsUrl(wsUrl);
       this.config.mcpToken = config.MCP_TOKEN || null;
       this.configLoaded = true;
       
@@ -103,9 +161,9 @@ class WebSocketStreamClient {
       console.error('[WEBSOCKET-CLIENT] ❌ Error cargando configuración:', err);
       console.error('[WEBSOCKET-CLIENT] Stack:', err.stack);
       
-      // Fallback to default MCP server (Render)
+      // Fallback to default MCP server (Render) - NEVER Vercel
       const defaultUrl = 'wss://pwa-imbf.onrender.com';
-      this.config.wsUrl = defaultUrl;
+      this.setWsUrl(defaultUrl);
       this.config.mcpToken = null;
       this.configLoaded = true;
       
@@ -199,6 +257,7 @@ class WebSocketStreamClient {
       let wsUrl = this.config.wsUrl;
       
       // CRITICAL: Final validation - NEVER connect to Vercel or use /ws/stream path
+      // This is the LAST line of defense - if URL is wrong, FORCE correct one
       const blockedPatterns = [
         'vercel.app',
         'pwa-chi-six',
@@ -207,19 +266,22 @@ class WebSocketStreamClient {
         window.location.host + '/ws'
       ];
       
-      const isBlocked = blockedPatterns.some(pattern => wsUrl.includes(pattern));
+      const isBlocked = blockedPatterns.some(pattern => wsUrl && wsUrl.includes(pattern));
       
-      if (isBlocked) {
+      if (isBlocked || !wsUrl || wsUrl.includes('vercel')) {
         console.error('[WEBSOCKET-CLIENT] ❌ ERROR CRÍTICO: URL bloqueada detectada');
-        console.error('[WEBSOCKET-CLIENT] ❌ URL:', wsUrl);
-        console.error('[WEBSOCKET-CLIENT] ❌ Vercel no soporta WebSocket - debe usar servidor MCP en Render');
-        console.error('[WEBSOCKET-CLIENT] ❌ Recargando configuración...');
+        console.error('[WEBSOCKET-CLIENT] ❌ URL detectada:', wsUrl);
+        console.error('[WEBSOCKET-CLIENT] ❌ Vercel no soporta WebSocket - FORZANDO servidor MCP en Render');
         
-        // Force reload config
-        this.configLoaded = false;
-        this.config.wsUrl = null;
-        await this.loadConfigAndInit();
-        return;
+        // FORCE correct URL immediately - don't wait for reload
+        wsUrl = 'wss://pwa-imbf.onrender.com';
+        this.config.wsUrl = wsUrl;
+        this.setWsUrl(wsUrl);
+        
+        console.error('[WEBSOCKET-CLIENT] ✅ URL corregida a:', wsUrl);
+        
+        // Don't reload config if we already have the correct URL
+        // Just continue with the corrected URL
       }
       
       // Validate that URL points to Render MCP server
@@ -477,7 +539,7 @@ class WebSocketStreamClient {
 
     if (text) {
       this.currentResponse += text;
-      // Display streaming text in real-time
+    // Display streaming text in real-time
       this.displayResponseStreaming(text);
     }
   }
@@ -870,8 +932,8 @@ class WebSocketStreamClient {
 
     try {
       window.websocketStreamClient = new WebSocketStreamClient();
-      // Also expose as speechToChatSystem for compatibility
-      window.speechToChatSystem = window.websocketStreamClient;
+  // Also expose as speechToChatSystem for compatibility
+  window.speechToChatSystem = window.websocketStreamClient;
       console.log('[WEBSOCKET-CLIENT] ✅ Script cargado correctamente');
     } catch (err) {
       console.error('[WEBSOCKET-CLIENT] ❌ Error inicializando:', err);
@@ -880,9 +942,9 @@ class WebSocketStreamClient {
   }
 
   // Initialize when DOM is ready
-  if (document.readyState === 'loading') {
+if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initialize);
-  } else {
+} else {
     // DOM already loaded
     initialize();
   }
