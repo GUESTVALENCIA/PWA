@@ -10,7 +10,7 @@ const path = require('path');
 
 const VERCEL_API_TOKEN = 'i1lM2Keza4869FscLnkWquYi';
 const VERCEL_API_URL = 'api.vercel.com';
-const PROJECT_ID = 'prj_j0oMCNvOgiMauVLQrYIkaHFymn8o'; // Proyecto Sandra
+const PROJECT_ID = 'prj_xXv3QbfvVdW18VTNijbaxOlv2wI2'; // Proyecto PWA
 
 // Variables extraídas del archivo VARIABLESFULL.txt
 const VARIABLES = {
