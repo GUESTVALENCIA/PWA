@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Llamadas">
+  <meta name="theme-color" content="#667eea">
+
+  <title>Sistema de Llamadas Realtime</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="public/icon-192.png">
+  <link rel="apple-touch-icon" href="public/icon-152.png">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <h1 class="app-title">📞 Llamadas Enterprise</h1>
+      <div class="status-indicator" id="status">
+        <span class="status-dot"></span>
+        <span class="status-text">Desconectado</span>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="app-main">
+      <!-- Call Interface -->
+      <section class="call-section">
+        <div class="call-controls">
+          <button id="startCall" class="btn btn-primary btn-large">
+            <span class="btn-icon">📞</span>
+            <span class="btn-text">Iniciar Llamada</span>
+          </button>
+          <button id="endCall" class="btn btn-danger" disabled>
+            <span class="btn-icon">📴</span>
+            <span class="btn-text">Finalizar</span>
+          </button>
+          <button id="resetBtn" class="btn btn-secondary" disabled>
+            <span class="btn-icon">🔄</span>
+            <span class="btn-text">Reiniciar</span>
+          </button>
+        </div>
+
+        <!-- Conversation Panel -->
+        <div class="conversation-panel">
+          <div class="conversation-header">
+            <h3>💬 Conversación</h3>
+            <div class="metrics-display">
+              <span id="latencyDisplay">Latencia: -ms</span>
+            </div>
+          </div>
+          <div id="conversation" class="conversation-messages">
+            <div class="message system">
+              <span>Esperando conexión...</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Audio Visualizer -->
+        <div class="audio-visualizer-container">
+          <canvas id="visualizer" class="audio-visualizer" width="400" height="100"></canvas>
+          <div class="volume-display">
+            <div id="volumeBar" class="volume-bar"></div>
+            <span class="volume-label">Volumen</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Settings Panel -->
+      <aside class="settings-panel">
+        <h3>⚙️ Configuración</h3>
+        <div class="setting-group">
+          <label for="languageSelect">Idioma:</label>
+          <select id="languageSelect" class="setting-select">
+            <option value="es">Español</option>
+            <option value="en">English</option>
+            <option value="fr">Français</option>
+            <option value="de">Deutsch</option>
+            <option value="pt">Português</option>
+          </select>
+        </div>
+
+        <div class="setting-group">
+          <label for="llmSelect">Modelo IA:</label>
+          <select id="llmSelect" class="setting-select">
+            <option value="gemini">Gemini 2.0 Flash (Rápido)</option>
+            <option value="claude">Claude 3.5 Sonnet (Calidad)</option>
+            <option value="openai">GPT-4o-mini (General)</option>
+          </select>
+        </div>
+
+        <div class="setting-group">
+          <label for="ttsSelect">Voz:</label>
+          <select id="ttsSelect" class="setting-select">
+            <option value="elevenlabs">ElevenLabs (Premium)</option>
+            <option value="cartesia">Cartesia (Rápido)</option>
+            <option value="mivoz">MiVoz (Español Nativo)</option>
+          </select>
+        </div>
+
+        <div class="info-box">
+          <h4>ℹ️ Información</h4>
+          <ul>
+            <li><strong>Servidor:</strong> <span id="serverStatus">-</span></li>
+            <li><strong>Conexión:</strong> <span id="connectionStatus">-</span></li>
+            <li><strong>Cliente ID:</strong> <span id="clientId" class="monospace">-</span></li>
+          </ul>
+        </div>
+      </aside>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>🚀 Realtime Voice System v1.0 • <a href="#" class="footer-link">Docs</a> • <a href="#" class="footer-link">Support</a></p>
+    </footer>
+  </div>
+
+  <!-- Scripts -->
+  <script>
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js')
+        .then(reg => console.log('✅ Service Worker registered'))
+        .catch(err => console.log('⚠️ Service Worker registration failed'));
+    }
+  </script>
+  <script src="../../core/client/src/realtime-voice-client.js"></script>
+  <script src="js/app.js" type="module"></script>
+</body>
+</html>
