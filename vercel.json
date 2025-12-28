@@ -12,28 +12,8 @@
   },
   "rewrites": [
     {
-      "source": "/api/diagnostico",
-      "destination": "/api/diagnostico"
-    },
-    {
-      "source": "/api/config",
-      "destination": "/api/config"
-    },
-    {
-      "source": "/api/sandra/assistant",
-      "destination": "/api/sandra/assistant"
-    },
-    {
-      "source": "/api/sandra/realtime-token",
-      "destination": "/api/sandra/realtime-token"
-    },
-    {
-      "source": "/api/sandra/:path*",
-      "destination": "/api/api-gateway?endpoint=sandra/:path*"
-    },
-    {
       "source": "/api/:path*",
-      "destination": "/api/api-gateway?endpoint=:path*"
+      "destination": "/api/:path*"
     },
     {
       "source": "/((?!assets|api|icons|media|manifest\\.webmanifest|service-worker\\.js|sw\\.js|favicon\\.svg).*)",
@@ -64,10 +44,6 @@
         {
           "key": "X-XSS-Protection",
           "value": "1; mode=block"
-        },
-        {
-          "key": "X-Vercel-Toolbar",
-          "value": "disabled"
         },
         {
           "key": "Cache-Control",
