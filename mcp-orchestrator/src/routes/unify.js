@@ -1,102 +1,145 @@
 /**
- * Ruta de Unificación de Propuestas
- * POST /api/proposals/unify
- * POST /api/plans/:planId/approve
+ * Plan Unification Routes
+ * POST /api/proposals/unify - Unify multiple proposals into one plan
+ * POST /api/plans/:planId/approve - Approve a unified plan
  */
 
 import express from 'express';
-import { v4 as uuidv4 } from 'uuid';
-import { stateManager } from '../../server.js';
-import { logger } from '../utils/logger.js';
+import logger from '../utils/logger.js';
 
 const router = express.Router();
 
-router.post('/proposals/unify', (req, res) => {
+/**
+ * POST /api/proposals/unify
+ * Unify multiple proposals into a single plan
+ */
+router.post('/proposals/unify', async (req, res, next) => {
   try {
-    const { projectId, proposalIds, strategy } = req.body;
+    const { projectId, proposalIds, title, description, strategy } = req.body;
     const createdBy = req.agent?.id || 'system';
 
-    if (!proposalIds || proposalIds.length === 0) {
-      return res.status(400).json({ error: 'proposalIds requerido' });
+    const { unification: unificationService } = req.services;
+
+    // Validate required fields
+    if (!projectId || !proposalIds || proposalIds.length === 0) {
+      return res.status(400).json({
+        error: 'projectId and proposalIds array are required',
+        received: { projectId, proposalIds }
+      });
     }
 
-    const proposals = proposalIds.map(id => stateManager.getProposal(id)).filter(Boolean);
-
-    if (proposals.length === 0) {
-      return res.status(404).json({ error: 'No proposals found' });
-    }
-
-    // Generar plan unificado
-    const plan = {
-      id: uuidv4(),
-      project_id: projectId || proposals[0].project_id,
-      proposal_ids: proposalIds,
-      created_by: createdBy,
-      status: 'pending',
-      final_plan: {
-        files: [],
-        description: `Plan unificado de ${proposals.length} propuestas`,
-        strategy: strategy || 'merge_best_practices',
-        timestamp: new Date().toISOString()
-      }
-    };
-
-    stateManager.registerPlan(plan);
-
-    // Actualizar propuestas
-    proposalIds.forEach(id => {
-      stateManager.updateProposal(id, { status: 'unified' });
+    // Unify proposals using service
+    const result = await unificationService.unifyProposals(projectId, proposalIds, {
+      title: title || `Unified Plan from ${proposalIds.length} proposals`,
+      description,
+      strategy,
+      createdBy
     });
 
-    logger.info(`🎯 Plan unificado #${plan.id.substring(0, 8)} creado por ${createdBy}`);
+    const { plan, merged_files } = result;
+
+    logger.info(`✅ Plan unified: ${plan.id} from ${proposalIds.length} proposals`);
 
     res.status(201).json({
-      planId: plan.id,
-      projectId: plan.project_id,
+      id: plan.id,
+      project_id: plan.project_id,
       status: plan.status,
-      proposalsCount: proposals.length,
-      message: '✅ Plan unificado creado'
+      title: plan.title,
+      proposal_count: proposalIds.length,
+      merge_summary: {
+        total_files: merged_files.totalFiles,
+        conflicts: merged_files.conflictCount,
+        requires_manual_review: merged_files.requiresManualReview
+      },
+      created_at: plan.created_at,
+      message: 'Plan unified successfully'
     });
   } catch (error) {
-    logger.error('Error unificando propuestas:', error);
-    res.status(500).json({ error: error.message });
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+    logger.error('Failed to unify proposals:', error);
+    next(error);
   }
 });
 
-// POST /api/plans/:planId/approve
-router.post('/plans/:planId/approve', (req, res) => {
+/**
+ * POST /api/plans/:planId/approve
+ * Approve a unified plan for implementation
+ */
+router.post('/plans/:planId/approve', async (req, res, next) => {
   try {
     const { planId } = req.params;
-    const { approvedBy } = req.body;
+    const { assignTo } = req.body;
+    const approvalAgentId = req.agent?.id || 'system';
 
-    const plan = stateManager.getPlan(planId);
-    if (!plan) {
-      return res.status(404).json({ error: 'Plan no encontrado' });
+    const { unification: unificationService } = req.services;
+
+    // Approve plan using service
+    const plan = await unificationService.approvePlan(planId, approvalAgentId);
+
+    // Assign implementer if provided
+    if (assignTo) {
+      await unificationService.assignImplementer(planId, assignTo);
     }
 
-    const updated = stateManager.updatePlan(planId, {
-      status: 'approved',
-      approved_by: approvedBy || req.agent?.id,
-      approved_at: new Date().toISOString()
-    });
+    // Generate report
+    const report = await unificationService.generateUnificationReport(planId);
 
-    // Broadcast
-    stateManager.broadcastToAgents({
-      type: 'plan_approved',
-      planId,
-      approvedBy
-    });
-
-    logger.info(`✅ Plan #${planId.substring(0, 8)} aprobado`);
+    logger.info(`✅ Plan ${planId} approved by ${approvalAgentId}`);
 
     res.json({
-      planId: updated.id,
-      status: updated.status,
-      message: '✅ Plan aprobado. Listo para implementación.'
+      id: plan.id,
+      status: plan.status,
+      approved_by: plan.approval_agent_id,
+      approved_at: plan.approved_at,
+      assigned_to: assignTo,
+      report,
+      message: 'Plan approved and ready for implementation'
     });
   } catch (error) {
-    logger.error('Error aprobando plan:', error);
-    res.status(500).json({ error: error.message });
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+    logger.error('Failed to approve plan:', error);
+    next(error);
+  }
+});
+
+/**
+ * GET /api/plans/:planId
+ * Get plan details
+ */
+router.get('/plans/:planId', async (req, res, next) => {
+  try {
+    const { planId } = req.params;
+    const { unification: unificationService } = req.services;
+
+    const result = await unificationService.getPlanWithDetails(planId);
+    const { plan, proposals, mergedContent } = result;
+
+    res.json({
+      id: plan.id,
+      title: plan.title,
+      description: plan.description,
+      status: plan.status,
+      created_at: plan.created_at,
+      approved_at: plan.approved_at,
+      approved_by: plan.approval_agent_id,
+      assigned_implementer: plan.assigned_implementer_id,
+      source_proposals: proposals.map(p => ({
+        id: p.id,
+        title: p.title,
+        agent: p.agent_id
+      })),
+      merged_content: mergedContent
+    });
+  } catch (error) {
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+    logger.error('Failed to get plan:', error);
+    next(error);
   }
 });
 
