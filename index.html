@@ -1034,12 +1034,21 @@
 	        this.activeCall = ws;
 
         ws.onopen = async () => {
-            console.log('✅ WebSocket conectado');
-            // Enviar mensaje de ready para recibir el saludo inicial
+            console.log('✅ WebSocket conectado (Enterprise Mode)');
+            
+            // 1. HANDSHAKE: Iniciar sesión Deepgram
+            // Usamos 16000 o 48000 según contexto, pero Deepgram suele manejarlo.
+            // Enviamos config explícito para despertar el servidor.
+            ws.send(JSON.stringify({
+              type: 'config',
+              sampleRate: this.audioCtx ? this.audioCtx.sampleRate : 48000
+            }));
+
+            // 2. LEGACY READY (Opcional, para mensaje de bienvenida si el servidor lo requiere por compatibilidad)
             ws.send(JSON.stringify({
               route: 'conserje',
               action: 'message',
-              payload: { type: 'ready', message: 'Cliente listo para recibir saludo' }
+              payload: { type: 'ready', message: 'Cliente Enterprise listo' }
             }));
 
             // Start Microphone Capture
@@ -1048,7 +1057,8 @@
                     audio: {
                         echoCancellation: true,
                         noiseSuppression: true,
-                        autoGainControl: true
+                        autoGainControl: true,
+                        channelCount: 1
                     }
                 });
 
@@ -1064,74 +1074,35 @@
                 } catch (_) {
                   this.mediaRecorder = new MediaRecorder(stream);
                 }
+                
                 this.mediaRecorder.ondataavailable = (event) => {
                   try {
                     if (!event.data || event.data.size <= 0) return;
                     if (!this.activeCall || ws.readyState !== WebSocket.OPEN) return;
                     if (this.isMicrophoneMuted || this.isSpeaking || this.awaitingResponse) return;
-                    if (event.data.size < this.minRecordedBytes) return;
+                    // Eliminar restricción de tamaño mínimo para streaming fluido
+                    // if (event.data.size < this.minRecordedBytes) return;
 
-                    this.awaitingResponse = true;
-                    this.startResponseWatchdog();
-
+                    // ENTERPRISE STREAMING: Enviar Binario Puro
                     const reader = new FileReader();
                     reader.onloadend = () => {
-                      try {
-                        // Extraer base64 sin el prefijo data:audio/webm;base64,
-                        const fullDataUrl = String(reader.result || '');
-                        const base64Audio = fullDataUrl.includes(',') 
-                          ? fullDataUrl.split(',')[1] 
-                          : fullDataUrl;
-                        
-                        if (!base64Audio || base64Audio.length < 100) {
-                          console.warn('[MCP] Audio demasiado corto o vacío, ignorando');
-                          this.awaitingResponse = false;
-                          return;
-                        }
-
-                        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-                        const destination = (document.getElementById('search-destination')?.value || '').trim();
-                        const guests = Number(document.getElementById('search-guests')?.value || 0) || 0;
-                        const nights = Number(document.getElementById('search-nights')?.value || 0) || 0;
-
-                        const audioPayload = {
-                          route: 'audio',
-                          action: 'stt',
-                          payload: {
-                            audio: base64Audio,
-                            format: 'webm',
-                            mimeType: 'audio/webm;codecs=opus',
-                            context: { timezone, destination, guests, nights }
-                          }
-                        };
-
-                        console.log('[MCP] Enviando audio al servidor:', {
-                          audioSize: base64Audio.length,
-                          timezone,
-                          destination,
-                          guests,
-                          nights
-                        });
-
-                        ws.send(JSON.stringify(audioPayload));
-                      } catch (err) {
-                        console.error('[MCP] Error enviando audio', err);
-                        this.awaitingResponse = false;
+                      if (ws.readyState === WebSocket.OPEN) {
+                         ws.send(reader.result); // ArrayBuffer
                       }
                     };
-                    reader.readAsDataURL(event.data);
+                    reader.readAsArrayBuffer(event.data);
+                    
                   } catch (err) {
                     console.error('[MCP] Error en ondataavailable', err);
-                    this.awaitingResponse = false;
                   }
                 };
 
-                this.mediaRecorder.start(this.recordingSliceMs);
-                console.log("🎤 Microphone recording started");
+                this.mediaRecorder.start(250); // Slices de 250ms para latencia aceptable
+                console.log("🎤 Microphone recording started (Enterprise Streaming)");
 
             } catch (err) {
                 console.error("Error accessing microphone:", err);
-                alert("Error: No se pudo acceder al micrófono. Por favor permite el acceso para hablar con Sandra.");
+                alert("Error: No se pudo acceder al micrófono.");
                 this.stopAudioCapture();
                 try { ws.close(); } catch (_) {}
             }
