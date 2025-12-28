@@ -643,17 +643,29 @@ class WebSocketStreamClient {
 
           console.log('[WEBSOCKET-CLIENT] 📤 Audio capturado:', audioBlob.size, 'bytes');
 
-          // Send to server
-          if (this.isConnected && this.ws) {
+          // Send to server only if we have audio data
+          if (audioBlob.size > 0 && this.isConnected && this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(audioBlob);
             console.log('[WEBSOCKET-CLIENT] ✅ Audio enviado al servidor');
           } else {
-            console.error('[WEBSOCKET-CLIENT] ❌ WebSocket no conectado');
-            this.showError('No hay conexión con el servidor');
+            if (audioBlob.size === 0) {
+              console.log('[WEBSOCKET-CLIENT] ⚠️  No hay audio para enviar');
+            } else {
+              console.warn('[WEBSOCKET-CLIENT] ⚠️  WebSocket no conectado, audio no enviado');
+            }
           }
 
           // Stop all tracks
-          this.mediaRecorder.stream.getTracks().forEach(track => track.stop());
+          if (this.mediaRecorder.stream) {
+            this.mediaRecorder.stream.getTracks().forEach(track => {
+              track.stop();
+              console.log('[WEBSOCKET-CLIENT] 🛑 Track detenido:', track.kind);
+            });
+          }
+
+          // Clear mediaRecorder
+          this.mediaRecorder = null;
+          this.audioChunks = [];
 
           resolve();
         } catch (err) {
@@ -664,6 +676,40 @@ class WebSocketStreamClient {
 
       this.mediaRecorder.stop();
     });
+  }
+
+  /**
+   * Disconnect WebSocket and stop all recording
+   * Used when hanging up a call
+   */
+  async disconnect() {
+    console.log('[WEBSOCKET-CLIENT] 🔌 Desconectando...');
+    
+    // Stop recording first
+    if (this.isRecording) {
+      await this.stopListening();
+    }
+    
+    // Close WebSocket connection
+    if (this.ws) {
+      try {
+        if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
+          this.ws.close(1000, 'Call ended');
+          console.log('[WEBSOCKET-CLIENT] ✅ WebSocket cerrado');
+        }
+      } catch (err) {
+        console.error('[WEBSOCKET-CLIENT] ❌ Error cerrando WebSocket:', err);
+      }
+      this.ws = null;
+    }
+    
+    this.isConnected = false;
+    this.isRecording = false;
+    
+    // Stop reconnection attempts
+    this.stopReconnecting();
+    
+    console.log('[WEBSOCKET-CLIENT] ✅ Desconexión completada');
   }
 
   /**
