@@ -112,14 +112,14 @@
         </div>
         <div class="relative z-10 text-center px-6 max-w-4xl mx-auto" style="margin-top: 45vh;">
           <p class="text-lg md:text-xl text-white mb-8 max-w-2xl mx-auto font-semibold drop-shadow-2xl" style="text-shadow: 0 2px 12px rgba(0,0,0,0.4), 0 0 20px rgba(0,0,0,0.2);">Apartamentos de diseño con llegada autónoma y asistencia 24 horas impulsadas por Sandra IA</p>
-          <div id="search-container" class="glass p-2 rounded-2xl max-w-4xl mx-auto shadow-2xl transition-all duration-300">
+	            <div id="search-container" class="glass p-2 rounded-2xl max-w-4xl mx-auto shadow-2xl transition-all duration-300">
             <form id="search-form" class="flex flex-col md:flex-row gap-2 items-center">
               <div class="flex-1 w-full md:w-auto flex gap-2">
                 <input type="text" id="search-destination" placeholder="¿A dónde viajas? Ej: Ruzafa..." class="flex-1 pl-4 py-4 rounded-xl bg-white/90 text-slate-800 placeholder-slate-500 font-medium outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all">
                 <div class="relative">
                   <input type="number" id="search-guests" value="2" min="1" aria-label="Número de personas" class="w-32 px-4 py-4 rounded-xl bg-white/90 text-slate-800 font-medium outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all pr-16">
                   <span class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm pointer-events-none">Personas</span>
-                </div>
+	          </div>
                 <div class="relative">
                   <input type="number" id="search-nights" value="1" min="1" aria-label="Número de noches" class="w-32 px-4 py-4 rounded-xl bg-white/90 text-slate-800 font-medium outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all pr-16">
                   <span class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm pointer-events-none">Noches</span>
@@ -374,9 +374,9 @@
         this.audioQueue = [];
         this.currentAudio = null;
         this.activeCall = null;
-        this.chatLocked = false;
-        this.init();
-      }
+	        this.chatLocked = false;
+	        this.init();
+	      }
 
       init() {
         this.createWidgetUI();
@@ -469,8 +469,8 @@
         const input = document.getElementById('sandra-input');
         const micBtn = document.getElementById('sandra-mic-btn');
         const acceptCallBtn = document.getElementById('sandra-accept-call');
-        const declineCallBtn = document.getElementById('sandra-decline-call');
-        const callPrompt = document.getElementById('sandra-call-prompt');
+	        const declineCallBtn = document.getElementById('sandra-decline-call');
+	        const callPrompt = document.getElementById('sandra-call-prompt');
 
         // Toggle Chat
         const toggleChat = () => {
@@ -529,19 +529,19 @@
       }
 
       startConversationalCall() {
-        console.log('Iniciando llamada conversacional...');
-        this.chatLocked = true;
-        this.playRingtone();
-      }
+		        console.log('Iniciando llamada conversacional...');
+		        this.chatLocked = true;
+		        this.playRingtone();
+		      }
 
       playRingtone() {
         console.log('🔔 Iniciando ringtone...');
         // Simulation of ringtone logic -> leads to pickup
         setTimeout(() => {
             console.log('🔔 Segundo ring completado, descolgando llamada...');
-            this.transitionHeroToVideo();
-            this.startVideoStream();
-        }, 3000);
+              this.transitionHeroToVideo();
+              this.startVideoStream();
+          }, 3000);
       }
 
       transitionHeroToVideo() {
@@ -554,11 +554,11 @@
           heroImage.style.opacity = '0';
           setTimeout(() => {
             heroImage.style.display = 'none';
-            heroVideo.style.display = 'block';
-            heroVideo.style.opacity = '0';
-            heroVideo.style.transition = 'opacity 0.8s ease-in';
+          heroVideo.style.display = 'block';
+          heroVideo.style.opacity = '0';
+          heroVideo.style.transition = 'opacity 0.8s ease-in';
             setTimeout(() => {
-              heroVideo.style.opacity = '1';
+            heroVideo.style.opacity = '1';
             }, 100);
           }, 800);
         }
@@ -593,7 +593,7 @@
                 this.playAudioResponse(data.audio, data.isWelcome);
             }
         };
-      }
+        }
 
       addMessage(text, type) {
         const container = document.getElementById('sandra-messages');
@@ -613,39 +613,39 @@
       }
 
       // AUDIO FIX: Improved playAudioResponse with 3s delay on revoke
-      playAudioResponse(audioBase64) {
-        if (this.currentAudio) {
-          this.currentAudio.pause();
-          if (this.currentAudio._blobUrl) URL.revokeObjectURL(this.currentAudio._blobUrl);
-        }
+		      playAudioResponse(audioBase64) {
+		        if (this.currentAudio) {
+		          this.currentAudio.pause();
+		          if (this.currentAudio._blobUrl) URL.revokeObjectURL(this.currentAudio._blobUrl);
+		        }
 
-        const byteCharacters = atob(audioBase64);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
+	        const byteCharacters = atob(audioBase64);
+	        const byteNumbers = new Array(byteCharacters.length);
+	        for (let i = 0; i < byteCharacters.length; i++) {
+	          byteNumbers[i] = byteCharacters.charCodeAt(i);
         }
         const byteArray = new Uint8Array(byteNumbers);
         const blob = new Blob([byteArray], { type: 'audio/mp3' });
         const blobUrl = URL.createObjectURL(blob);
 
         const audio = new Audio(blobUrl);
-        audio._blobUrl = blobUrl;
-        this.currentAudio = audio;
+	        audio._blobUrl = blobUrl;
+	        this.currentAudio = audio;
 
-        audio.onended = () => {
-          this.isSpeaking = false;
-          // CRITICAL FIX: Wait 3 seconds before revoking to prevent cutting off the end
-          setTimeout(() => {
-            if (audio._blobUrl) {
-              URL.revokeObjectURL(audio._blobUrl);
+		        audio.onended = () => {
+		          this.isSpeaking = false;
+		          // CRITICAL FIX: Wait 3 seconds before revoking to prevent cutting off the end
+		          setTimeout(() => {
+		            if (audio._blobUrl) {
+		              URL.revokeObjectURL(audio._blobUrl);
               audio._blobUrl = null;
             }
             this.currentAudio = null;
-          }, 3000);
-        };
+	          }, 3000);
+	        };
 
         audio.play().catch(e => console.error("Audio play error:", e));
-      }
+	      }
     }
 
     document.addEventListener('DOMContentLoaded', () => {
