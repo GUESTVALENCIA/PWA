@@ -656,8 +656,17 @@ class WebSocketStreamClient {
 
           // Send to server only if we have audio data
           if (audioBlob.size > 0 && this.isConnected && this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(audioBlob);
-            console.log('[WEBSOCKET-CLIENT] ✅ Audio enviado al servidor');
+            // Convert Blob to base64 and send as MCP message
+            const base64Audio = await this.blobToBase64(audioBlob);
+            
+            // Send as MCP format message
+            this.sendMCP('audio', 'stt', {
+              audio: base64Audio,
+              format: 'webm',
+              mimeType: this.config.audioMimeType
+            });
+            
+            console.log('[WEBSOCKET-CLIENT] ✅ Audio enviado al servidor (MCP format)');
           } else {
             if (audioBlob.size === 0) {
               console.log('[WEBSOCKET-CLIENT] ⚠️  No hay audio para enviar');
@@ -686,6 +695,22 @@ class WebSocketStreamClient {
       };
 
       this.mediaRecorder.stop();
+    });
+  }
+
+  /**
+   * Convert Blob to base64 string
+   */
+  async blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        // Remove data URL prefix (data:audio/webm;base64,)
+        const base64 = reader.result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
     });
   }
 
