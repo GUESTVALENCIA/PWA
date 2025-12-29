@@ -34,7 +34,11 @@
       "Bash(tail:*)",
       "Bash(done)",
       "Bash(node check-render-status.js:*)",
-      "Bash(node manual-trigger-deploy.js:*)"
+      "Bash(node manual-trigger-deploy.js:*)",
+      "Bash(node manage-vercel-domains.js:*)",
+      "Bash(node transfer-domain-to-pwa.js:*)",
+      "Bash(node transfer-domain-fixed.js:*)",
+      "Bash(node transfer-domain-complete.js:*)"
     ]
   }
 }
