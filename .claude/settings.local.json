@@ -44,7 +44,9 @@
       "Bash(git clone:*)",
       "Bash(tasklist /FI \"IMAGENAME eq electron.exe\")",
       "Bash(node:*)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "Bash(echo:*)",
+      "Bash(wc:*)"
     ]
   }
 }
