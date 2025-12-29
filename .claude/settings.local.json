@@ -38,7 +38,10 @@
       "Bash(node manage-vercel-domains.js:*)",
       "Bash(node transfer-domain-to-pwa.js:*)",
       "Bash(node transfer-domain-fixed.js:*)",
-      "Bash(node transfer-domain-complete.js:*)"
+      "Bash(node transfer-domain-complete.js:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(git clone:*)"
     ]
   }
 }
