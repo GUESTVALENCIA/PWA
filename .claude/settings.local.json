@@ -42,7 +42,9 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(git clone:*)",
-      "Bash(tasklist /FI \"IMAGENAME eq electron.exe\")"
+      "Bash(tasklist /FI \"IMAGENAME eq electron.exe\")",
+      "Bash(node:*)",
+      "Bash(taskkill:*)"
     ]
   }
 }
