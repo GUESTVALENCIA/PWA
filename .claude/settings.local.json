@@ -41,7 +41,8 @@
       "Bash(node transfer-domain-complete.js:*)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "Bash(git clone:*)"
+      "Bash(git clone:*)",
+      "Bash(tasklist /FI \"IMAGENAME eq electron.exe\")"
     ]
   }
 }
