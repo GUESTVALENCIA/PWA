@@ -50,7 +50,19 @@
       "Bash(git config:*)",
       "Bash(git remote add:*)",
       "Bash(git remote remove:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(src/main/qwen-window.js )",
+      "Bash(src/main/qwen-manager.js )",
+      "Bash(src/preload/qwen-preload.js )",
+      "Bash(src/renderer/qwen-renderer.html )",
+      "Bash(main.js )",
+      "Bash(renderer/studiolab-final-v2.html )",
+      "Bash(package.json )",
+      "Bash(QUICK_START.md )",
+      "Bash(QWEN_COMPLETE_SUMMARY.md )",
+      "Bash(QWEN_MCP_INTEGRATION_COMPLETE.md )",
+      "Bash(QWEN_INTEGRATION_GUIDE.md )",
+      "Bash(TEST_QWEN_INTEGRATION.js)"
     ]
   }
 }
