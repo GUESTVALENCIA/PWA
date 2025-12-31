@@ -429,10 +429,11 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices) {
   }
 
   // Verificar que los servicios estén disponibles
+  // Note: cartesia removed - using native local voice instead
   if (!voiceServices.deepgram || !voiceServices.cartesia || !voiceServices.ai || !voiceServices.getWelcomeAudio) {
     logger.warn('Voice services not fully initialized', {
       hasDeepgram: !!voiceServices.deepgram,
-      hasCartesia: !!voiceServices.cartesia,
+      hasCartesia: !!voiceServices.cartesia, // Native voice service (not Cartesia API)
       hasAI: !!voiceServices.ai,
       hasWelcomeAudio: !!voiceServices.getWelcomeAudio
     });
