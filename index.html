@@ -1486,12 +1486,8 @@
               return;
             }
 
-            console.log('[MCP] Mensaje recibido del servidor:', JSON.stringify({
-              route: data.route,
-              action: data.action,
-              hasPayload: !!data.payload,
-              payloadKeys: data.payload ? Object.keys(data.payload) : []
-            }, null, 2));
+            // Mostrar el mensaje completo para diagnosticar
+            console.log('[MCP] Mensaje recibido del servidor - COMPLETO:', JSON.stringify(data, null, 2));
           } catch (err) {
             console.error('[MCP] Error parseando mensaje:', err, 'Raw:', event.data);
             return;
