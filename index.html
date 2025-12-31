@@ -1553,6 +1553,21 @@
             return;
           }
 
+          // Manejar mensajes de error del servidor
+          if (data.route === 'error' && data.action === 'message' && data.payload) {
+            const errorMsg = data.payload.error || data.payload.message || 'Error desconocido';
+            console.error('[MCP] ❌ Error del servidor:', errorMsg);
+            
+            // Mostrar error en el chat widget
+            if (this.chatMessages) {
+              this.addMessage('system', `Error: ${errorMsg}`);
+            }
+            
+            this.clearResponseWatchdog();
+            this.awaitingResponse = false;
+            return;
+          }
+
           // Manejar mensaje de noSpeech (sin transcripción)
           if (data.route === 'conserje' && data.action === 'message' && data.payload && data.payload.type === 'noSpeech' && data.payload.message) {
             console.log('[MCP] ⚠️ No se detectó habla, solicitando TTS del mensaje');
@@ -1594,8 +1609,8 @@
             return;
           }
 
-          // Log para mensajes no manejados (con más detalle)
-          if (data.route !== 'system' && data.action !== 'connected') {
+          // Log para mensajes no manejados (con más detalle) - solo si no es un error ya manejado
+          if (data.route !== 'system' && data.action !== 'connected' && data.route !== 'error') {
             console.log('[MCP] ⚠️ Mensaje no manejado:', JSON.stringify(data, null, 2));
             // Intentar manejar mensajes de texto del servidor
             if (data.route === 'conserje' && data.action === 'message' && data.payload && data.payload.message) {
