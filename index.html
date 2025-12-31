@@ -1486,7 +1486,16 @@
               return;
             }
 
-            // Mostrar el mensaje completo para diagnosticar
+            // PRIMERO: Ignorar errores "Unknown message type" del servidor ANTES de loguear (no son críticos)
+            // Estos errores vienen del servidor cuando no reconoce el formato, pero no son críticos para el cliente
+            if (data && data.type === 'error' && data.error && typeof data.error === 'string') {
+              if (data.error.includes('Unknown message type')) {
+                // Silenciar completamente estos errores - no loguear NADA
+                return;
+              }
+            }
+
+            // Mostrar el mensaje completo para diagnosticar (solo si no es un error ignorado)
             console.log('[MCP] Mensaje recibido del servidor - COMPLETO:', JSON.stringify(data, null, 2));
           } catch (err) {
             console.error('[MCP] Error parseando mensaje:', err, 'Raw:', event.data);
@@ -1499,9 +1508,11 @@
             return;
           }
 
-          // PRIMERO: Ignorar errores "Unknown message type" del servidor (no son críticos)
-          if (data.type === 'error' && data.error && data.error.includes('Unknown message type')) {
-            // Silenciar estos errores - son errores internos del servidor
+          // Verificación adicional (ya manejado arriba, pero por seguridad)
+          if (data.type === 'error' && data.error && (
+            data.error.includes('Unknown message type') || 
+            data.error.includes('Unknown message type: undefined')
+          )) {
             return;
           }
 
