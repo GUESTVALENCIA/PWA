@@ -1,109 +1,95 @@
+#!/usr/bin/env node
+
 /**
- * Test script to verify Groq API connection and response
- * Run: node test-groq-connection.js
+ * Test de conexión con Groq API
+ * Verificar que Groq responde correctamente antes de continuar
  */
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
+import https from 'https';
 
-if (!GROQ_API_KEY) {
-  console.error('❌ GROQ_API_KEY no está configurada');
-  console.log('Por favor, configura la variable de entorno:');
-  console.log('export GROQ_API_KEY=tu_api_key');
-  process.exit(1);
-}
+const GROQ_API_KEY = process.env.GROQ_API_KEY || 'gsk_test_key';
 
-async function testGroqConnection() {
-  console.log('🧪 Probando conexión con Groq API...\n');
+console.log('\n╔═══════════════════════════════════════════════════════════════╗');
+console.log('║           🧪 TEST DE CONEXIÓN CON GROQ API                   ║');
+console.log('╚═══════════════════════════════════════════════════════════════╝\n');
 
-  const systemPrompt = `Eres Sandra, la asistente virtual de Guests Valencia, especializada en hospitalidad y turismo.
-Responde SIEMPRE en español neutro, con buena ortografía y gramática.
-Actúa como una experta en Hospitalidad y Turismo.
-Sé breve: máximo 4 frases salvo que se pida detalle.
-Sé amable, profesional y útil.`;
+function makeGroqRequest(message, systemPrompt) {
+  return new Promise((resolve, reject) => {
+    const payload = JSON.stringify({
+      model: 'qwen2.5-72b-instruct',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: message }
+      ],
+      temperature: 0.7
+    });
 
-  const userMessage = 'Hola Sandra, ¿cómo estás?';
-
-  try {
-    console.log('📤 Enviando mensaje a Groq...');
-    console.log(`Usuario: "${userMessage}"\n`);
-
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const options = {
+      hostname: 'api.groq.com',
+      path: '/openai/v1/chat/completions',
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${GROQ_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'qwen2.5-72b-instruct',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage }
-        ],
-        temperature: 0.7,
-        max_tokens: 1024
-      })
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload)
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      let body = '';
+      res.on('data', (chunk) => body += chunk);
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(body);
+          resolve({ status: res.statusCode, data: json });
+        } catch (e) {
+          resolve({ status: res.statusCode, data: body });
+        }
+      });
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Error en la respuesta de Groq:');
-      console.error(`Status: ${response.status}`);
-      console.error(`Error: ${errorText}`);
-      process.exit(1);
-    }
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+}
 
-    const data = await response.json();
-    
-    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-      console.error('❌ Respuesta inválida de Groq:', JSON.stringify(data, null, 2));
-      process.exit(1);
-    }
+async function testGroqConnection() {
+  console.log('📡 Probando conexión con Groq API...\n');
+  
+  if (!GROQ_API_KEY || GROQ_API_KEY === 'gsk_test_key') {
+    console.log('❌ GROQ_API_KEY no configurada');
+    console.log('   Configura la variable de entorno GROQ_API_KEY\n');
+    process.exit(1);
+  }
 
-    const aiResponse = data.choices[0].message.content;
-    const model = data.model;
-    const usage = data.usage;
+  console.log(`🔑 API Key: ${GROQ_API_KEY.substring(0, 10)}...${GROQ_API_KEY.substring(GROQ_API_KEY.length - 4)}\n`);
 
-    console.log('✅ ¡Conexión exitosa con Groq!\n');
-    console.log('📥 Respuesta del modelo:');
-    console.log(`Modelo: ${model}`);
-    console.log(`Respuesta: "${aiResponse}"\n`);
-    console.log('📊 Uso de tokens:');
-    console.log(`  - Prompt: ${usage.prompt_tokens}`);
-    console.log(`  - Completion: ${usage.completion_tokens}`);
-    console.log(`  - Total: ${usage.total_tokens}\n`);
+  const testMessage = 'Responde con solo: OK';
+  const systemPrompt = 'Responde brevemente.';
 
-    // Verificar que la respuesta es en español
-    if (aiResponse.trim().length > 0) {
-      console.log('✅ El modelo respondió correctamente');
-      console.log('✅ Listo para integrar en el servidor\n');
+  try {
+    const response = await makeGroqRequest(testMessage, systemPrompt);
+
+    if (response.status === 200) {
+      const content = response.data?.choices?.[0]?.message?.content || 'No content';
+      console.log('✅ Groq API responde correctamente');
+      console.log(`📝 Respuesta: "${content}"\n`);
+      console.log('╔═══════════════════════════════════════════════════════════════╗');
+      console.log('║                    ✅ GROQ FUNCIONA                           ║');
+      console.log('╚═══════════════════════════════════════════════════════════════╝\n');
       return true;
     } else {
-      console.error('❌ El modelo no generó una respuesta');
+      console.log(`❌ Error en Groq API: Status ${response.status}`);
+      console.log('Respuesta:', JSON.stringify(response.data, null, 2));
       return false;
     }
-
   } catch (error) {
-    console.error('❌ Error al conectar con Groq:');
-    console.error(error.message);
-    if (error.stack) {
-      console.error('\nStack trace:');
-      console.error(error.stack);
-    }
-    process.exit(1);
+    console.log(`❌ Error de conexión: ${error.message}`);
+    return false;
   }
 }
 
-// Ejecutar test
-testGroqConnection()
-  .then((success) => {
-    if (success) {
-      console.log('🎉 Test completado exitosamente');
-      process.exit(0);
-    } else {
-      process.exit(1);
-    }
-  })
-  .catch((error) => {
-    console.error('❌ Error inesperado:', error);
-    process.exit(1);
-  });
+testGroqConnection().then(success => {
+  process.exit(success ? 0 : 1);
+});
