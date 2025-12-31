@@ -1251,16 +1251,20 @@
         // FIX: Force WSS for Render to avoid Mixed Content
         if (isRender) {
           url.protocol = 'wss:';
+          // Render usa WebSocket en el mismo puerto, pero con path /ws normalmente
+          // Si no funciona, probar sin especificar puerto
           url.port = '';
+          url.pathname = '/'; // Algunos servidores usan /ws, otros /
         } else {
           url.protocol = (url.protocol === 'https:') ? 'wss:' : 'ws:';
           if (!url.port) url.port = '4042';
+          url.pathname = '/';
         }
 
-        url.pathname = '/';
-
         url.search = token ? `?token=${encodeURIComponent(String(token))}` : '';
-        return url.toString();
+        const finalUrl = url.toString();
+        console.log('[MCP] URL WebSocket final:', finalUrl);
+        return finalUrl;
       }
 
       clearResponseWatchdog() {
@@ -1342,27 +1346,23 @@
         const callPrompt = document.getElementById('sandra-call-prompt');
         if (callPrompt) callPrompt.style.display = 'none';
 
+        console.log('[MCP] Iniciando llamada en tiempo real...');
         const cfg = await this.getMcpConfig();
+        console.log('[MCP] Configuración cargada:', { url: cfg.MCP_SERVER_URL, hasToken: !!cfg.MCP_TOKEN });
         const wsUrl = this.buildWebSocketUrl(cfg.MCP_SERVER_URL, cfg.MCP_TOKEN);
+        console.log('[MCP] URL WebSocket construida:', wsUrl);
         const ws = new WebSocket(wsUrl);
         this.activeCall = ws;
 
         ws.onopen = async () => {
-          console.log('✅ WebSocket conectado (Enterprise Mode)');
+          console.log('✅ WebSocket conectado (Enterprise Mode)', wsUrl);
 
-          // 1. HANDSHAKE: Iniciar sesión Deepgram
-          // Usamos 16000 o 48000 según contexto, pero Deepgram suele manejarlo.
-          // Enviamos config explícito para despertar el servidor.
-          ws.send(JSON.stringify({
-            type: 'config',
-            sampleRate: this.audioCtx ? this.audioCtx.sampleRate : 48000
-          }));
-
-          // 2. LEGACY READY (Opcional, para mensaje de bienvenida si el servidor lo requiere por compatibilidad)
+          // Enviar mensaje ready para solicitar saludo inicial
+          console.log('[MCP] Enviando mensaje ready al servidor...');
           ws.send(JSON.stringify({
             route: 'conserje',
             action: 'message',
-            payload: { type: 'ready', message: 'Cliente Enterprise listo' }
+            payload: { type: 'ready', message: 'Cliente listo para recibir saludo' }
           }));
 
           // Start Microphone Capture
@@ -1439,10 +1439,35 @@
             console.log("🎤 Microphone recording started (Enterprise Streaming)");
 
           } catch (err) {
-            console.error("Error accessing microphone:", err);
-            alert("Error: No se pudo acceder al micrófono.");
+            console.error('[MCP] ❌ Error accediendo al micrófono:', err);
+            
+            // Manejar diferentes tipos de errores
+            let errorMessage = 'No se pudo acceder al micrófono.';
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+              errorMessage = 'Por favor, permite el acceso al micrófono en la configuración de tu navegador.';
+            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+              errorMessage = 'No se encontró ningún micrófono. Por favor, conecta un micrófono.';
+            } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+              errorMessage = 'El micrófono está siendo usado por otra aplicación.';
+            }
+            
+            // Mostrar mensaje al usuario en el chat en lugar de alert
+            const messagesContainer = document.getElementById('sandra-messages');
+            if (messagesContainer) {
+              const errorHtml = `
+                <div class="flex gap-2">
+                  <div class="w-6 h-6 rounded-full bg-gradient-to-tr from-blue-400 to-purple-500 flex-shrink-0 flex items-center justify-center text-[10px] text-white font-bold">S</div>
+                  <div class="bg-white p-2.5 rounded-xl rounded-tl-none shadow-sm border border-red-200 text-xs text-red-700 max-w-[85%]">
+                    <p>⚠️ ${errorMessage}</p>
+                    <p class="mt-1 text-[10px] text-red-600">La llamada de voz requiere acceso al micrófono.</p>
+                  </div>
+                </div>`;
+              messagesContainer.insertAdjacentHTML('beforeend', errorHtml);
+              messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+            
             this.stopAudioCapture();
-            try { ws.close(); } catch (_) { }
+            this.hangupCall();
           }
         };
 
@@ -1461,11 +1486,12 @@
               return;
             }
 
-            console.log('[MCP] Mensaje recibido del servidor:', {
+            console.log('[MCP] Mensaje recibido del servidor:', JSON.stringify({
               route: data.route,
               action: data.action,
-              hasPayload: !!data.payload
-            });
+              hasPayload: !!data.payload,
+              payloadKeys: data.payload ? Object.keys(data.payload) : []
+            }, null, 2));
           } catch (err) {
             console.error('[MCP] Error parseando mensaje:', err, 'Raw:', event.data);
             return;
@@ -1527,14 +1553,23 @@
             return;
           }
 
-          // Log para mensajes no manejados
+          // Log para mensajes no manejados (con más detalle)
           if (data.route !== 'system' && data.action !== 'connected') {
-            console.log('[MCP] ⚠️ Mensaje no manejado:', data);
+            console.log('[MCP] ⚠️ Mensaje no manejado:', JSON.stringify(data, null, 2));
+            // Intentar manejar mensajes de texto del servidor
+            if (data.route === 'conserje' && data.action === 'message' && data.payload && data.payload.message) {
+              console.log('[MCP] Mensaje del servidor:', data.payload.message);
+            }
           }
         };
 
-        ws.onclose = () => {
-          console.log("WebSocket connection closed");
+        ws.onerror = (error) => {
+          console.error('[MCP] ❌ Error en WebSocket:', error);
+          alert('Error de conexión. Por favor, verifica que el servidor esté funcionando.');
+        };
+
+        ws.onclose = (event) => {
+          console.log('[MCP] WebSocket cerrado', { code: event.code, reason: event.reason, wasClean: event.wasClean });
           this.stopAudioCapture();
           this.activeCall = null;
           this.setHeroCallActive(false);
