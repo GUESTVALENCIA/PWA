@@ -1,6 +1,6 @@
 /**
  * Voice Services Integration
- * Wraps Deepgram (STT), Cartesia (TTS), AI (Gemini/GPT-4), and Welcome Audio
+ * Wraps Deepgram (STT), Cartesia (TTS), AI (Groq/OpenAI), and Welcome Audio
  */
 
 import fs from 'fs';
@@ -16,7 +16,6 @@ class VoiceServices {
     this.deepgramApiKey = process.env.DEEPGRAM_API_KEY;
     this.cartesiaApiKey = process.env.CARTESIA_API_KEY;
     this.cartesiaVoiceId = process.env.CARTESIA_VOICE_ID || 'sandra';
-    this.geminiApiKey = process.env.GEMINI_API_KEY;
     this.openaiApiKey = process.env.OPENAI_API_KEY;
     this.groqApiKey = process.env.GROQ_API_KEY;
     this.preferredProvider = (process.env.PREFERRED_AI_PROVIDER || 'groq').toLowerCase();
@@ -97,49 +96,48 @@ class VoiceServices {
   }
 
   /**
-   * Generate voice using Cartesia
+   * Generate voice using native local audio file (eliminates Cartesia latency)
    */
   async generateVoice(text, voiceId = null) {
-    if (!this.cartesiaApiKey) {
-      throw new Error('Cartesia API Key not configured');
-    }
+    // Use native local voice file instead of Cartesia API
+    const nativeVoicePath = path.join(__dirname, '../../assets/audio/sandra-conversational.wav');
+    
+    // Try alternative paths if the first doesn't work
+    const possiblePaths = [
+      nativeVoicePath,
+      path.join(process.cwd(), 'assets/audio/sandra-conversational.wav'),
+      path.join(__dirname, '../../../assets/audio/sandra-conversational.wav')
+    ];
 
-    const selectedVoice = voiceId || this.cartesiaVoiceId;
-    const url = 'https://api.cartesia.ai/tts/bytes';
-    const payload = {
-      model_id: 'sonic-multilingual',
-      transcript: text,
-      voice: {
-        mode: 'id',
-        id: selectedVoice
-      },
-      output_format: {
-        container: 'mp3',
-        sample_rate: 24000
+    for (const voicePath of possiblePaths) {
+      if (fs.existsSync(voicePath)) {
+        logger.info(`📁 Using native voice file: ${voicePath}`);
+        const audioBuffer = fs.readFileSync(voicePath);
+        return audioBuffer.toString('base64');
       }
-    };
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Cartesia-Version': '2024-06-10',
-        'X-API-Key': this.cartesiaApiKey,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Cartesia API Error: ${response.status} - ${errorText}`);
     }
 
-    const arrayBuffer = await response.arrayBuffer();
-    return Buffer.from(arrayBuffer).toString('base64');
+    // Fallback: try welcome.mp3 if conversational.wav not found
+    logger.warn('⚠️ Native conversational voice not found, trying welcome.mp3 as fallback');
+    const welcomePaths = [
+      path.join(__dirname, '../../assets/audio/welcome.mp3'),
+      path.join(process.cwd(), 'assets/audio/welcome.mp3'),
+      path.join(__dirname, '../../../assets/audio/welcome.mp3')
+    ];
+
+    for (const welcomePath of welcomePaths) {
+      if (fs.existsSync(welcomePath)) {
+        logger.info(`📁 Using welcome audio as fallback: ${welcomePath}`);
+        const audioBuffer = fs.readFileSync(welcomePath);
+        return audioBuffer.toString('base64');
+      }
+    }
+
+    throw new Error('Native voice audio file not found. Expected: assets/audio/sandra-conversational.wav or assets/audio/welcome.mp3');
   }
 
   /**
-   * Process message with AI (Groq, Gemini, or GPT-4)
+   * Process message with AI (Groq preferred, OpenAI as fallback)
    */
   async processMessage(userMessage) {
     const systemPrompt = `Eres Sandra, la asistente virtual de Guests Valencia, especializada en hospitalidad y turismo.
@@ -153,20 +151,11 @@ Sé amable, profesional y útil.`;
       try {
         return await this._callGroq(userMessage, systemPrompt);
       } catch (error) {
-        logger.warn('Groq failed, trying fallback:', error.message);
+        logger.warn('Groq failed, trying OpenAI fallback:', error.message);
       }
     }
 
-    // Try Gemini as fallback
-    if (this.geminiApiKey) {
-      try {
-        return await this._callGemini(userMessage, systemPrompt);
-      } catch (error) {
-        logger.warn('Gemini failed, trying OpenAI:', error.message);
-      }
-    }
-
-    // Try OpenAI as last resort
+    // Try OpenAI as fallback
     if (this.openaiApiKey) {
       try {
         return await this._callOpenAI(userMessage, systemPrompt);
@@ -176,39 +165,7 @@ Sé amable, profesional y útil.`;
       }
     }
 
-    throw new Error('No AI API keys configured');
-  }
-
-  async _callGemini(userMessage, systemPrompt) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${this.geminiApiKey}`;
-    
-    const payload = {
-      systemInstruction: {
-        parts: [{ text: systemPrompt }]
-      },
-      contents: [{
-        role: 'user',
-        parts: [{ text: userMessage }]
-      }]
-    };
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Gemini Error: ${response.status} - ${errorText}`);
-    }
-
-    const data = await response.json();
-    if (!data.candidates || !data.candidates[0]?.content) {
-      throw new Error('Invalid response from Gemini');
-    }
-
-    return data.candidates[0].content.parts[0].text;
+    throw new Error('No AI API keys configured (Groq or OpenAI required)');
   }
 
   async _callOpenAI(userMessage, systemPrompt) {
