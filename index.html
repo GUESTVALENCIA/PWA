@@ -1503,8 +1503,14 @@
             return;
           }
 
+          // PRIMERO: Ignorar errores "Unknown message type" del servidor (no son críticos)
+          if (data.type === 'error' && data.error && data.error.includes('Unknown message type')) {
+            // Silenciar estos errores - son errores internos del servidor
+            return;
+          }
+
           // PRIMERO: Manejar mensajes que no tienen route/action (formato diferente del servidor)
-          if (!data.route && !data.action && !data.error) {
+          if (!data.route && !data.action && !data.error && data.type !== 'error') {
             console.log('[MCP] Mensaje sin route/action, estructura completa:', JSON.stringify(data, null, 2));
             
             // Intentar detectar si es un mensaje de audio de respuesta
@@ -1560,13 +1566,6 @@
           // Manejar errores del servidor (pero solo si realmente son errores críticos)
           if (data.error || (data.type === 'error')) {
             const errorMsg = data.error || data.message || '';
-            
-            // Ignorar errores "Unknown message type" que vienen del servidor como parte de su funcionamiento interno
-            if (errorMsg.includes('Unknown message type') || errorMsg.includes('Unknown message type: undefined')) {
-              // Silenciar estos errores - no son críticos
-              return; 
-            }
-            
             console.error('[MCP] ❌ Error del servidor:', errorMsg, 'Mensaje completo:', JSON.stringify(data, null, 2));
             this.clearResponseWatchdog();
             this.awaitingResponse = false;
