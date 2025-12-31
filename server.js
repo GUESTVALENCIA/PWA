@@ -169,9 +169,24 @@ async function startup() {
     try {
       const voiceServicesModule = await import('./src/services/voice-services.js');
       voiceServices = voiceServicesModule.default;
-      logger.info('✅ Voice services initialized');
+      
+      // Verificar que los servicios estén disponibles
+      if (voiceServices && voiceServices.deepgram && voiceServices.cartesia && voiceServices.ai) {
+        logger.info('✅ Voice services initialized', {
+          hasDeepgram: !!voiceServices.deepgram,
+          hasCartesia: !!voiceServices.cartesia,
+          hasAI: !!voiceServices.ai
+        });
+      } else {
+        logger.warn('⚠️ Voice services partially initialized', {
+          hasDeepgram: !!voiceServices?.deepgram,
+          hasCartesia: !!voiceServices?.cartesia,
+          hasAI: !!voiceServices?.ai
+        });
+      }
     } catch (error) {
       logger.warn('⚠️ Voice services not available:', error.message);
+      logger.error('Voice services initialization error:', error);
     }
 
     // 9. Inicializar WebSocket con servicios
