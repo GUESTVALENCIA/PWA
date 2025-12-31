@@ -164,10 +164,20 @@ async function startup() {
       next();
     });
 
-    // 8. Inicializar WebSocket con servicios
-    initWebSocketServer(wss, stateManager, systemEventEmitter, neonService);
+    // 8. Inicializar servicios de voz
+    let voiceServices = null;
+    try {
+      const voiceServicesModule = await import('./src/services/voice-services.js');
+      voiceServices = voiceServicesModule.default;
+      logger.info('✅ Voice services initialized');
+    } catch (error) {
+      logger.warn('⚠️ Voice services not available:', error.message);
+    }
 
-    // 9. Iniciar servidor HTTP
+    // 9. Inicializar WebSocket con servicios
+    initWebSocketServer(wss, stateManager, systemEventEmitter, neonService, voiceServices);
+
+    // 10. Iniciar servidor HTTP
     server.listen(PORT, HOST, () => {
       logger.info(`✅ MCP Server running on http://${HOST}:${PORT}`);
       logger.info(`📡 WebSocket on ws://${HOST}:${PORT}`);
