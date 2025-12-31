@@ -429,11 +429,12 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices) {
   }
 
   // Verificar que los servicios estén disponibles
-  if (!voiceServices.deepgram || !voiceServices.cartesia || !voiceServices.ai) {
+  if (!voiceServices.deepgram || !voiceServices.cartesia || !voiceServices.ai || !voiceServices.getWelcomeAudio) {
     logger.warn('Voice services not fully initialized', {
       hasDeepgram: !!voiceServices.deepgram,
       hasCartesia: !!voiceServices.cartesia,
-      hasAI: !!voiceServices.ai
+      hasAI: !!voiceServices.ai,
+      hasWelcomeAudio: !!voiceServices.getWelcomeAudio
     });
     ws.send(JSON.stringify({
       route: 'error',
@@ -578,7 +579,7 @@ async function handleAudioSTT(payload, ws, voiceServices) {
 
     logger.info(`📝 Transcript: "${transcript}"`);
 
-    // 2. Process with AI (Gemini/GPT-4/Groq)
+    // 2. Process with AI (Groq preferred, OpenAI fallback)
     logger.info('🤖 Processing with AI...');
     const aiResponse = await voiceServices.ai.processMessage(transcript);
 
