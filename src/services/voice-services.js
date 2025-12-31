@@ -40,34 +40,58 @@ class VoiceServices {
       if (audioBuffer.length === 0) {
         throw new Error('Empty audio buffer after decoding');
       }
+      // Validate minimum buffer size (at least 100 bytes for valid audio)
+      if (audioBuffer.length < 100) {
+        throw new Error(`Audio buffer too small: ${audioBuffer.length} bytes (minimum 100 bytes)`);
+      }
     } catch (error) {
       throw new Error(`Failed to decode audio base64: ${error.message}`);
     }
 
-    // Determinar Content-Type basado en el formato
-    const contentType = format === 'webm' ? 'audio/webm' : 
-                        format === 'mp3' ? 'audio/mpeg' :
-                        format === 'wav' ? 'audio/wav' : 'audio/webm';
+    // Deepgram API: For WebM/Opus, we need to specify encoding in URL parameters
+    // This is critical for proper audio processing
+    let url = `https://api.deepgram.com/v1/listen?model=nova-2&language=es&punctuate=true&smart_format=true`;
+    
+    // Add encoding parameter for WebM/Opus format
+    if (format === 'webm') {
+      url += '&encoding=opus';
+    } else if (format === 'mp3') {
+      url += '&encoding=mp3';
+    } else if (format === 'wav') {
+      url += '&encoding=linear16';
+    }
+    
+    logger.info(`🎤 Sending audio to Deepgram: ${audioBuffer.length} bytes, format: ${format}, url: ${url}`);
 
-    const response = await fetch(
-      `https://api.deepgram.com/v1/listen?model=nova-2&language=es&punctuate=true&smart_format=true`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Token ${this.deepgramApiKey}`,
-          'Content-Type': contentType,
-        },
-        body: audioBuffer
-      }
-    );
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Token ${this.deepgramApiKey}`,
+        // Don't set Content-Type - let Deepgram auto-detect from binary data
+        // This allows Deepgram to properly detect WebM/Opus format
+      },
+      body: audioBuffer
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
+      logger.error(`❌ Deepgram API error: ${response.status}`, { 
+        status: response.status, 
+        error: errorText,
+        bufferSize: audioBuffer.length,
+        format: format
+      });
       throw new Error(`Deepgram Error: ${response.status} - ${errorText}`);
     }
 
     const json = await response.json();
     const transcript = json.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
+    
+    if (transcript) {
+      logger.info(`✅ Deepgram transcription: "${transcript.substring(0, 50)}${transcript.length > 50 ? '...' : ''}"`);
+    } else {
+      logger.warn('⚠️ Deepgram returned empty transcript');
+    }
 
     return transcript;
   }
@@ -271,7 +295,7 @@ const voiceServices = new VoiceServices();
 // Export service methods as an object for use in WebSocket handler
 export default {
   deepgram: {
-    transcribeAudio: (audio) => voiceServices.transcribeAudio(audio)
+    transcribeAudio: (audio, format) => voiceServices.transcribeAudio(audio, format)
   },
   cartesia: {
     generateVoice: (text, voiceId) => voiceServices.generateVoice(text, voiceId)
