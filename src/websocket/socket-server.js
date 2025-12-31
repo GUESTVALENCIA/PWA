@@ -509,10 +509,34 @@ async function handleAudioSTT(payload, ws, voiceServices) {
     return;
   }
 
+  if (!voiceServices || !voiceServices.deepgram || !voiceServices.deepgram.transcribeAudio) {
+    logger.error('Voice services not available in handleAudioSTT', {
+      hasVoiceServices: !!voiceServices,
+      hasDeepgram: !!voiceServices?.deepgram,
+      hasTranscribeAudio: !!voiceServices?.deepgram?.transcribeAudio
+    });
+    ws.send(JSON.stringify({
+      route: 'error',
+      action: 'message',
+      payload: {
+        error: 'STT processing failed',
+        message: 'Voice services not configured on server'
+      }
+    }));
+    return;
+  }
+
   try {
     // 1. Transcribe audio
-    logger.info('🎤 Processing audio STT...');
-    const transcript = await voiceServices.deepgram.transcribeAudio(audio);
+    logger.info('🎤 Processing audio STT...', { 
+      audioLength: audio?.length || 0, 
+      format: format || 'webm',
+      mimeType: mimeType || 'audio/webm'
+    });
+    
+    // Determinar formato del audio
+    const audioFormat = format || (mimeType?.includes('webm') ? 'webm' : 'webm');
+    const transcript = await voiceServices.deepgram.transcribeAudio(audio, audioFormat);
 
     if (!transcript || transcript.trim().length === 0) {
       // No speech detected
