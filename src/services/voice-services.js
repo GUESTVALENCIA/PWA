@@ -1,6 +1,6 @@
 /**
  * Voice Services Integration
- * Wraps Deepgram (STT), Cartesia (TTS), AI (Groq/OpenAI), and Welcome Audio
+ * Wraps Deepgram (STT), Native Local Voice (no TTS latency), AI (Groq/OpenAI), and Welcome Audio
  */
 
 import fs from 'fs';
