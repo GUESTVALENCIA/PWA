@@ -527,15 +527,40 @@ async function handleAudioSTT(payload, ws, voiceServices) {
   }
 
   try {
-    // 1. Transcribe audio
+    // Determine audio format from payload
+    let audioFormat = 'webm'; // default
+    if (format) {
+      audioFormat = format;
+    } else if (mimeType) {
+      // Extract format from mimeType (e.g., "audio/webm;codecs=opus" -> "webm")
+      if (mimeType.includes('webm')) {
+        audioFormat = 'webm';
+      } else if (mimeType.includes('mp3') || mimeType.includes('mpeg')) {
+        audioFormat = 'mp3';
+      } else if (mimeType.includes('wav')) {
+        audioFormat = 'wav';
+      }
+    }
+    
+    // Validate audio data length
+    if (!audio || audio.length === 0) {
+      logger.error('❌ Empty audio data received');
+      ws.send(JSON.stringify({
+        route: 'error',
+        action: 'message',
+        payload: { error: 'Empty audio data' }
+      }));
+      return;
+    }
+    
+    // Log audio processing details
     logger.info('🎤 Processing audio STT...', { 
-      audioLength: audio?.length || 0, 
-      format: format || 'webm',
-      mimeType: mimeType || 'audio/webm'
+      audioLength: audio.length, 
+      format: audioFormat,
+      mimeType: mimeType || 'not specified'
     });
     
-    // Determinar formato del audio
-    const audioFormat = format || (mimeType?.includes('webm') ? 'webm' : 'webm');
+    // 1. Transcribe audio
     const transcript = await voiceServices.deepgram.transcribeAudio(audio, audioFormat);
 
     if (!transcript || transcript.trim().length === 0) {
@@ -646,6 +671,12 @@ async function handleAudioTTS(payload, ws, voiceServices) {
 async function handleWelcomeMessage(ws, voiceServices) {
   try {
     logger.info('👋 Sending welcome message...');
+    
+    if (!voiceServices || !voiceServices.getWelcomeAudio) {
+      logger.error('getWelcomeAudio not available in voiceServices');
+      throw new Error('Welcome audio service not available');
+    }
+    
     const welcomeAudio = await voiceServices.getWelcomeAudio();
 
     ws.send(JSON.stringify({
