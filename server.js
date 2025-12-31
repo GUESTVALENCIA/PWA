@@ -111,6 +111,7 @@ app.use(errorHandler);
 async function startup() {
   try {
     logger.info('🚀 Iniciando MCP Orchestrator...');
+    logger.info('📍 Startup function called, initializing services...');
 
     // 1. Inicializar evento emitter
     systemEventEmitter = new SystemEventEmitter();
@@ -184,18 +185,23 @@ async function startup() {
       });
       
       // Verify required API keys are present (services will check internally)
+      // Groq is required (primary), OpenAI is optional (fallback)
       const requiredKeys = ['DEEPGRAM_API_KEY', 'CARTESIA_API_KEY', 'GROQ_API_KEY'];
       const missingKeys = requiredKeys.filter(key => !process.env[key]);
       if (missingKeys.length > 0) {
         logger.warn(`⚠️ Missing API keys: ${missingKeys.join(', ')}`);
       }
+      if (!process.env.OPENAI_API_KEY) {
+        logger.warn('⚠️ OpenAI API key not found - Groq will be used without fallback');
+      }
       
       // Verificar que los servicios estén disponibles
-      if (voiceServices && voiceServices.deepgram && voiceServices.cartesia && voiceServices.ai) {
+      if (voiceServices && voiceServices.deepgram && voiceServices.cartesia && voiceServices.ai && voiceServices.getWelcomeAudio) {
         logger.info('✅ Voice services initialized successfully', {
           hasDeepgram: !!voiceServices.deepgram,
           hasCartesia: !!voiceServices.cartesia,
           hasAI: !!voiceServices.ai,
+          hasWelcomeAudio: !!voiceServices.getWelcomeAudio,
           deepgramMethods: voiceServices.deepgram ? Object.keys(voiceServices.deepgram) : [],
           cartesiaMethods: voiceServices.cartesia ? Object.keys(voiceServices.cartesia) : [],
           aiMethods: voiceServices.ai ? Object.keys(voiceServices.ai) : []
@@ -206,6 +212,7 @@ async function startup() {
           hasDeepgram: !!voiceServices?.deepgram,
           hasCartesia: !!voiceServices?.cartesia,
           hasAI: !!voiceServices?.ai,
+          hasWelcomeAudio: !!voiceServices?.getWelcomeAudio,
           structure: JSON.stringify(voiceServices, null, 2).substring(0, 500)
         });
         throw new Error('Voice services structure incomplete');
@@ -257,7 +264,11 @@ process.on('SIGINT', async () => {
 });
 
 // ===== INICIAR =====
-startup();
+logger.info('📍 Starting server initialization...');
+startup().catch((error) => {
+  logger.error('❌ Fatal error during startup:', error);
+  process.exit(1);
+});
 
 export {
   app,
