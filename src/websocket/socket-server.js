@@ -595,8 +595,8 @@ async function handleAudioSTT(payload, ws, voiceServices) {
 
     logger.info(`💬 AI Response: "${aiResponse.substring(0, 100)}..."`);
 
-    // 3. Generate TTS audio
-    logger.info('🔊 Generating TTS...');
+    // 3. Get native local voice audio (no TTS latency)
+    logger.info('🔊 Loading native voice audio...');
     const responseAudio = await voiceServices.cartesia.generateVoice(aiResponse);
 
     // 4. Send audio response
@@ -641,7 +641,7 @@ async function handleAudioTTS(payload, ws, voiceServices) {
   }
 
   try {
-    logger.info(`🔊 Generating TTS for: "${text.substring(0, 50)}..."`);
+    logger.info(`🔊 Loading native voice audio for: "${text.substring(0, 50)}..."`);
     const audio = await voiceServices.cartesia.generateVoice(text);
 
     ws.send(JSON.stringify({
