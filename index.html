@@ -1010,14 +1010,12 @@
           });
         }
 
-        if (btnSearchAi) {
-          btnSearchAi.addEventListener('click', () => {
-            this.startConversationalCall();
-            // Optionally hide the hero search bar to focus on video
-            const searchContainer = document.getElementById('search-container');
-            if (searchContainer) searchContainer.style.opacity = '0'; // Fade out
-          });
-        }
+        // Removed: btn-search-ai functionality - calls are now only available through the widget
+        // if (btnSearchAi) {
+        //   btnSearchAi.addEventListener('click', () => {
+        //     this.startConversationalCall();
+        //   });
+        // }
       }
 
       setHeroCallActive(active) {
@@ -1381,14 +1379,17 @@
             this.stream = stream;
 
             const preferredMime = 'audio/webm;codecs=opus';
+            let actualMimeType = preferredMime;
             try {
               if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(preferredMime)) {
                 this.mediaRecorder = new MediaRecorder(stream, { mimeType: preferredMime });
               } else {
                 this.mediaRecorder = new MediaRecorder(stream);
+                actualMimeType = this.mediaRecorder.mimeType || 'audio/webm';
               }
             } catch (_) {
               this.mediaRecorder = new MediaRecorder(stream);
+              actualMimeType = this.mediaRecorder.mimeType || 'audio/webm';
             }
 
             this.mediaRecorder.ondataavailable = (event) => {
@@ -1396,14 +1397,35 @@
                 if (!event.data || event.data.size <= 0) return;
                 if (!this.activeCall || ws.readyState !== WebSocket.OPEN) return;
                 if (this.isMicrophoneMuted || this.isSpeaking || this.awaitingResponse) return;
-                // Eliminar restricción de tamaño mínimo para streaming fluido
-                // if (event.data.size < this.minRecordedBytes) return;
 
-                // ENTERPRISE STREAMING: Enviar Binario Puro
+                // Convertir audio a base64 y enviar como JSON
                 const reader = new FileReader();
                 reader.onloadend = () => {
                   if (ws.readyState === WebSocket.OPEN) {
-                    ws.send(reader.result); // ArrayBuffer
+                    try {
+                      // Convertir ArrayBuffer a base64
+                      const arrayBuffer = reader.result;
+                      const bytes = new Uint8Array(arrayBuffer);
+                      let binary = '';
+                      for (let i = 0; i < bytes.byteLength; i++) {
+                        binary += String.fromCharCode(bytes[i]);
+                      }
+                      const base64Audio = btoa(binary);
+
+                      // Enviar como JSON según la especificación
+                      ws.send(JSON.stringify({
+                        route: 'audio',
+                        action: 'stt',
+                        payload: {
+                          audio: base64Audio,
+                          format: 'webm',
+                          mimeType: actualMimeType
+                        }
+                      }));
+                      console.log('[MCP] Audio enviado como JSON base64, tamaño:', base64Audio.length);
+                    } catch (err) {
+                      console.error('[MCP] Error convirtiendo audio a base64:', err);
+                    }
                   }
                 };
                 reader.readAsArrayBuffer(event.data);
@@ -1425,21 +1447,20 @@
         };
 
         ws.onmessage = async (event) => {
-          // 1. MANEJO BINARIO (Audio Streaming desde Servidor)
-          if (event.data instanceof Blob) {
-            const arrayBuffer = await event.data.arrayBuffer();
-            this.handleAudioChunk(arrayBuffer);
-            return;
-          }
-          if (event.data instanceof ArrayBuffer) {
-            this.handleAudioChunk(event.data);
-            return;
-          }
-
-          // 2. MANEJO JSON (Control)
+          // Solo manejar JSON (el servidor envía audio como JSON con base64)
           let data;
           try {
-            data = JSON.parse(event.data);
+            // Si es Blob, convertir a texto primero
+            if (event.data instanceof Blob) {
+              const text = await event.data.text();
+              data = JSON.parse(text);
+            } else if (typeof event.data === 'string') {
+              data = JSON.parse(event.data);
+            } else {
+              console.warn('[MCP] Tipo de dato no esperado:', typeof event.data);
+              return;
+            }
+
             console.log('[MCP] Mensaje recibido del servidor:', {
               route: data.route,
               action: data.action,
@@ -1610,6 +1631,7 @@
 
         const audio = new Audio(blobUrl);
         audio._blobUrl = blobUrl;
+        audio.volume = 1.0; // Asegurar volumen máximo
         this.currentAudio = audio;
 
         console.log('[AUDIO] Audio element creado, intentando reproducir...');
