@@ -186,7 +186,8 @@ async function startup() {
       
       // Verify required API keys are present (services will check internally)
       // Groq is required (primary), OpenAI is optional (fallback)
-      const requiredKeys = ['DEEPGRAM_API_KEY', 'CARTESIA_API_KEY', 'GROQ_API_KEY'];
+      // Cartesia removed - using native local voice instead
+      const requiredKeys = ['DEEPGRAM_API_KEY', 'GROQ_API_KEY'];
       const missingKeys = requiredKeys.filter(key => !process.env[key]);
       if (missingKeys.length > 0) {
         logger.warn(`⚠️ Missing API keys: ${missingKeys.join(', ')}`);
@@ -194,6 +195,7 @@ async function startup() {
       if (!process.env.OPENAI_API_KEY) {
         logger.warn('⚠️ OpenAI API key not found - Groq will be used without fallback');
       }
+      logger.info('✅ Using native local voice (no Cartesia TTS latency)');
       
       // Verificar que los servicios estén disponibles
       if (voiceServices && voiceServices.deepgram && voiceServices.cartesia && voiceServices.ai && voiceServices.getWelcomeAudio) {
