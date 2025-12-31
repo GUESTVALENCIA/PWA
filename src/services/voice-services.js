@@ -19,7 +19,7 @@ class VoiceServices {
     this.geminiApiKey = process.env.GEMINI_API_KEY;
     this.openaiApiKey = process.env.OPENAI_API_KEY;
     this.groqApiKey = process.env.GROQ_API_KEY;
-    this.preferredProvider = (process.env.PREFERRED_AI_PROVIDER || 'gemini').toLowerCase();
+    this.preferredProvider = (process.env.PREFERRED_AI_PROVIDER || 'groq').toLowerCase();
   }
 
   /**
@@ -98,7 +98,7 @@ class VoiceServices {
   }
 
   /**
-   * Process message with AI (Gemini, GPT-4, or Groq)
+   * Process message with AI (Groq, Gemini, or GPT-4)
    */
   async processMessage(userMessage) {
     const systemPrompt = `Eres Sandra, la asistente virtual de Guests Valencia, especializada en hospitalidad y turismo.
@@ -107,28 +107,28 @@ Actúa como una experta en Hospitalidad y Turismo.
 Sé breve: máximo 4 frases salvo que se pida detalle.
 Sé amable, profesional y útil.`;
 
-    // Try Gemini first (preferred)
-    if (this.preferredProvider === 'gemini' && this.geminiApiKey) {
+    // Try Groq first (preferred for this project)
+    if ((this.preferredProvider === 'groq' || !this.preferredProvider) && this.groqApiKey) {
+      try {
+        return await this._callGroq(userMessage, systemPrompt);
+      } catch (error) {
+        logger.warn('Groq failed, trying fallback:', error.message);
+      }
+    }
+
+    // Try Gemini as fallback
+    if (this.geminiApiKey) {
       try {
         return await this._callGemini(userMessage, systemPrompt);
       } catch (error) {
-        logger.warn('Gemini failed, trying fallback:', error.message);
+        logger.warn('Gemini failed, trying OpenAI:', error.message);
       }
     }
 
-    // Try OpenAI
+    // Try OpenAI as last resort
     if (this.openaiApiKey) {
       try {
         return await this._callOpenAI(userMessage, systemPrompt);
-      } catch (error) {
-        logger.warn('OpenAI failed, trying Groq:', error.message);
-      }
-    }
-
-    // Try Groq (Qwen)
-    if (this.groqApiKey) {
-      try {
-        return await this._callGroq(userMessage, systemPrompt);
       } catch (error) {
         logger.error('All AI providers failed:', error);
         throw new Error('All AI providers failed');
