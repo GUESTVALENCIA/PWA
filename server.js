@@ -102,11 +102,10 @@ app.use('/api', implementRoutes);
 app.use('/api', contextRoutes);
 app.use('/api/voice', voiceIntegrationRoutes);
 
-// ===== WEBSOCKET =====
-initWebSocketServer(wss, stateManager);
-
 // ===== ERROR HANDLER (DEBE SER AL FINAL) =====
 app.use(errorHandler);
+
+// NOTE: WebSocket initialization is done inside startup() function after all services are initialized
 
 // ===== STARTUP =====
 async function startup() {
@@ -170,27 +169,61 @@ async function startup() {
       const voiceServicesModule = await import('./src/services/voice-services.js');
       voiceServices = voiceServicesModule.default;
       
+      // Validate service structure
+      if (!voiceServices) {
+        throw new Error('Voice services module returned null/undefined');
+      }
+      
+      // Log the actual structure for debugging
+      logger.info('Voice services module structure:', {
+        hasDefault: !!voiceServicesModule.default,
+        hasDeepgram: !!voiceServices?.deepgram,
+        hasCartesia: !!voiceServices?.cartesia,
+        hasAI: !!voiceServices?.ai,
+        keys: Object.keys(voiceServices || {})
+      });
+      
+      // Verify required API keys are present (services will check internally)
+      const requiredKeys = ['DEEPGRAM_API_KEY', 'CARTESIA_API_KEY', 'GROQ_API_KEY'];
+      const missingKeys = requiredKeys.filter(key => !process.env[key]);
+      if (missingKeys.length > 0) {
+        logger.warn(`⚠️ Missing API keys: ${missingKeys.join(', ')}`);
+      }
+      
       // Verificar que los servicios estén disponibles
       if (voiceServices && voiceServices.deepgram && voiceServices.cartesia && voiceServices.ai) {
-        logger.info('✅ Voice services initialized', {
+        logger.info('✅ Voice services initialized successfully', {
           hasDeepgram: !!voiceServices.deepgram,
           hasCartesia: !!voiceServices.cartesia,
-          hasAI: !!voiceServices.ai
+          hasAI: !!voiceServices.ai,
+          deepgramMethods: voiceServices.deepgram ? Object.keys(voiceServices.deepgram) : [],
+          cartesiaMethods: voiceServices.cartesia ? Object.keys(voiceServices.cartesia) : [],
+          aiMethods: voiceServices.ai ? Object.keys(voiceServices.ai) : []
         });
       } else {
-        logger.warn('⚠️ Voice services partially initialized', {
+        logger.error('❌ Voice services partially initialized - missing required services', {
+          hasVoiceServices: !!voiceServices,
           hasDeepgram: !!voiceServices?.deepgram,
           hasCartesia: !!voiceServices?.cartesia,
-          hasAI: !!voiceServices?.ai
+          hasAI: !!voiceServices?.ai,
+          structure: JSON.stringify(voiceServices, null, 2).substring(0, 500)
         });
+        throw new Error('Voice services structure incomplete');
       }
     } catch (error) {
-      logger.warn('⚠️ Voice services not available:', error.message);
-      logger.error('Voice services initialization error:', error);
+      logger.error('❌ Voice services initialization failed:', error);
+      logger.error('Error details:', {
+        message: error.message,
+        stack: error.stack?.substring(0, 500),
+        code: error.code
+      });
+      voiceServices = null; // Ensure it's null on error
     }
 
-    // 9. Inicializar WebSocket con servicios
+    // 9. Inicializar WebSocket con servicios (después de que todos los servicios estén listos)
+    logger.info('Initializing WebSocket server with all services...');
     initWebSocketServer(wss, stateManager, systemEventEmitter, neonService, voiceServices);
+    logger.info('✅ WebSocket server initialized');
 
     // 10. Iniciar servidor HTTP
     server.listen(PORT, HOST, () => {
