@@ -428,6 +428,24 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices) {
     return;
   }
 
+  // Verificar que los servicios estén disponibles
+  if (!voiceServices.deepgram || !voiceServices.cartesia || !voiceServices.ai) {
+    logger.warn('Voice services not fully initialized', {
+      hasDeepgram: !!voiceServices.deepgram,
+      hasCartesia: !!voiceServices.cartesia,
+      hasAI: !!voiceServices.ai
+    });
+    ws.send(JSON.stringify({
+      route: 'error',
+      action: 'message',
+      payload: {
+        error: 'Voice services not configured',
+        message: 'Voice system is not available on this server'
+      }
+    }));
+    return;
+  }
+
   try {
     switch (route) {
       case 'audio':
