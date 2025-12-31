@@ -1503,7 +1503,33 @@
             return;
           }
 
-          // Manejar respuesta de audio TTS
+          // PRIMERO: Manejar mensajes que no tienen route/action (formato diferente del servidor)
+          if (!data.route && !data.action && !data.error) {
+            console.log('[MCP] Mensaje sin route/action, estructura completa:', JSON.stringify(data, null, 2));
+            
+            // Intentar detectar si es un mensaje de audio de respuesta
+            if (data.audio || data.payload?.audio) {
+              const audioBase64 = data.audio || data.payload?.audio;
+              console.log('[MCP] ✅ Detectado audio en mensaje alternativo');
+              const isWelcome = data.isWelcome || data.payload?.isWelcome || (!this.currentAudio && !this.isSpeaking);
+              this.clearResponseWatchdog();
+              this.awaitingResponse = false;
+              this.playAudioResponse(audioBase64, isWelcome);
+              return;
+            }
+            
+            // Si tiene type, podría ser un mensaje de otro formato
+            if (data.type) {
+              console.log('[MCP] Mensaje con type:', data.type, 'payload:', data.payload || data);
+              // Ignorar mensajes de tipo 'config' que vienen del servidor
+              if (data.type === 'config') {
+                return;
+              }
+              return;
+            }
+          }
+
+          // Manejar respuesta de audio TTS (formato estándar)
           if (data.route === 'audio' && data.action === 'tts' && data.payload && data.payload.audio) {
             console.log('[MCP] ✅ Recibida respuesta de audio TTS');
             this.clearResponseWatchdog();
@@ -1533,7 +1559,7 @@
 
           // Manejar errores del servidor (con o sin route/action)
           if (data.error) {
-            console.error('[MCP] ❌ Error del servidor:', data.error);
+            console.error('[MCP] ❌ Error del servidor:', data.error, 'Mensaje completo:', JSON.stringify(data, null, 2));
             this.clearResponseWatchdog();
             this.awaitingResponse = false;
 
@@ -1544,6 +1570,7 @@
             }
             return;
           }
+
 
           // Manejar respuestas de STT con error
           if (data.route === 'audio' && data.action === 'stt' && data.payload && data.payload.error) {
