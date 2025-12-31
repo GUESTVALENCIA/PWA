@@ -1558,14 +1558,16 @@
           }
 
           // Manejar errores del servidor (pero solo si realmente son errores críticos)
-          if (data.error) {
+          if (data.error || (data.type === 'error')) {
+            const errorMsg = data.error || data.message || '';
+            
             // Ignorar errores "Unknown message type" que vienen del servidor como parte de su funcionamiento interno
-            if (data.error.includes('Unknown message type')) {
-              console.log('[MCP] Mensaje del servidor ignorado (error conocido):', data.error);
-              return; // Ignorar estos errores, no son críticos
+            if (errorMsg.includes('Unknown message type') || errorMsg.includes('Unknown message type: undefined')) {
+              // Silenciar estos errores - no son críticos
+              return; 
             }
             
-            console.error('[MCP] ❌ Error del servidor:', data.error, 'Mensaje completo:', JSON.stringify(data, null, 2));
+            console.error('[MCP] ❌ Error del servidor:', errorMsg, 'Mensaje completo:', JSON.stringify(data, null, 2));
             this.clearResponseWatchdog();
             this.awaitingResponse = false;
 
