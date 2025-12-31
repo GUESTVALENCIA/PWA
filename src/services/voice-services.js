@@ -25,12 +25,29 @@ class VoiceServices {
   /**
    * Transcribe audio using Deepgram
    */
-  async transcribeAudio(audioBase64) {
+  async transcribeAudio(audioBase64, format = 'webm') {
     if (!this.deepgramApiKey) {
       throw new Error('Deepgram API Key not configured');
     }
 
-    const audioBuffer = Buffer.from(audioBase64, 'base64');
+    if (!audioBase64 || typeof audioBase64 !== 'string') {
+      throw new Error('Invalid audio data: expected base64 string');
+    }
+
+    let audioBuffer;
+    try {
+      audioBuffer = Buffer.from(audioBase64, 'base64');
+      if (audioBuffer.length === 0) {
+        throw new Error('Empty audio buffer after decoding');
+      }
+    } catch (error) {
+      throw new Error(`Failed to decode audio base64: ${error.message}`);
+    }
+
+    // Determinar Content-Type basado en el formato
+    const contentType = format === 'webm' ? 'audio/webm' : 
+                        format === 'mp3' ? 'audio/mpeg' :
+                        format === 'wav' ? 'audio/wav' : 'audio/webm';
 
     const response = await fetch(
       `https://api.deepgram.com/v1/listen?model=nova-2&language=es&punctuate=true&smart_format=true`,
@@ -38,7 +55,7 @@ class VoiceServices {
         method: 'POST',
         headers: {
           'Authorization': `Token ${this.deepgramApiKey}`,
-          'Content-Type': 'audio/webm',
+          'Content-Type': contentType,
         },
         body: audioBuffer
       }
