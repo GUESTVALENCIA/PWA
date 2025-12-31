@@ -39,9 +39,11 @@ class VoiceServices {
       if (audioBuffer.length === 0) {
         throw new Error('Empty audio buffer after decoding');
       }
-      // Validate minimum buffer size (at least 100 bytes for valid audio)
-      if (audioBuffer.length < 100) {
-        throw new Error(`Audio buffer too small: ${audioBuffer.length} bytes (minimum 100 bytes)`);
+      // Validate minimum buffer size (at least 2000 bytes for valid WebM chunks)
+      // WebM containers have overhead, chunks < 2KB are likely incomplete or invalid
+      if (audioBuffer.length < 2000) {
+        logger.warn(`Audio chunk too small: ${audioBuffer.length} bytes, skipping (minimum 2000 bytes for valid WebM)`);
+        return ''; // Return empty string (no error, just skip this chunk)
       }
     } catch (error) {
       throw new Error(`Failed to decode audio base64: ${error.message}`);
@@ -53,7 +55,7 @@ class VoiceServices {
     
     // Add encoding parameter for WebM/Opus format
     if (format === 'webm') {
-      url += '&encoding=opus';
+      url += '&encoding=opus&sample_rate=48000'; // Opus default sample rate, especificado explícitamente
     } else if (format === 'mp3') {
       url += '&encoding=mp3';
     } else if (format === 'wav') {
