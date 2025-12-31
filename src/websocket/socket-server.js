@@ -13,7 +13,7 @@ const agentConnections = new Map();
 /**
  * Initialize WebSocket server
  */
-export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonService) {
+export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonService, voiceServices = null) {
   wss.on('connection', (ws, req) => {
     const agentId = req.headers['x-agent-id'] || `agent_${Math.random().toString(36).substring(7)}`;
     const connectionTime = new Date().toISOString();
@@ -38,7 +38,7 @@ export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonS
     ws.on('message', (message) => {
       try {
         const data = JSON.parse(message);
-        handleMessage(data, agentId, ws, wss, neonService, systemEventEmitter);
+        handleMessage(data, agentId, ws, wss, neonService, systemEventEmitter, voiceServices);
       } catch (error) {
         logger.error('WebSocket message parsing error:', error);
         ws.send(JSON.stringify({
@@ -155,7 +155,16 @@ export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonS
 /**
  * Handle incoming WebSocket message
  */
-function handleMessage(data, agentId, ws, wss, neonService, systemEventEmitter) {
+function handleMessage(data, agentId, ws, wss, neonService, systemEventEmitter, voiceServices) {
+  // Soporte para formato route/action (sistema de voz)
+  if (data.route && data.action) {
+    handleVoiceMessage(data, agentId, ws, voiceServices).catch(error => {
+      logger.error('Error in handleVoiceMessage:', error);
+    });
+    return;
+  }
+  
+  // Formato existente type/payload (orquestación)
   const { type, payload } = data;
 
   switch (type) {
@@ -397,5 +406,227 @@ function broadcastToProjectSubscribers(wss, projectId, message) {
         ws.send(payload);
       }
     }
+  }
+}
+
+/**
+ * Handle voice system messages (route/action format)
+ */
+async function handleVoiceMessage(data, agentId, ws, voiceServices) {
+  const { route, action, payload } = data;
+
+  if (!voiceServices) {
+    logger.warn('Voice services not available');
+    ws.send(JSON.stringify({
+      route: 'error',
+      action: 'message',
+      payload: {
+        error: 'Voice services not configured',
+        message: 'Voice system is not available on this server'
+      }
+    }));
+    return;
+  }
+
+  try {
+    switch (route) {
+      case 'audio':
+        if (action === 'stt') {
+          await handleAudioSTT(payload, ws, voiceServices);
+        } else if (action === 'tts') {
+          await handleAudioTTS(payload, ws, voiceServices);
+        } else {
+          ws.send(JSON.stringify({
+            route: 'error',
+            action: 'message',
+            payload: { error: `Unknown audio action: ${action}` }
+          }));
+        }
+        break;
+
+      case 'conserje':
+        if (action === 'message' && payload?.type === 'ready') {
+          await handleWelcomeMessage(ws, voiceServices);
+        } else {
+          ws.send(JSON.stringify({
+            route: 'error',
+            action: 'message',
+            payload: { error: `Unknown conserje action: ${action}` }
+          }));
+        }
+        break;
+
+      default:
+        ws.send(JSON.stringify({
+          route: 'error',
+          action: 'message',
+          payload: { error: `Unknown route: ${route}` }
+        }));
+    }
+  } catch (error) {
+    logger.error('Error handling voice message:', error);
+    ws.send(JSON.stringify({
+      route: 'error',
+      action: 'message',
+      payload: {
+        error: 'Voice processing error',
+        message: error.message
+      }
+    }));
+  }
+}
+
+/**
+ * Handle audio STT (Speech-to-Text) - Process user audio and generate response
+ */
+async function handleAudioSTT(payload, ws, voiceServices) {
+  const { audio, format, mimeType } = payload;
+
+  if (!audio) {
+    ws.send(JSON.stringify({
+      route: 'error',
+      action: 'message',
+      payload: { error: 'Audio data is required' }
+    }));
+    return;
+  }
+
+  try {
+    // 1. Transcribe audio
+    logger.info('🎤 Processing audio STT...');
+    const transcript = await voiceServices.deepgram.transcribeAudio(audio);
+
+    if (!transcript || transcript.trim().length === 0) {
+      // No speech detected
+      ws.send(JSON.stringify({
+        route: 'conserje',
+        action: 'message',
+        payload: {
+          type: 'noSpeech',
+          message: 'No se detectó habla en el audio'
+        }
+      }));
+      return;
+    }
+
+    logger.info(`📝 Transcript: "${transcript}"`);
+
+    // 2. Process with AI (Gemini/GPT-4/Groq)
+    logger.info('🤖 Processing with AI...');
+    const aiResponse = await voiceServices.ai.processMessage(transcript);
+
+    if (!aiResponse || aiResponse.trim().length === 0) {
+      ws.send(JSON.stringify({
+        route: 'error',
+        action: 'message',
+        payload: { error: 'AI did not generate a response' }
+      }));
+      return;
+    }
+
+    logger.info(`💬 AI Response: "${aiResponse.substring(0, 100)}..."`);
+
+    // 3. Generate TTS audio
+    logger.info('🔊 Generating TTS...');
+    const responseAudio = await voiceServices.cartesia.generateVoice(aiResponse);
+
+    // 4. Send audio response
+    ws.send(JSON.stringify({
+      route: 'audio',
+      action: 'tts',
+      payload: {
+        audio: responseAudio,
+        format: 'mp3',
+        text: aiResponse,
+        isWelcome: false
+      }
+    }));
+
+    logger.info('✅ Audio response sent to client');
+  } catch (error) {
+    logger.error('Error in audio STT processing:', error);
+    ws.send(JSON.stringify({
+      route: 'error',
+      action: 'message',
+      payload: {
+        error: 'STT processing failed',
+        message: error.message
+      }
+    }));
+  }
+}
+
+/**
+ * Handle audio TTS request (Text-to-Speech)
+ */
+async function handleAudioTTS(payload, ws, voiceServices) {
+  const { text } = payload;
+
+  if (!text) {
+    ws.send(JSON.stringify({
+      route: 'error',
+      action: 'message',
+      payload: { error: 'Text is required for TTS' }
+    }));
+    return;
+  }
+
+  try {
+    logger.info(`🔊 Generating TTS for: "${text.substring(0, 50)}..."`);
+    const audio = await voiceServices.cartesia.generateVoice(text);
+
+    ws.send(JSON.stringify({
+      route: 'audio',
+      action: 'tts',
+      payload: {
+        audio,
+        format: 'mp3',
+        text,
+        isWelcome: payload.isWelcome || false
+      }
+    }));
+  } catch (error) {
+    logger.error('Error in TTS generation:', error);
+    ws.send(JSON.stringify({
+      route: 'error',
+      action: 'message',
+      payload: {
+        error: 'TTS generation failed',
+        message: error.message
+      }
+    }));
+  }
+}
+
+/**
+ * Handle welcome message - Send pre-recorded welcome audio
+ */
+async function handleWelcomeMessage(ws, voiceServices) {
+  try {
+    logger.info('👋 Sending welcome message...');
+    const welcomeAudio = await voiceServices.getWelcomeAudio();
+
+    ws.send(JSON.stringify({
+      route: 'audio',
+      action: 'tts',
+      payload: {
+        audio: welcomeAudio,
+        format: 'mp3',
+        text: '¡Hola! Soy Sandra, tu asistente virtual de Guests Valencia. ¿En qué puedo ayudarte?',
+        isWelcome: true
+      }
+    }));
+
+    logger.info('✅ Welcome message sent');
+  } catch (error) {
+    logger.error('Error sending welcome message:', error);
+    ws.send(JSON.stringify({
+      route: 'error',
+      action: 'message',
+      payload: {
+        error: 'Welcome message failed',
+        message: error.message
+      }
+    }));
   }
 }
