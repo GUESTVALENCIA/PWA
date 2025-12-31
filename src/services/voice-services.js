@@ -239,10 +239,9 @@ Sé amable, profesional y útil.`;
       }
     }
 
-    // If file not found, generate a welcome message with TTS as fallback
-    logger.warn('⚠️ Welcome audio file not found, using TTS fallback');
-    const welcomeText = '¡Hola! Soy Sandra, tu asistente virtual de Guests Valencia. ¿En qué puedo ayudarte?';
-    return await this.generateVoice(welcomeText);
+    // If file not found, try using conversational voice as fallback
+    logger.warn('⚠️ Welcome audio file not found, using conversational voice as fallback');
+    return await this.generateVoice(''); // Will use sandra-conversational.wav
   }
 }
 
