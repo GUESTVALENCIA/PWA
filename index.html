@@ -1435,7 +1435,7 @@
               }
             };
 
-            this.mediaRecorder.start(250); // Slices de 250ms para latencia aceptable
+            this.mediaRecorder.start(1000); // Slices de 1000ms (1 segundo) para mejor compatibilidad con Deepgram
             console.log("🎤 Microphone recording started (Enterprise Streaming)");
 
           } catch (err) {
