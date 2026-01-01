@@ -62,7 +62,18 @@ import voiceIntegrationRoutes from './src/routes/voice-integration.js';
 // ===== INICIALIZACIÓN =====
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+// 🚀 ENTERPRISE: Optimizaciones WebSocket según pipeline Claude
+const wss = new WebSocketServer({ 
+  server,
+  // CRÍTICO: Deshabilita compresión para latencia mínima (más velocidad)
+  perMessageDeflate: false,
+  // Límite de payload optimizado para audio streaming
+  maxPayload: 100 * 1024, // 100KB
+  // Tracking de clientes para gestión de conexiones
+  clientTracking: true,
+  // Backlog para manejar picos de conexiones simultáneas
+  backlog: 100
+});
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
