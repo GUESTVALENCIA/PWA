@@ -751,7 +751,9 @@ async function handleAudioTTS(payload, ws, voiceServices) {
 
   try {
     logger.info(`🔊 Loading native voice audio for: "${text.substring(0, 50)}..."`);
-    const audio = await voiceServices.cartesia.generateVoice(text);
+    // Send text to client for native voice playback (client handles audio locally)
+    // Note: We no longer generate audio on server - client uses native voice file
+    const audio = await voiceServices.generateVoice(text);
 
     ws.send(JSON.stringify({
       route: 'audio',
