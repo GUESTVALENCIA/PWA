@@ -25,6 +25,8 @@ const agentSubscriptions = new Map();
 const agentConnections = new Map();
 // Deepgram streaming connections: Map<agentId, { connection, isProcessing }>
 const deepgramConnections = new Map();
+// Track agents where STT is not available (prevents error spam)
+const sttUnavailableAgents = new Set();
 
 /**
  * Initialize WebSocket server
@@ -33,9 +35,10 @@ export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonS
   // #region agent log
   debugLog('socket-server.js:18', 'initWebSocketServer called', {voiceServicesIsNull:voiceServices===null,hasVoiceServices:!!voiceServices,hasDeepgram:!!voiceServices?.deepgram,hasAI:!!voiceServices?.ai,hasWelcomeAudio:!!voiceServices?.getWelcomeAudio}, 'E');
   // #endregion
-  wss.on('connection', (ws, req) => {
-    const agentId = req.headers['x-agent-id'] || `agent_${Math.random().toString(36).substring(7)}`;
-    const connectionTime = new Date().toISOString();
+	  wss.on('connection', (ws, req) => {
+	    const agentId = req.headers['x-agent-id'] || `agent_${Math.random().toString(36).substring(7)}`;
+	    const connectionTime = new Date().toISOString();
+	    const sttAvailable = voiceServices?.deepgram?.isConfigured !== false;
 
     logger.info(`✅ WebSocket connected: ${agentId}`);
 
@@ -46,12 +49,15 @@ export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonS
     }
 
     // Send welcome message
-    ws.send(JSON.stringify({
-      type: 'connection_established',
-      agent_id: agentId,
-      timestamp: connectionTime,
-      message: 'Connected to MCP Orchestrator'
-    }));
+	    ws.send(JSON.stringify({
+	      type: 'connection_established',
+	      agent_id: agentId,
+	      timestamp: connectionTime,
+	      message: 'Connected to MCP Orchestrator',
+	      capabilities: {
+	        stt: sttAvailable
+	      }
+	    }));
 
     // Handle incoming messages
     ws.on('message', (message) => {
@@ -74,18 +80,19 @@ export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonS
       
       // Close Deepgram streaming connection if exists
       const deepgramData = deepgramConnections.get(agentId);
-      if (deepgramData && deepgramData.connection) {
+	      if (deepgramData && deepgramData.connection) {
         logger.info(`[DEEPGRAM] Closing streaming connection for ${agentId}`);
         try {
           deepgramData.connection.finish();
         } catch (error) {
           logger.error(`[DEEPGRAM] Error closing connection:`, error);
         }
-        deepgramConnections.delete(agentId);
-      }
-      
-      agentConnections.delete(agentId);
-      agentSubscriptions.delete(agentId);
+	        deepgramConnections.delete(agentId);
+	      }
+	      sttUnavailableAgents.delete(agentId);
+	      
+	      agentConnections.delete(agentId);
+	      agentSubscriptions.delete(agentId);
 
       // Notify other agents of disconnection
       broadcastToAll(wss, {
@@ -558,6 +565,22 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
       action: 'message',
       payload: { error: 'Audio data is required' }
     }));
+    return;
+  }
+
+  if (voiceServices?.deepgram?.isConfigured === false) {
+    if (!sttUnavailableAgents.has(agentId)) {
+      sttUnavailableAgents.add(agentId);
+      ws.send(JSON.stringify({
+        route: 'error',
+        action: 'message',
+        payload: {
+          error: 'STT processing failed',
+          code: 'DEEPGRAM_NOT_CONFIGURED',
+          message: 'Deepgram SDK not initialized - check DEEPGRAM_API_KEY'
+        }
+      }));
+    }
     return;
   }
 
