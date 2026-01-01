@@ -1881,11 +1881,15 @@
 	              ? 'La transcripción de voz no está disponible en este momento (DEEPGRAM_API_KEY no configurada en el servidor).'
 	              : rawErrorText;
 
-	            console.error('[MCP] ❌ Error del servidor:', rawErrorText);
+            console.error('[MCP] ❌ Error del servidor:', rawErrorText);
 
-	            try {
-	              this.addMessage(userErrorText, 'system');
-	            } catch (_) { }
+            // Solo agregar error al chat si NO hay llamada activa
+            // Durante llamada de voz, los errores se manejan de otra forma
+            if (!this.activeCall) {
+              try {
+                this.addMessage(userErrorText, 'system');
+              } catch (_) { }
+            }
 
 	            this.clearResponseWatchdog();
 	            this.awaitingResponse = false;
@@ -1918,6 +1922,7 @@
           }
 
           // Manejar mensaje de respuesta completa del servidor (texto para reproducir con voz nativa)
+          // IMPORTANTE: Este mensaje SOLO viene durante llamada de voz, NUNCA durante chat de texto
           if (data.route === 'conserje' && data.action === 'message' && data.payload && data.payload.type === 'response_complete' && data.payload.text) {
             console.log('[MCP] ✅ Respuesta completa recibida, reproduciendo con voz nativa');
             this.clearResponseWatchdog();
@@ -1925,11 +1930,9 @@
             
             const responseText = data.payload.text;
             
-            // NO mostrar mensaje en el chat cuando hay llamada activa
-            // Solo reproducir con voz
-            if (!this.activeCall) {
-              this.addMessage(responseText, 'system');
-            }
+            // CRÍTICO: NUNCA agregar al chat cuando viene de WebSocket (llamada de voz)
+            // Las respuestas de llamada de voz SOLO van a voz, nunca al chat
+            // El chat de texto usa gateway.sendMessage() que es un flujo completamente separado
 
             const liveTranscript = document.getElementById('sandra-live-transcript');
             if (liveTranscript) {
@@ -1937,7 +1940,7 @@
               liveTranscript.textContent = '';
             }
             
-            // Reproducir con voz nativa local usando el texto real
+            // Reproducir con voz nativa local usando el texto real del servidor
             this.playNativeVoice(responseText);
             return;
           }
