@@ -1,0 +1,90 @@
+*** Begin Patch
+*** Update File: index.html
+@@ class SandraWidget {
+-        // Voice Library Manager - Pre-cargar voz nativa
+-        this.voiceLibraryManager = {
+-          nativeVoiceAudio: null,
+-          isLoaded: false,
+-          loadNativeVoice: async () => {
+-            if (this.voiceLibraryManager.isLoaded) return;
+-            try {
+-              console.log('[VOICE-LIB] 📁 Cargando voz nativa: assets/audio/sandra-conversational.wav');
+-              this.voiceLibraryManager.nativeVoiceAudio = new Audio('assets/audio/sandra-conversational.wav');
+-              this.voiceLibraryManager.nativeVoiceAudio.preload = 'auto';
+-              this.voiceLibraryManager.nativeVoiceAudio.volume = 1.0;
+-              
+-              await new Promise((resolve, reject) => {
+-                this.voiceLibraryManager.nativeVoiceAudio.addEventListener('canplaythrough', resolve, { once: true });
+-                this.voiceLibraryManager.nativeVoiceAudio.addEventListener('error', reject, { once: true });
+-              });
+-              
+-              this.voiceLibraryManager.isLoaded = true;
+-              console.log('[VOICE-LIB] ✅ Voz nativa cargada correctamente');
+-            } catch (error) {
+-              console.error('[VOICE-LIB] ❌ Error cargando voz nativa:', error);
+-              // Fallback: intentar welcome.mp3
+-              try {
+-                this.voiceLibraryManager.nativeVoiceAudio = new Audio('assets/audio/welcome.mp3');
+-                this.voiceLibraryManager.nativeVoiceAudio.preload = 'auto';
+-                this.voiceLibraryManager.nativeVoiceAudio.volume = 1.0;
+-                await new Promise((resolve, reject) => {
+-                  this.voiceLibraryManager.nativeVoiceAudio.addEventListener('canplaythrough', resolve, { once: true });
+-                  this.voiceLibraryManager.nativeVoiceAudio.addEventListener('error', reject, { once: true });
+-                });
+-                this.voiceLibraryManager.isLoaded = true;
+-                console.log('[VOICE-LIB] ✅ Usando welcome.mp3 como fallback');
+-              } catch (fallbackError) {
+-                console.error('[VOICE-LIB] ❌ Error en fallback:', fallbackError);
+-              }
+-            }
+-          }
+-        };
++        // Voice Library Manager - Pre-cargar voz nativa
++        this.voiceLibraryManager = {
++          nativeVoiceAudio: null,
++          isLoaded: false,
++          /**
++           * Carga la voz nativa desde el archivo configurado en la biblioteca de voces.
++           * Si la voz nativa no se encuentra, hace un fallback al archivo `welcome.mp3`.
++           */
++          loadNativeVoice: async () => {
++            // No volver a cargar si ya está cargada
++            if (this.voiceLibraryManager.isLoaded) return;
++            try {
++              // La biblioteca de voces define que la voz por defecto es `sandra-voice.mp3`.  
++              // Actualizamos la ruta para coincidir con el archivo real en assets/audio.
++              const nativeVoicePath = 'assets/audio/sandra-voice.mp3';
++              console.log('[VOICE-LIB] 📁 Cargando voz nativa:', nativeVoicePath);
++              this.voiceLibraryManager.nativeVoiceAudio = new Audio(nativeVoicePath);
++              this.voiceLibraryManager.nativeVoiceAudio.preload = 'auto';
++              this.voiceLibraryManager.nativeVoiceAudio.volume = 1.0;
++
++              // Esperar a que el audio esté listo para reproducirse
++              await new Promise((resolve, reject) => {
++                this.voiceLibraryManager.nativeVoiceAudio.addEventListener('canplaythrough', resolve, { once: true });
++                this.voiceLibraryManager.nativeVoiceAudio.addEventListener('error', reject, { once: true });
++              });
++
++              this.voiceLibraryManager.isLoaded = true;
++              console.log('[VOICE-LIB] ✅ Voz nativa cargada correctamente');
++            } catch (error) {
++              console.error('[VOICE-LIB] ❌ Error cargando voz nativa:', error);
++              // Fallback: intentar welcome.mp3
++              try {
++                const fallbackPath = 'assets/audio/welcome.mp3';
++                this.voiceLibraryManager.nativeVoiceAudio = new Audio(fallbackPath);
++                this.voiceLibraryManager.nativeVoiceAudio.preload = 'auto';
++                this.voiceLibraryManager.nativeVoiceAudio.volume = 1.0;
++                await new Promise((resolve, reject) => {
++                  this.voiceLibraryManager.nativeVoiceAudio.addEventListener('canplaythrough', resolve, { once: true });
++                  this.voiceLibraryManager.nativeVoiceAudio.addEventListener('error', reject, { once: true });
++                });
++                this.voiceLibraryManager.isLoaded = true;
++                console.log('[VOICE-LIB] ✅ Usando welcome.mp3 como fallback');
++              } catch (fallbackError) {
++                console.error('[VOICE-LIB] ❌ Error en fallback:', fallbackError);
++              }
++            }
++          }
++        };
+*** End Patch
