@@ -14,11 +14,12 @@
 
   <!-- PWA -->
   <meta name="theme-color" content="#0F172A">
-  <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/favicon-32x32.png">
-  <link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+	  <link rel="manifest" href="/manifest.webmanifest">
+	  <link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/favicon-32x32.png">
+	  <link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png">
+	  <meta name="apple-mobile-web-app-capable" content="yes">
+	  <meta name="mobile-web-app-capable" content="yes">
+	  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
   <!-- Open Graph -->
   <meta property="og:type" content="website">
@@ -40,9 +41,8 @@
     href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap"
     rel="stylesheet">
 
-  <!-- Tailwind -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>tailwind.config = { theme: { extend: { fontFamily: { sans: ['Outfit', 'system-ui', 'sans-serif'], serif: ['Playfair Display', 'Georgia', 'serif'] } } } }</script>
+	  <!-- Tailwind -->
+	  <link rel="stylesheet" href="/assets/tailwind.css">
 
   <style>
     :root {
@@ -1595,20 +1595,40 @@
             return;
           }
 
-          // Manejar mensajes de error del servidor
-          if (data.route === 'error' && data.action === 'message' && data.payload) {
-            const errorMsg = data.payload.error || data.payload.message || 'Error desconocido';
-            console.error('[MCP] ❌ Error del servidor:', errorMsg);
-            
-            // Mostrar error en el chat widget
-            if (this.chatMessages) {
-              this.addMessage('system', `Error: ${errorMsg}`);
-            }
-            
-            this.clearResponseWatchdog();
-            this.awaitingResponse = false;
-            return;
-          }
+	          // Manejar mensajes de error del servidor
+	          if (data.route === 'error' && data.action === 'message' && data.payload) {
+	            const payloadError = (typeof data.payload.error === 'string') ? data.payload.error : '';
+	            const payloadMessage = (typeof data.payload.message === 'string') ? data.payload.message : '';
+	            const errorCode = (typeof data.payload.code === 'string') ? data.payload.code : '';
+
+	            const rawErrorText = (payloadError && payloadMessage && payloadMessage !== payloadError)
+	              ? `${payloadError}: ${payloadMessage}`
+	              : (payloadMessage || payloadError || 'Error desconocido');
+
+	            const isDeepgramNotConfigured =
+	              errorCode === 'DEEPGRAM_NOT_CONFIGURED' ||
+	              rawErrorText.includes('DEEPGRAM_API_KEY') ||
+	              rawErrorText.includes('Deepgram SDK not initialized');
+
+	            const userErrorText = isDeepgramNotConfigured
+	              ? 'La transcripci??n de voz no est?? disponible en este momento (DEEPGRAM_API_KEY no configurada en el servidor).'
+	              : rawErrorText;
+
+	            console.error('[MCP] ❌ Error del servidor:', rawErrorText);
+
+	            try {
+	              this.addMessage(userErrorText, 'system');
+	            } catch (_) { }
+
+	            this.clearResponseWatchdog();
+	            this.awaitingResponse = false;
+
+	            // Si falta Deepgram, detener streaming para evitar spam de errores
+	            if (isDeepgramNotConfigured) {
+	              this.hangupCall();
+	            }
+	            return;
+	          }
 
           // Manejar mensaje de respuesta completa del servidor (texto para reproducir con voz nativa)
           if (data.route === 'conserje' && data.action === 'message' && data.payload && data.payload.type === 'response_complete' && data.payload.text) {
