@@ -300,12 +300,15 @@ class VoiceServices {
    */
   async _generateDeepgramTTS(text, model = 'aura-2-thalia-es') {
     // Deepgram TTS models for Spanish: aura-2-thalia-es, aura-2-luna-es, etc.
+    // Specify encoding and sample_rate for consistent audio output
     if (!this.deepgramApiKey) {
       throw new Error('Deepgram API key not configured');
     }
 
     try {
-      const response = await fetch(`https://api.deepgram.com/v1/speak?model=${model}`, {
+      // Deepgram TTS endpoint with encoding and sample_rate parameters
+      // encoding: mp3 (default) or linear16, sample_rate: 24000 (default) or 16000, 48000, etc.
+      const response = await fetch(`https://api.deepgram.com/v1/speak?model=${model}&encoding=mp3&sample_rate=24000`, {
         method: 'POST',
         headers: {
           'Authorization': `Token ${this.deepgramApiKey}`,
@@ -321,7 +324,7 @@ class VoiceServices {
 
       const audioBuffer = await response.arrayBuffer();
       const audioBase64 = Buffer.from(audioBuffer).toString('base64');
-      logger.info('[TTS] ✅ Audio generated successfully with Deepgram');
+      logger.info('[TTS] ✅ Audio generated successfully with Deepgram (MP3, 24kHz)');
       return audioBase64;
     } catch (error) {
       logger.error('[TTS] Deepgram TTS error:', error);
