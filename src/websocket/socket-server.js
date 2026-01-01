@@ -663,11 +663,25 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
     // Send audio buffer to Deepgram streaming connection
     if (deepgramData && deepgramData.connection) {
       try {
+        // Check connection state before sending
+        if (deepgramData.connection.getReadyState && deepgramData.connection.getReadyState() !== 1) {
+          logger.warn(`[DEEPGRAM] Connection not ready (state: ${deepgramData.connection.getReadyState()}), recreating...`);
+          deepgramConnections.delete(agentId);
+          return; // Will recreate on next chunk
+        }
+        
         deepgramData.connection.send(audioBuffer);
-        logger.debug(`[DEEPGRAM] Sent audio chunk: ${audioBuffer.length} bytes to ${agentId}`);
+        logger.debug(`[DEEPGRAM] ✅ Sent audio chunk: ${audioBuffer.length} bytes to ${agentId}`);
       } catch (error) {
-        logger.error('[DEEPGRAM] Error sending audio to Deepgram:', error);
+        logger.error('[DEEPGRAM] ❌ Error sending audio to Deepgram:', error);
         // Try to recreate connection on error
+        if (deepgramData && deepgramData.connection) {
+          try {
+            deepgramData.connection.finish();
+          } catch (finishError) {
+            logger.error('[DEEPGRAM] Error finishing connection:', finishError);
+          }
+        }
         deepgramConnections.delete(agentId);
       }
     }
