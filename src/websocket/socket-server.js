@@ -9,6 +9,8 @@ import logger from '../utils/logger.js';
 const agentSubscriptions = new Map();
 // Agent WebSocket connections: Map<agentId, ws>
 const agentConnections = new Map();
+// Deepgram streaming connections: Map<agentId, { connection, isProcessing }>
+const deepgramConnections = new Map();
 
 /**
  * Initialize WebSocket server
@@ -52,6 +54,19 @@ export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonS
     // Handle disconnection
     ws.on('close', () => {
       logger.info(`🔴 WebSocket disconnected: ${agentId}`);
+      
+      // Close Deepgram streaming connection if exists
+      const deepgramData = deepgramConnections.get(agentId);
+      if (deepgramData && deepgramData.connection) {
+        logger.info(`[DEEPGRAM] Closing streaming connection for ${agentId}`);
+        try {
+          deepgramData.connection.finish();
+        } catch (error) {
+          logger.error(`[DEEPGRAM] Error closing connection:`, error);
+        }
+        deepgramConnections.delete(agentId);
+      }
+      
       agentConnections.delete(agentId);
       agentSubscriptions.delete(agentId);
 
@@ -429,11 +444,10 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices) {
   }
 
   // Verificar que los servicios estén disponibles
-  // Note: cartesia removed - using native local voice instead
-  if (!voiceServices.deepgram || !voiceServices.cartesia || !voiceServices.ai || !voiceServices.getWelcomeAudio) {
+  // Note: generateVoice removed - client uses native local voice instead
+  if (!voiceServices.deepgram || !voiceServices.ai || !voiceServices.getWelcomeAudio) {
     logger.warn('Voice services not fully initialized', {
       hasDeepgram: !!voiceServices.deepgram,
-      hasCartesia: !!voiceServices.cartesia, // Native voice service (not Cartesia API)
       hasAI: !!voiceServices.ai,
       hasWelcomeAudio: !!voiceServices.getWelcomeAudio
     });
@@ -452,7 +466,7 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices) {
     switch (route) {
       case 'audio':
         if (action === 'stt') {
-          await handleAudioSTT(payload, ws, voiceServices);
+          await handleAudioSTT(payload, ws, voiceServices, agentId);
         } else if (action === 'tts') {
           await handleAudioTTS(payload, ws, voiceServices);
         } else {
@@ -497,9 +511,10 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices) {
 }
 
 /**
- * Handle audio STT (Speech-to-Text) - Process user audio and generate response
+ * Handle audio STT (Speech-to-Text) using Deepgram Streaming API
+ * Maintains persistent connection per client for real-time transcription
  */
-async function handleAudioSTT(payload, ws, voiceServices) {
+async function handleAudioSTT(payload, ws, voiceServices, agentId) {
   const { audio, format, mimeType } = payload;
 
   if (!audio) {
@@ -511,11 +526,11 @@ async function handleAudioSTT(payload, ws, voiceServices) {
     return;
   }
 
-  if (!voiceServices || !voiceServices.deepgram || !voiceServices.deepgram.transcribeAudio) {
+  if (!voiceServices || !voiceServices.deepgram || !voiceServices.deepgram.createStreamingConnection) {
     logger.error('Voice services not available in handleAudioSTT', {
       hasVoiceServices: !!voiceServices,
       hasDeepgram: !!voiceServices?.deepgram,
-      hasTranscribeAudio: !!voiceServices?.deepgram?.transcribeAudio
+      hasCreateStreamingConnection: !!voiceServices?.deepgram?.createStreamingConnection
     });
     ws.send(JSON.stringify({
       route: 'error',
@@ -529,89 +544,134 @@ async function handleAudioSTT(payload, ws, voiceServices) {
   }
 
   try {
-    // Determine audio format from payload
-    let audioFormat = 'webm'; // default
-    if (format) {
-      audioFormat = format;
-    } else if (mimeType) {
-      // Extract format from mimeType (e.g., "audio/webm;codecs=opus" -> "webm")
-      if (mimeType.includes('webm')) {
-        audioFormat = 'webm';
-      } else if (mimeType.includes('mp3') || mimeType.includes('mpeg')) {
-        audioFormat = 'mp3';
-      } else if (mimeType.includes('wav')) {
-        audioFormat = 'wav';
+    // Decode base64 audio to Buffer
+    let audioBuffer;
+    try {
+      audioBuffer = Buffer.from(audio, 'base64');
+      if (audioBuffer.length === 0) {
+        logger.warn('[DEEPGRAM] Empty audio buffer, skipping');
+        return;
       }
-    }
-    
-    // Validate audio data length
-    if (!audio || audio.length === 0) {
-      logger.error('❌ Empty audio data received');
-      ws.send(JSON.stringify({
-        route: 'error',
-        action: 'message',
-        payload: { error: 'Empty audio data' }
-      }));
+      // Skip chunks that are too small (likely incomplete)
+      if (audioBuffer.length < 500) {
+        logger.debug(`[DEEPGRAM] Audio chunk too small: ${audioBuffer.length} bytes, skipping`);
+        return;
+      }
+    } catch (error) {
+      logger.error('[DEEPGRAM] Error decoding audio base64:', error);
       return;
     }
-    
-    // Log audio processing details
-    logger.info('🎤 Processing audio STT...', { 
-      audioLength: audio.length, 
-      format: audioFormat,
-      mimeType: mimeType || 'not specified'
-    });
-    
-    // 1. Transcribe audio
-    const transcript = await voiceServices.deepgram.transcribeAudio(audio, audioFormat);
 
-    if (!transcript || transcript.trim().length === 0) {
-      // No speech detected
-      ws.send(JSON.stringify({
-        route: 'conserje',
-        action: 'message',
-        payload: {
-          type: 'noSpeech',
-          message: 'No se detectó habla en el audio'
+    // Get or create Deepgram streaming connection for this client
+    let deepgramData = deepgramConnections.get(agentId);
+    
+    if (!deepgramData || !deepgramData.connection) {
+      logger.info(`[DEEPGRAM] 🔌 Creating new streaming connection for ${agentId}`);
+      
+      // Create new Deepgram streaming connection
+      const connection = voiceServices.deepgram.createStreamingConnection({
+        language: 'es',
+        onTranscriptionFinalized: async (transcript, message) => {
+          // Handle finalized transcription (VAD detected end of phrase)
+          if (deepgramData && deepgramData.isProcessing) {
+            logger.warn('[DEEPGRAM] Already processing, skipping duplicate transcription');
+            return;
+          }
+          
+          if (!transcript || transcript.trim().length === 0) {
+            logger.warn('[DEEPGRAM] Empty transcript in finalized event');
+            return;
+          }
+
+          logger.info(`[DEEPGRAM] 📝 Finalized transcript: "${transcript}"`);
+          
+          // Mark as processing to prevent duplicate processing
+          if (deepgramData) {
+            deepgramData.isProcessing = true;
+          }
+
+          try {
+            // Process with AI
+            logger.info('🤖 Processing with AI...');
+            const aiResponse = await voiceServices.ai.processMessage(transcript);
+
+            if (!aiResponse || aiResponse.trim().length === 0) {
+              ws.send(JSON.stringify({
+                route: 'error',
+                action: 'message',
+                payload: { error: 'AI did not generate a response' }
+              }));
+              if (deepgramData) deepgramData.isProcessing = false;
+              return;
+            }
+
+            logger.info(`💬 AI Response: "${aiResponse.substring(0, 100)}..."`);
+
+            // Send TEXT response to client (client will use native voice to play)
+            ws.send(JSON.stringify({
+              route: 'conserje',
+              action: 'message',
+              payload: {
+                type: 'response_complete',
+                text: aiResponse,
+                language: 'es'
+              }
+            }));
+
+            logger.info('✅ Text response sent to client (will use native voice)');
+          } catch (error) {
+            logger.error('[DEEPGRAM] Error processing transcript with AI:', error);
+            ws.send(JSON.stringify({
+              route: 'error',
+              action: 'message',
+              payload: {
+                error: 'AI processing failed',
+                message: error.message
+              }
+            }));
+          } finally {
+            // Reset processing flag
+            if (deepgramData) {
+              deepgramData.isProcessing = false;
+            }
+          }
+        },
+        onTranscriptionUpdated: (interim, message) => {
+          // Send interim transcription for real-time feedback (optional)
+          logger.debug(`[DEEPGRAM] Interim: "${interim}"`);
+        },
+        onError: (error) => {
+          logger.error('[DEEPGRAM] Streaming connection error:', error);
+          deepgramConnections.delete(agentId);
+        },
+        onClose: () => {
+          logger.info(`[DEEPGRAM] Streaming connection closed for ${agentId}`);
+          deepgramConnections.delete(agentId);
         }
-      }));
-      return;
+      });
+
+      // Store connection data
+      deepgramData = {
+        connection: connection,
+        isProcessing: false
+      };
+      deepgramConnections.set(agentId, deepgramData);
+      
+      logger.info(`[DEEPGRAM] ✅ Streaming connection established for ${agentId}`);
     }
 
-    logger.info(`📝 Transcript: "${transcript}"`);
-
-    // 2. Process with AI (Groq preferred, OpenAI fallback)
-    logger.info('🤖 Processing with AI...');
-    const aiResponse = await voiceServices.ai.processMessage(transcript);
-
-    if (!aiResponse || aiResponse.trim().length === 0) {
-      ws.send(JSON.stringify({
-        route: 'error',
-        action: 'message',
-        payload: { error: 'AI did not generate a response' }
-      }));
-      return;
-    }
-
-    logger.info(`💬 AI Response: "${aiResponse.substring(0, 100)}..."`);
-
-    // 3. Get native local voice audio (no TTS latency)
-    logger.info('🔊 Loading native voice audio...');
-    const responseAudio = await voiceServices.cartesia.generateVoice(aiResponse);
-
-    // 4. Send audio response
-    ws.send(JSON.stringify({
-      route: 'audio',
-      action: 'tts',
-      payload: {
-        audio: responseAudio,
-        format: 'mp3',
-        text: aiResponse,
-        isWelcome: false
+    // Send audio buffer to Deepgram streaming connection
+    if (deepgramData && deepgramData.connection) {
+      try {
+        deepgramData.connection.send(audioBuffer);
+        logger.debug(`[DEEPGRAM] Sent audio chunk: ${audioBuffer.length} bytes to ${agentId}`);
+      } catch (error) {
+        logger.error('[DEEPGRAM] Error sending audio to Deepgram:', error);
+        // Try to recreate connection on error
+        deepgramConnections.delete(agentId);
       }
-    }));
+    }
 
-    logger.info('✅ Audio response sent to client');
   } catch (error) {
     logger.error('Error in audio STT processing:', error);
     ws.send(JSON.stringify({
