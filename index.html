@@ -1376,7 +1376,8 @@
       stopAudioCapture() {
         this.clearResponseWatchdog();
         this.awaitingResponse = false;
-        this.isSpeaking = false;
+        // NO cambiar isSpeaking aquí - el audio debe terminar naturalmente
+        // this.isSpeaking = false; // REMOVED - permite que el audio termine completo
 
         if (this.pcmProcessor) {
           try { this.pcmProcessor.disconnect(); } catch (_) { }
@@ -2043,9 +2044,24 @@
           return;
         }
 
-        if (this.currentAudio) {
-          this.currentAudio.pause();
-          if (this.currentAudio._blobUrl) URL.revokeObjectURL(this.currentAudio._blobUrl);
+        // Detener audio anterior solo si realmente hay uno reproduciéndose
+        // NO pausar si está casi terminando (para evitar cortes abruptos)
+        if (this.currentAudio && !this.currentAudio.paused) {
+          const timeRemaining = this.currentAudio.duration - this.currentAudio.currentTime;
+          if (timeRemaining > 0.5) { // Solo pausar si queda más de 0.5 segundos
+            console.log('[AUDIO] ⏸️ Pausando audio anterior (quedan', timeRemaining.toFixed(2), 'segundos)');
+            this.currentAudio.pause();
+            if (this.currentAudio._blobUrl) {
+              // Esperar un momento antes de revocar para evitar cortes
+              setTimeout(() => {
+                if (this.currentAudio && this.currentAudio._blobUrl) {
+                  URL.revokeObjectURL(this.currentAudio._blobUrl);
+                }
+              }, 100);
+            }
+          } else {
+            console.log('[AUDIO] ⏭️ Audio anterior casi terminado, esperando que termine naturalmente');
+          }
         }
 
         this.isSpeaking = true;
@@ -2076,40 +2092,60 @@
         const audio = new Audio(blobUrl);
         audio._blobUrl = blobUrl;
         audio.volume = 1.0; // Asegurar volumen máximo
-        audio.playbackRate = 1.0; // Asegurar velocidad normal (no acelerada)
+        // Control de velocidad: 0.85 = 15% más lento (para evitar audio acelerado)
+        audio.playbackRate = 0.85; // Ralentizar ligeramente para mejor comprensión
         this.currentAudio = audio;
+        
+        console.log('[AUDIO] ⚙️ Configuración de audio:', {
+          volume: audio.volume,
+          playbackRate: audio.playbackRate,
+          duration: 'unknown (se cargará después)'
+        });
 
         console.log('[AUDIO] Audio element creado, intentando reproducir...');
 
         // Para el saludo inicial, esperar a que el buffer esté completamente cargado
         if (isWelcome) {
-          console.log('[AUDIO] ⏳ Esperando buffer del saludo...');
-          const checkBuffer = () => {
-            if (audio.readyState >= 3) { // HAVE_FUTURE_DATA o HAVE_ENOUGH_DATA
-              console.log('[AUDIO] ✅ Saludo inicial listo (readyState:', audio.readyState, '), reproduciendo...');
+          console.log('[AUDIO] ⏳ Esperando buffer completo del saludo (carga completa para evitar cortes)...');
+          
+          // Wait for the audio to be fully loaded before playing
+          const waitForFullLoad = () => {
+            if (audio.readyState >= 4) { // HAVE_ENOUGH_DATA - completely loaded
+              console.log('[AUDIO] ✅ Saludo completamente cargado (readyState: 4), reproduciendo...');
               audio.play().then(() => {
-                console.log('[AUDIO] ✅ Saludo reproduciéndose');
+                console.log('[AUDIO] ✅ Saludo reproduciéndose a velocidad:', audio.playbackRate);
               }).catch(e => {
                 console.error("[AUDIO] ❌ Error en play():", e.name, e.message);
                 this.isSpeaking = false;
               });
             } else {
-              setTimeout(checkBuffer, 100);
+              console.log('[AUDIO] ⏳ Cargando saludo (readyState:', audio.readyState, '), esperando...');
+              setTimeout(waitForFullLoad, 100);
             }
           };
+          
+          // Wait for canplaythrough (indicates audio can play through to the end)
+          audio.addEventListener('canplaythrough', () => {
+            console.log('[AUDIO] ✅ Evento canplaythrough disparado - audio listo para reproducirse completo');
+            if (audio.paused) {
+              audio.play().then(() => {
+                console.log('[AUDIO] ✅ Saludo reproduciéndose después de canplaythrough');
+              }).catch(e => {
+                console.error("[AUDIO] ❌ Error en play() después de canplaythrough:", e.name, e.message);
+                this.isSpeaking = false;
+              });
+            }
+          }, { once: true });
+          
           audio.addEventListener('loadeddata', () => {
             console.log('[AUDIO] ✅ Evento loadeddata disparado');
-            audio.play().then(() => {
-              console.log('[AUDIO] ✅ Saludo reproduciéndose después de loadeddata');
-            }).catch(e => {
-              console.error("[AUDIO] ❌ Error en play() después de loadeddata:", e.name, e.message);
-              this.isSpeaking = false;
-            });
           });
-          audio.addEventListener('canplay', () => {
-            console.log('[AUDIO] ✅ Evento canplay disparado');
+          
+          audio.addEventListener('loadedmetadata', () => {
+            console.log('[AUDIO] ✅ Metadata cargada - Duración:', audio.duration, 'segundos');
           });
-          checkBuffer();
+          
+          waitForFullLoad();
         } else {
           console.log('[AUDIO] ▶️  Reproduciendo audio normal...');
           audio.play().then(() => {
@@ -2126,16 +2162,20 @@
         });
 
         audio.onended = () => {
-          console.log('[AUDIO] ✅ Audio finalizado');
+          console.log('[AUDIO] ✅ Audio finalizado completamente');
           this.isSpeaking = false;
-          // CRITICAL FIX: Wait 3 seconds before revoking to prevent cutting off the end
+          
+          // CRITICAL FIX: Wait 5 seconds before revoking to ensure audio fully finishes
+          // This prevents cutting off the end of the audio and gives time for the buffer to clear
           setTimeout(() => {
             if (audio._blobUrl) {
               URL.revokeObjectURL(audio._blobUrl);
               audio._blobUrl = null;
             }
-            this.currentAudio = null;
-          }, 3000);
+            if (this.currentAudio === audio) {
+              this.currentAudio = null;
+            }
+          }, 5000); // Increased from 3000ms to 5000ms to prevent cuts
         };
 
         console.log('[AUDIO] ▶️  Llamando play() inicial...');
