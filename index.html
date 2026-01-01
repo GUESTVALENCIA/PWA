@@ -1485,16 +1485,8 @@
         this.sttAvailable = null;
         this.sttNoticeShown = false;
         
-        // Desactivar input del chat cuando hay llamada activa
-        const input = document.getElementById('sandra-input');
-        const sendBtn = document.getElementById('sandra-send-btn');
-        if (input) {
-          input.disabled = true;
-          input.placeholder = 'Llamada activa...';
-        }
-        if (sendBtn) {
-          sendBtn.disabled = true;
-        }
+        // NOTE: Ya desactivamos input/sendBtn arriba. No redeclarar variables aquí:
+        // redeclarar `const input` en el mismo scope rompe el script con SyntaxError.
         let sttCapabilitiesTimeout = null;
         let microphoneStartPromise = null;
         let microphoneStarted = false;
