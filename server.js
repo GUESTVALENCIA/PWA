@@ -179,8 +179,9 @@ async function startup() {
       logger.info('Voice services module structure:', {
         hasDefault: !!voiceServicesModule.default,
         hasDeepgram: !!voiceServices?.deepgram,
-        hasCartesia: !!voiceServices?.cartesia,
+        hasNativeVoice: !!voiceServices?.generateVoice, // Native voice service (not Cartesia API)
         hasAI: !!voiceServices?.ai,
+        hasWelcomeAudio: !!voiceServices?.getWelcomeAudio,
         keys: Object.keys(voiceServices || {})
       });
       
@@ -198,21 +199,21 @@ async function startup() {
       logger.info('✅ Using native local voice (no Cartesia TTS latency)');
       
       // Verificar que los servicios estén disponibles
-      if (voiceServices && voiceServices.deepgram && voiceServices.cartesia && voiceServices.ai && voiceServices.getWelcomeAudio) {
+      // Note: Cartesia removed - using native local voice (generateVoice) instead
+      if (voiceServices && voiceServices.deepgram && voiceServices.generateVoice && voiceServices.ai && voiceServices.getWelcomeAudio) {
         logger.info('✅ Voice services initialized successfully', {
           hasDeepgram: !!voiceServices.deepgram,
-          hasCartesia: !!voiceServices.cartesia,
+          hasNativeVoice: !!voiceServices.generateVoice, // Native voice service (not Cartesia API)
           hasAI: !!voiceServices.ai,
           hasWelcomeAudio: !!voiceServices.getWelcomeAudio,
           deepgramMethods: voiceServices.deepgram ? Object.keys(voiceServices.deepgram) : [],
-          cartesiaMethods: voiceServices.cartesia ? Object.keys(voiceServices.cartesia) : [],
           aiMethods: voiceServices.ai ? Object.keys(voiceServices.ai) : []
         });
       } else {
         logger.error('❌ Voice services partially initialized - missing required services', {
           hasVoiceServices: !!voiceServices,
           hasDeepgram: !!voiceServices?.deepgram,
-          hasCartesia: !!voiceServices?.cartesia,
+          hasNativeVoice: !!voiceServices?.generateVoice, // Native voice service (not Cartesia API)
           hasAI: !!voiceServices?.ai,
           hasWelcomeAudio: !!voiceServices?.getWelcomeAudio,
           structure: JSON.stringify(voiceServices, null, 2).substring(0, 500)
