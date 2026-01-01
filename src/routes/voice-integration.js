@@ -33,6 +33,144 @@ router.get('/status', async (req, res) => {
 });
 
 /**
+ * GET /api/voice/diagnose
+ * Diagnose AI provider configuration and test each one
+ */
+router.get('/diagnose', async (req, res) => {
+  try {
+    const diagnosis = {
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+      providers: {
+        groq: {
+          configured: !!process.env.GROQ_API_KEY,
+          keyLength: process.env.GROQ_API_KEY ? process.env.GROQ_API_KEY.length : 0,
+          keyPrefix: process.env.GROQ_API_KEY ? process.env.GROQ_API_KEY.substring(0, 8) + '...' : null,
+          tested: false,
+          working: false,
+          error: null
+        },
+        openai: {
+          configured: !!process.env.OPENAI_API_KEY,
+          keyLength: process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.length : 0,
+          keyPrefix: process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.substring(0, 8) + '...' : null,
+          tested: false,
+          working: false,
+          error: null
+        },
+        gemini: {
+          configured: !!process.env.GEMINI_API_KEY,
+          keyLength: process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.length : 0,
+          keyPrefix: process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.substring(0, 8) + '...' : null,
+          tested: false,
+          working: false,
+          error: null
+        }
+      },
+      deepgram: {
+        configured: !!process.env.DEEPGRAM_API_KEY,
+        keyLength: process.env.DEEPGRAM_API_KEY ? process.env.DEEPGRAM_API_KEY.length : 0
+      },
+      preferredProvider: process.env.PREFERRED_AI_PROVIDER || 'groq'
+    };
+
+    // Test Groq
+    if (diagnosis.providers.groq.configured) {
+      diagnosis.providers.groq.tested = true;
+      try {
+        const testResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: 'qwen2.5-72b-instruct',
+            messages: [{ role: 'user', content: 'test' }],
+            max_tokens: 5
+          })
+        });
+        diagnosis.providers.groq.working = testResponse.ok;
+        if (!testResponse.ok) {
+          const errorText = await testResponse.text();
+          diagnosis.providers.groq.error = `HTTP ${testResponse.status}: ${errorText.substring(0, 200)}`;
+        }
+      } catch (error) {
+        diagnosis.providers.groq.error = error.message;
+      }
+    }
+
+    // Test OpenAI
+    if (diagnosis.providers.openai.configured) {
+      diagnosis.providers.openai.tested = true;
+      try {
+        const testResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o',
+            messages: [{ role: 'user', content: 'test' }],
+            max_tokens: 5
+          })
+        });
+        diagnosis.providers.openai.working = testResponse.ok;
+        if (!testResponse.ok) {
+          const errorText = await testResponse.text();
+          diagnosis.providers.openai.error = `HTTP ${testResponse.status}: ${errorText.substring(0, 200)}`;
+        }
+      } catch (error) {
+        diagnosis.providers.openai.error = error.message;
+      }
+    }
+
+    // Test Gemini
+    if (diagnosis.providers.gemini.configured) {
+      diagnosis.providers.gemini.tested = true;
+      try {
+        const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${process.env.GEMINI_API_KEY}`;
+        const testResponse = await fetch(testUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: 'test' }] }],
+            generationConfig: { maxOutputTokens: 5 }
+          })
+        });
+        diagnosis.providers.gemini.working = testResponse.ok;
+        if (!testResponse.ok) {
+          const errorText = await testResponse.text();
+          diagnosis.providers.gemini.error = `HTTP ${testResponse.status}: ${errorText.substring(0, 200)}`;
+        }
+      } catch (error) {
+        diagnosis.providers.gemini.error = error.message;
+      }
+    }
+
+    // Summary
+    const workingProviders = Object.values(diagnosis.providers).filter(p => p.working).length;
+    diagnosis.summary = {
+      totalConfigured: Object.values(diagnosis.providers).filter(p => p.configured).length,
+      totalWorking: workingProviders,
+      hasWorkingProvider: workingProviders > 0,
+      recommendation: workingProviders === 0 
+        ? 'No hay proveedores funcionando. Verifica las API keys en Render Dashboard.'
+        : `${workingProviders} proveedor(es) funcionando correctamente.`
+    };
+
+    res.json(diagnosis);
+  } catch (error) {
+    logger.error('Failed to diagnose voice system:', error);
+    res.status(500).json({ 
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+/**
  * POST /api/voice/tts
  * Text to Speech through universal server
  */
