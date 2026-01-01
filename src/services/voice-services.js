@@ -49,6 +49,10 @@ class VoiceServices {
 
     const {
       language = 'es',
+      encoding = null,
+      sampleRate = null,
+      channels = null,
+      idleTimeoutMs = 1200,
       onTranscriptionFinalized = null,
       onTranscriptionUpdated = null,
       onError = null,
@@ -57,7 +61,7 @@ class VoiceServices {
 
     logger.info('[DEEPGRAM] 🔌 Creating streaming connection...');
 
-    const connection = this.deepgram.listen.live({
+    const liveOptions = {
       model: 'nova-2',
       language: language,
       punctuate: true,
@@ -65,19 +69,53 @@ class VoiceServices {
       interim_results: true, // CRITICAL: Partial results in real-time
       endpointing: 300, // CRITICAL: Detect 300ms of silence = end of phrase
       vad_events: true, // CRITICAL: Voice Activity Detection
-      // Do NOT specify encoding/sample_rate for WebM - let Deepgram auto-detect
-      // When sending WebM containers, Deepgram will detect Opus automatically
-    });
+      // Enable utterance segmentation (helps reliably fire UtteranceEnd events)
+      utterances: true,
+      utterance_end_ms: Math.max(300, Math.min(2000, Number(idleTimeoutMs) || 1200))
+    };
+
+    if (encoding) liveOptions.encoding = encoding;
+    if (sampleRate) liveOptions.sample_rate = sampleRate;
+    if (channels) liveOptions.channels = channels;
+
+    const connection = this.deepgram.listen.live(liveOptions);
 
     let finalizedUtterance = '';
+    let interimUtterance = '';
+    let lastMessage = null;
+    let idleTimer = null;
+
+    const clearIdleTimer = () => {
+      if (!idleTimer) return;
+      clearTimeout(idleTimer);
+      idleTimer = null;
+    };
+
+    const buildUtterance = () => `${finalizedUtterance} ${interimUtterance}`.trim();
 
     const flushFinalizedUtterance = (reason, message) => {
       if (!onTranscriptionFinalized) return;
-      const transcript = finalizedUtterance.trim();
+      const transcript = buildUtterance();
       if (!transcript) return;
+
+      clearIdleTimer();
       finalizedUtterance = '';
+      interimUtterance = '';
+
       logger.info(`[DEEPGRAM] ✅ Utterance finalized (${reason}): "${transcript.substring(0, 50)}${transcript.length > 50 ? '...' : ''}"`);
       onTranscriptionFinalized(transcript, message);
+    };
+
+    const scheduleIdleFlush = () => {
+      if (!onTranscriptionFinalized) return;
+      clearIdleTimer();
+      idleTimer = setTimeout(() => {
+        try {
+          flushFinalizedUtterance('idle_timeout', lastMessage);
+        } catch (error) {
+          logger.error('[DEEPGRAM] Error flushing idle utterance:', error);
+        }
+      }, Math.max(400, Number(idleTimeoutMs) || 1200));
     };
 
     // Set up event handlers (Deepgram JS SDK v3)
@@ -85,26 +123,35 @@ class VoiceServices {
       const transcript = message?.channel?.alternatives?.[0]?.transcript || '';
       if (!transcript) return;
 
+      lastMessage = message;
+
       if (message?.is_final) {
         finalizedUtterance = `${finalizedUtterance} ${transcript}`.trim();
+        interimUtterance = '';
         if (message?.speech_final) {
           flushFinalizedUtterance('speech_final', message);
+          return;
         }
+        scheduleIdleFlush();
         return;
       }
 
+      interimUtterance = transcript;
       if (onTranscriptionUpdated) {
         onTranscriptionUpdated(transcript, message);
       }
+      scheduleIdleFlush();
     });
 
     if (onTranscriptionFinalized) {
       connection.on(LiveTranscriptionEvents.UtteranceEnd, (message) => {
+        lastMessage = message;
         flushFinalizedUtterance('utterance_end', message);
       });
     }
 
     connection.on(LiveTranscriptionEvents.Error, (error) => {
+      clearIdleTimer();
       logger.error('[DEEPGRAM] ❌ Connection error:', error);
       logger.error('[DEEPGRAM] Error details:', {
         message: error.message,
@@ -119,12 +166,20 @@ class VoiceServices {
 
     if (onClose) {
       connection.on(LiveTranscriptionEvents.Close, () => {
+        clearIdleTimer();
         logger.info('[DEEPGRAM] 🔌 Connection closed');
         onClose();
       });
     }
 
-    logger.info('[DEEPGRAM] ✅ Streaming connection created with auto-detect for WebM/Opus');
+    const connectionSummary = {
+      encoding: encoding || 'auto',
+      sampleRate: sampleRate || 'auto',
+      channels: channels || 'auto',
+      idleTimeoutMs: Math.max(400, Number(idleTimeoutMs) || 1200)
+    };
+
+    logger.info('[DEEPGRAM] ✅ Streaming connection created', connectionSummary);
     
     // Log connection state for debugging
     if (connection.getReadyState) {
