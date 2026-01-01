@@ -806,23 +806,27 @@
           loadNativeVoice: async () => {
             if (this.voiceLibraryManager.isLoaded) return;
             try {
-              console.log('[VOICE-LIB] 📁 Cargando voz nativa: assets/audio/sandra-conversational.wav');
-              this.voiceLibraryManager.nativeVoiceAudio = new Audio('assets/audio/sandra-conversational.wav');
+              // La biblioteca de voces define que la voz por defecto es `sandra-voice.mp3`.
+              // Usamos esa ruta para que coincida con `assets/config/voice-library.json`.
+              const nativeVoicePath = 'assets/audio/sandra-voice.mp3';
+              console.log('[VOICE-LIB] 📁 Cargando voz nativa:', nativeVoicePath);
+              this.voiceLibraryManager.nativeVoiceAudio = new Audio(nativeVoicePath);
               this.voiceLibraryManager.nativeVoiceAudio.preload = 'auto';
               this.voiceLibraryManager.nativeVoiceAudio.volume = 1.0;
-              
+               
               await new Promise((resolve, reject) => {
                 this.voiceLibraryManager.nativeVoiceAudio.addEventListener('canplaythrough', resolve, { once: true });
                 this.voiceLibraryManager.nativeVoiceAudio.addEventListener('error', reject, { once: true });
               });
-              
+               
               this.voiceLibraryManager.isLoaded = true;
               console.log('[VOICE-LIB] ✅ Voz nativa cargada correctamente');
             } catch (error) {
               console.error('[VOICE-LIB] ❌ Error cargando voz nativa:', error);
               // Fallback: intentar welcome.mp3
               try {
-                this.voiceLibraryManager.nativeVoiceAudio = new Audio('assets/audio/welcome.mp3');
+                const fallbackPath = 'assets/audio/welcome.mp3';
+                this.voiceLibraryManager.nativeVoiceAudio = new Audio(fallbackPath);
                 this.voiceLibraryManager.nativeVoiceAudio.preload = 'auto';
                 this.voiceLibraryManager.nativeVoiceAudio.volume = 1.0;
                 await new Promise((resolve, reject) => {
@@ -910,6 +914,7 @@
                   <button id="sandra-hangup-btn" class="p-2 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors shadow-sm"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12a9 9 0 1018 0 9 9 0 00-18 0z" /></svg></button>
                   <button id="sandra-mute-btn" class="p-2 rounded-full bg-slate-400 text-white hover:bg-slate-500 transition-colors shadow-sm"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg></button>
                 </div>
+                <div id="sandra-live-transcript" class="hidden mb-2 px-3 py-2 text-[10px] text-slate-600 bg-slate-50 rounded-xl border border-slate-200"></div>
                 <!-- Input Area -->
                 <div class="relative flex items-center gap-1.5">
                   <input type="text" id="sandra-input" placeholder="Escribe tu mensaje..." class="flex-1 bg-slate-100 border-0 rounded-full px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all">
@@ -1357,6 +1362,12 @@
         const callControls = document.getElementById('sandra-call-controls');
         if (callControls) callControls.classList.add('hidden');
 
+        const liveTranscript = document.getElementById('sandra-live-transcript');
+        if (liveTranscript) {
+          liveTranscript.classList.add('hidden');
+          liveTranscript.textContent = '';
+        }
+
         // SIEMPRE mostrar prompt de llamada cuando se cuelga
         const callPrompt = document.getElementById('sandra-call-prompt');
         if (callPrompt) {
@@ -1371,6 +1382,27 @@
         this.clearResponseWatchdog();
         this.awaitingResponse = false;
         this.isSpeaking = false;
+
+        if (this.pcmProcessor) {
+          try { this.pcmProcessor.disconnect(); } catch (_) { }
+          try { this.pcmProcessor.onaudioprocess = null; } catch (_) { }
+          this.pcmProcessor = null;
+        }
+
+        if (this.pcmSource) {
+          try { this.pcmSource.disconnect(); } catch (_) { }
+          this.pcmSource = null;
+        }
+
+        if (this.pcmSilenceGain) {
+          try { this.pcmSilenceGain.disconnect(); } catch (_) { }
+          this.pcmSilenceGain = null;
+        }
+
+        if (this.pcmAudioContext) {
+          try { this.pcmAudioContext.close(); } catch (_) { }
+          this.pcmAudioContext = null;
+        }
 
         if (this.mediaRecorder) {
           try {
@@ -1432,65 +1464,192 @@
 
               this.stream = stream;
 
-              const preferredMime = 'audio/webm;codecs=opus';
-              let actualMimeType = preferredMime;
-              try {
-                if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(preferredMime)) {
-                  this.mediaRecorder = new MediaRecorder(stream, { mimeType: preferredMime });
-                } else {
-                  this.mediaRecorder = new MediaRecorder(stream);
-                  actualMimeType = this.mediaRecorder.mimeType || 'audio/webm';
-                }
-              } catch (_) {
-                this.mediaRecorder = new MediaRecorder(stream);
-                actualMimeType = this.mediaRecorder.mimeType || 'audio/webm';
-              }
+              const startPcmStreaming = async () => {
+                const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContextCtor) return false;
 
-              this.mediaRecorder.ondataavailable = (event) => {
+                const downsampleBuffer = (buffer, inSampleRate, outSampleRate) => {
+                  if (!buffer || !buffer.length) return new Float32Array(0);
+                  if (outSampleRate === inSampleRate) return buffer;
+                  if (outSampleRate > inSampleRate) return buffer;
+
+                  const sampleRateRatio = inSampleRate / outSampleRate;
+                  const newLength = Math.round(buffer.length / sampleRateRatio);
+                  const result = new Float32Array(newLength);
+                  let offsetResult = 0;
+                  let offsetBuffer = 0;
+
+                  while (offsetResult < result.length) {
+                    const nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRateRatio);
+                    let accum = 0;
+                    let count = 0;
+                    for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
+                      accum += buffer[i];
+                      count++;
+                    }
+                    result[offsetResult] = count ? (accum / count) : 0;
+                    offsetResult++;
+                    offsetBuffer = nextOffsetBuffer;
+                  }
+                  return result;
+                };
+
+                const arrayBufferToBase64 = (arrayBuffer) => {
+                  const bytes = new Uint8Array(arrayBuffer);
+                  let binary = '';
+                  const chunkSize = 0x8000;
+                  for (let i = 0; i < bytes.length; i += chunkSize) {
+                    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+                  }
+                  return btoa(binary);
+                };
+
                 try {
-                  if (!event.data || event.data.size <= 0) return;
-                  if (!this.activeCall || ws.readyState !== WebSocket.OPEN) return;
-                  if (this.sttAvailable === false) return;
-                  if (this.isMicrophoneMuted || this.isSpeaking || this.awaitingResponse) return;
+                  const ctx = new AudioContextCtor();
+                  this.pcmAudioContext = ctx;
 
-                  // Convertir audio a base64 y enviar como JSON
-                  const reader = new FileReader();
-                  reader.onloadend = () => {
-                    if (ws.readyState === WebSocket.OPEN) {
-                      try {
-                        // Convertir ArrayBuffer a base64
-                        const arrayBuffer = reader.result;
-                        const bytes = new Uint8Array(arrayBuffer);
-                        let binary = '';
-                        for (let i = 0; i < bytes.byteLength; i++) {
-                          binary += String.fromCharCode(bytes[i]);
-                        }
-                        const base64Audio = btoa(binary);
+                  if (ctx.state === 'suspended') {
+                    try { await ctx.resume(); } catch (_) { }
+                  }
 
-                        // Enviar como JSON según la especificación
-                        ws.send(JSON.stringify({
-                          route: 'audio',
-                          action: 'stt',
-                          payload: {
-                            audio: base64Audio,
-                            format: 'webm',
-                            mimeType: actualMimeType
-                          }
-                        }));
-                        console.log('[MCP] Audio enviado como JSON base64, tamaño:', base64Audio.length);
-                      } catch (err) {
-                        console.error('[MCP] Error convirtiendo audio a base64:', err);
+                  const source = ctx.createMediaStreamSource(stream);
+                  const processor = ctx.createScriptProcessor(4096, 1, 1);
+                  const silenceGain = ctx.createGain();
+                  silenceGain.gain.value = 0;
+
+                  source.connect(processor);
+                  processor.connect(silenceGain);
+                  silenceGain.connect(ctx.destination);
+
+                  this.pcmSource = source;
+                  this.pcmProcessor = processor;
+                  this.pcmSilenceGain = silenceGain;
+
+                  const targetSampleRate = 16000;
+                  const chunkMs = 250;
+                  const chunkSamples = Math.round(targetSampleRate * (chunkMs / 1000));
+                  let chunkBuffer = new Int16Array(chunkSamples);
+                  let chunkIndex = 0;
+
+                  processor.onaudioprocess = (e) => {
+                    try {
+                      if (!this.activeCall || ws.readyState !== WebSocket.OPEN) return;
+                      if (this.sttAvailable === false) return;
+
+                      if (this.isMicrophoneMuted || this.isSpeaking || this.awaitingResponse) {
+                        chunkIndex = 0;
+                        return;
                       }
+
+                      const input = e.inputBuffer.getChannelData(0);
+                      const downsampled = downsampleBuffer(input, ctx.sampleRate, targetSampleRate);
+
+                      for (let i = 0; i < downsampled.length; i++) {
+                        const sample = Math.max(-1, Math.min(1, downsampled[i]));
+                        chunkBuffer[chunkIndex++] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+
+                        if (chunkIndex >= chunkSamples) {
+                          const base64Audio = arrayBufferToBase64(chunkBuffer.buffer);
+                          ws.send(JSON.stringify({
+                            route: 'audio',
+                            action: 'stt',
+                            payload: {
+                              audio: base64Audio,
+                              format: 'linear16',
+                              encoding: 'linear16',
+                              sampleRate: targetSampleRate,
+                              channels: 1,
+                              mimeType: 'audio/raw'
+                            }
+                          }));
+                          chunkBuffer = new Int16Array(chunkSamples);
+                          chunkIndex = 0;
+                        }
+                      }
+                    } catch (err) {
+                      console.error('[MCP] Error en PCM onaudioprocess', err);
                     }
                   };
-                  reader.readAsArrayBuffer(event.data);
 
+                  console.log('[MCP] 🎤 Captura PCM iniciada (linear16 16kHz)');
+                  return true;
                 } catch (err) {
-                  console.error('[MCP] Error en ondataavailable', err);
+                  console.warn('[MCP] PCM no disponible, fallback a MediaRecorder', err);
+                  try { if (this.pcmProcessor) this.pcmProcessor.disconnect(); } catch (_) { }
+                  try { if (this.pcmSource) this.pcmSource.disconnect(); } catch (_) { }
+                  try { if (this.pcmSilenceGain) this.pcmSilenceGain.disconnect(); } catch (_) { }
+                  try { if (this.pcmAudioContext) this.pcmAudioContext.close(); } catch (_) { }
+                  this.pcmProcessor = null;
+                  this.pcmSource = null;
+                  this.pcmSilenceGain = null;
+                  this.pcmAudioContext = null;
+                  return false;
                 }
               };
 
-              this.mediaRecorder.start(1000); // Slices de 1000ms (1 segundo) para mejor compatibilidad con Deepgram
+              const pcmStarted = await startPcmStreaming();
+
+              if (!pcmStarted) {
+                const preferredMime = 'audio/webm;codecs=opus';
+                let actualMimeType = preferredMime;
+                try {
+                  if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(preferredMime)) {
+                    this.mediaRecorder = new MediaRecorder(stream, { mimeType: preferredMime });
+                  } else {
+                    this.mediaRecorder = new MediaRecorder(stream);
+                    actualMimeType = this.mediaRecorder.mimeType || 'audio/webm';
+                  }
+                } catch (_) {
+                  this.mediaRecorder = new MediaRecorder(stream);
+                  actualMimeType = this.mediaRecorder.mimeType || 'audio/webm';
+                }
+
+                this.mediaRecorder.ondataavailable = (event) => {
+                  try {
+                    if (!event.data || event.data.size <= 0) return;
+                    if (!this.activeCall || ws.readyState !== WebSocket.OPEN) return;
+                    if (this.sttAvailable === false) return;
+                    if (this.isMicrophoneMuted || this.isSpeaking || this.awaitingResponse) return;
+
+                    // Convertir audio a base64 y enviar como JSON
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                      if (ws.readyState === WebSocket.OPEN) {
+                        try {
+                          // Convertir ArrayBuffer a base64
+                          const arrayBuffer = reader.result;
+                          const bytes = new Uint8Array(arrayBuffer);
+                          let binary = '';
+                          for (let i = 0; i < bytes.byteLength; i++) {
+                            binary += String.fromCharCode(bytes[i]);
+                          }
+                          const base64Audio = btoa(binary);
+
+                          // Enviar como JSON según la especificación
+                          ws.send(JSON.stringify({
+                            route: 'audio',
+                            action: 'stt',
+                            payload: {
+                              audio: base64Audio,
+                              format: 'webm',
+                              mimeType: actualMimeType
+                            }
+                          }));
+                          console.log('[MCP] Audio enviado como JSON base64, tamaño:', base64Audio.length);
+                        } catch (err) {
+                          console.error('[MCP] Error convirtiendo audio a base64:', err);
+                        }
+                      }
+                    };
+                    reader.readAsArrayBuffer(event.data);
+
+                  } catch (err) {
+                    console.error('[MCP] Error en ondataavailable', err);
+                  }
+                };
+
+                this.mediaRecorder.start(1000); // Slices de 1000ms (1 segundo) para mejor compatibilidad con Deepgram
+              }
               microphoneStarted = true;
               console.log('🎤 Microphone recording started (Enterprise Streaming)');
 
@@ -1684,6 +1843,26 @@
             return;
           }
 
+          // Mostrar transcripción (interim) para feedback en tiempo real
+          if (data.route === 'conserje' && data.action === 'message' && data.payload && data.payload.type === 'transcription_interim' && data.payload.text) {
+            const liveTranscript = document.getElementById('sandra-live-transcript');
+            if (liveTranscript) {
+              liveTranscript.textContent = `Escuchando: ${data.payload.text}`;
+              liveTranscript.classList.remove('hidden');
+            }
+            return;
+          }
+
+          // Mostrar transcripción final detectada por STT (útil para depurar)
+          if (data.route === 'conserje' && data.action === 'message' && data.payload && data.payload.type === 'transcription_final' && data.payload.text) {
+            const liveTranscript = document.getElementById('sandra-live-transcript');
+            if (liveTranscript) {
+              liveTranscript.textContent = `Has dicho: ${data.payload.text}`;
+              liveTranscript.classList.remove('hidden');
+            }
+            return;
+          }
+
           // Manejar mensaje de respuesta completa del servidor (texto para reproducir con voz nativa)
           if (data.route === 'conserje' && data.action === 'message' && data.payload && data.payload.type === 'response_complete' && data.payload.text) {
             console.log('[MCP] ✅ Respuesta completa recibida, reproduciendo con voz nativa');
@@ -1693,6 +1872,12 @@
             const responseText = data.payload.text;
             // Mostrar mensaje en el chat
             this.addMessage(responseText, 'system');
+
+            const liveTranscript = document.getElementById('sandra-live-transcript');
+            if (liveTranscript) {
+              liveTranscript.classList.add('hidden');
+              liveTranscript.textContent = '';
+            }
             
             // Reproducir con voz nativa local
             this.playNativeVoice(responseText);
@@ -1756,6 +1941,12 @@
           this.stopAudioCapture();
           this.activeCall = null;
           this.setHeroCallActive(false);
+
+          const liveTranscript = document.getElementById('sandra-live-transcript');
+          if (liveTranscript) {
+            liveTranscript.classList.add('hidden');
+            liveTranscript.textContent = '';
+          }
         };
       }
 
