@@ -675,7 +675,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
         encoding: resolvedEncoding,
         sampleRate: resolvedSampleRate,
         channels: resolvedChannels,
-        idleTimeoutMs: 1200,
+        idleTimeoutMs: 600, // 🚀 ENTERPRISE MAX: Reducido a 600ms para latencia mínima (balance óptimo)
         onTranscriptionFinalized: async (transcript, message) => {
           // Handle finalized transcription (VAD detected end of phrase)
           if (deepgramData && deepgramData.isProcessing) {
