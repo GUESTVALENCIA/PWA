@@ -1,11 +1,12 @@
 /**
  * Voice Services Integration
- * Wraps Deepgram (STT), Native Local Voice (no TTS latency), AI (Groq/OpenAI), and Welcome Audio
+ * Wraps Deepgram (STT Streaming), Native Local Voice (no TTS latency), AI (Groq/OpenAI), and Welcome Audio
  */
 
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { Deepgram } from '@deepgram/sdk';
 import logger from '../utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -19,82 +20,92 @@ class VoiceServices {
     this.openaiApiKey = process.env.OPENAI_API_KEY;
     this.groqApiKey = process.env.GROQ_API_KEY;
     this.preferredProvider = (process.env.PREFERRED_AI_PROVIDER || 'groq').toLowerCase();
+    
+    // Initialize Deepgram SDK instance
+    if (this.deepgramApiKey) {
+      this.deepgram = new Deepgram(this.deepgramApiKey);
+    } else {
+      logger.warn('⚠️ Deepgram API Key not configured');
+      this.deepgram = null;
+    }
   }
 
   /**
-   * Transcribe audio using Deepgram
+   * Create Deepgram Streaming connection for a client
+   * Returns a connection object with event handlers
    */
-  async transcribeAudio(audioBase64, format = 'webm') {
-    if (!this.deepgramApiKey) {
-      throw new Error('Deepgram API Key not configured');
+  createStreamingConnection(options = {}) {
+    if (!this.deepgram) {
+      throw new Error('Deepgram SDK not initialized - check DEEPGRAM_API_KEY');
     }
 
-    if (!audioBase64 || typeof audioBase64 !== 'string') {
-      throw new Error('Invalid audio data: expected base64 string');
-    }
+    const {
+      language = 'es',
+      onTranscriptionFinalized = null,
+      onTranscriptionUpdated = null,
+      onError = null,
+      onClose = null
+    } = options;
 
-    let audioBuffer;
-    try {
-      audioBuffer = Buffer.from(audioBase64, 'base64');
-      if (audioBuffer.length === 0) {
-        throw new Error('Empty audio buffer after decoding');
-      }
-      // Validate minimum buffer size (at least 2000 bytes for valid WebM chunks)
-      // WebM containers have overhead, chunks < 2KB are likely incomplete or invalid
-      if (audioBuffer.length < 2000) {
-        logger.warn(`Audio chunk too small: ${audioBuffer.length} bytes, skipping (minimum 2000 bytes for valid WebM)`);
-        return ''; // Return empty string (no error, just skip this chunk)
-      }
-    } catch (error) {
-      throw new Error(`Failed to decode audio base64: ${error.message}`);
-    }
+    logger.info('[DEEPGRAM] 🔌 Creating streaming connection...');
 
-    // Deepgram API: For WebM/Opus, we need to specify encoding in URL parameters
-    // This is critical for proper audio processing
-    let url = `https://api.deepgram.com/v1/listen?model=nova-2&language=es&punctuate=true&smart_format=true`;
-    
-    // Add encoding parameter for WebM/Opus format
-    if (format === 'webm') {
-      url += '&encoding=opus&sample_rate=48000'; // Opus default sample rate, especificado explícitamente
-    } else if (format === 'mp3') {
-      url += '&encoding=mp3';
-    } else if (format === 'wav') {
-      url += '&encoding=linear16';
-    }
-    
-    logger.info(`🎤 Sending audio to Deepgram: ${audioBuffer.length} bytes, format: ${format}, url: ${url}`);
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Token ${this.deepgramApiKey}`,
-        // Don't set Content-Type - let Deepgram auto-detect from binary data
-        // This allows Deepgram to properly detect WebM/Opus format
-      },
-      body: audioBuffer
+    const connection = this.deepgram.transcription.live({
+      model: 'nova-2',
+      language: language,
+      punctuate: true,
+      smart_format: true,
+      interim_results: true, // CRITICAL: Partial results in real-time
+      endpointing: 300, // CRITICAL: Detect 300ms of silence = end of phrase
+      vad_events: true, // CRITICAL: Voice Activity Detection
+      encoding: 'opus', // For WebM/Opus
+      sample_rate: 48000 // Opus default sample rate
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.error(`❌ Deepgram API error: ${response.status}`, { 
-        status: response.status, 
-        error: errorText,
-        bufferSize: audioBuffer.length,
-        format: format
+    // Set up event handlers
+    if (onTranscriptionFinalized) {
+      connection.on('transcriptionFinalized', (message) => {
+        const transcript = message.channel?.alternatives?.[0]?.transcript || '';
+        if (transcript) {
+          logger.info(`[DEEPGRAM] ✅ Transcription finalized: "${transcript.substring(0, 50)}${transcript.length > 50 ? '...' : ''}"`);
+          onTranscriptionFinalized(transcript, message);
+        }
       });
-      throw new Error(`Deepgram Error: ${response.status} - ${errorText}`);
     }
 
-    const json = await response.json();
-    const transcript = json.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
-    
-    if (transcript) {
-      logger.info(`✅ Deepgram transcription: "${transcript.substring(0, 50)}${transcript.length > 50 ? '...' : ''}"`);
-    } else {
-      logger.warn('⚠️ Deepgram returned empty transcript');
+    if (onTranscriptionUpdated) {
+      connection.on('transcriptionUpdated', (message) => {
+        const interim = message.channel?.alternatives?.[0]?.transcript || '';
+        if (interim) {
+          onTranscriptionUpdated(interim, message);
+        }
+      });
     }
 
-    return transcript;
+    if (onError) {
+      connection.on('error', (error) => {
+        logger.error('[DEEPGRAM] ❌ Connection error:', error);
+        onError(error);
+      });
+    }
+
+    if (onClose) {
+      connection.on('close', () => {
+        logger.info('[DEEPGRAM] 🔌 Connection closed');
+        onClose();
+      });
+    }
+
+    logger.info('[DEEPGRAM] ✅ Streaming connection created');
+    return connection;
+  }
+
+  /**
+   * Transcribe audio using Deepgram (DEPRECATED - Use createStreamingConnection instead)
+   * Kept for backward compatibility but should not be used for streaming chunks
+   */
+  async transcribeAudio(audioBase64, format = 'webm') {
+    logger.warn('[DEEPGRAM] ⚠️ Using deprecated REST API - migrate to Streaming API');
+    throw new Error('REST API deprecated - use createStreamingConnection for streaming audio');
   }
 
   /**
@@ -253,7 +264,8 @@ const voiceServices = new VoiceServices();
 // Export service methods as an object for use in WebSocket handler
 export default {
   deepgram: {
-    transcribeAudio: (audio, format) => voiceServices.transcribeAudio(audio, format)
+    createStreamingConnection: (options) => voiceServices.createStreamingConnection(options),
+    transcribeAudio: (audio, format) => voiceServices.transcribeAudio(audio, format) // Deprecated - use createStreamingConnection
   },
   cartesia: {
     generateVoice: (text, voiceId) => voiceServices.generateVoice(text, voiceId)
