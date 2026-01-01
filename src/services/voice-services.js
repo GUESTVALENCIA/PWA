@@ -304,9 +304,12 @@ try {
   };
 }
 
+const deepgramConfigured = !!voiceServicesInstance?.deepgram;
+
 // Export service methods as an object for use in WebSocket handler
 const exportedServices = {
   deepgram: {
+    isConfigured: deepgramConfigured,
     createStreamingConnection: (options) => voiceServicesInstance.createStreamingConnection(options),
     transcribeAudio: (audio, format) => voiceServicesInstance.transcribeAudio(audio, format) // Deprecated - use createStreamingConnection
   },
@@ -314,7 +317,10 @@ const exportedServices = {
   ai: {
     processMessage: (message) => voiceServicesInstance.processMessage(message)
   },
-  getWelcomeAudio: () => voiceServicesInstance.getWelcomeAudio()
+  getWelcomeAudio: () => voiceServicesInstance.getWelcomeAudio(),
+  capabilities: {
+    stt: deepgramConfigured
+  }
 };
 
 // Log export structure for debugging
