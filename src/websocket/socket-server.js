@@ -712,20 +712,24 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
 
           try {
             // Process with AI
-            logger.info('🤖 Processing with AI...');
+            logger.info(`🤖 Processing transcript with AI: "${transcript.substring(0, 50)}${transcript.length > 50 ? '...' : ''}"`);
             const aiResponse = await voiceServices.ai.processMessage(transcript);
 
             if (!aiResponse || aiResponse.trim().length === 0) {
+              logger.error('[AI] Empty response received from AI');
               ws.send(JSON.stringify({
                 route: 'error',
                 action: 'message',
-                payload: { error: 'AI did not generate a response' }
+                payload: { 
+                  error: 'AI did not generate a response',
+                  message: 'The AI provider returned an empty response'
+                }
               }));
               if (deepgramData) deepgramData.isProcessing = false;
               return;
             }
 
-            logger.info(`💬 AI Response: "${aiResponse.substring(0, 100)}..."`);
+            logger.info(`💬 AI Response received (${aiResponse.length} chars): "${aiResponse.substring(0, 100)}${aiResponse.length > 100 ? '...' : ''}"`);
 
             // Send TEXT response to client (client will use native voice to play)
             ws.send(JSON.stringify({
@@ -740,13 +744,38 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
 
             logger.info('✅ Text response sent to client (will use native voice)');
           } catch (error) {
-            logger.error('[DEEPGRAM] Error processing transcript with AI:', error);
+            logger.error('[DEEPGRAM] Error processing transcript with AI:', {
+              error: error.message,
+              stack: error.stack?.substring(0, 300),
+              transcript: transcript.substring(0, 50)
+            });
+            
+            // Extract detailed error information
+            let errorDetails = error.message || 'Unknown error occurred while processing with AI';
+            let errorType = 'AI processing failed';
+            
+            // Check if it's the "All AI providers failed" error
+            if (error.message && error.message.includes('All AI providers failed')) {
+              errorType = 'All AI providers failed';
+              // Try to extract provider errors from the message
+              const errorsMatch = error.message.match(/Errors: (.+)/);
+              if (errorsMatch) {
+                errorDetails = `No hay proveedores de AI funcionando. Errores: ${errorsMatch[1]}`;
+              } else {
+                errorDetails = 'Todos los proveedores de AI fallaron. Verifica las API keys en Render Dashboard.';
+              }
+            }
+            
             ws.send(JSON.stringify({
               route: 'error',
               action: 'message',
               payload: {
-                error: 'AI processing failed',
-                message: error.message
+                error: errorType,
+                message: errorDetails,
+                details: {
+                  transcript: transcript.substring(0, 50),
+                  timestamp: new Date().toISOString()
+                }
               }
             }));
           } finally {
