@@ -854,6 +854,12 @@
       }
 
       createWidgetUI() {
+        // Eliminar el div placeholder oculto si existe
+        const existingRoot = document.getElementById('sandra-widget-root');
+        if (existingRoot && existingRoot.classList.contains('hidden')) {
+          existingRoot.remove();
+        }
+
         const widgetHTML = `
           <div id="sandra-widget-root" class="fixed bottom-4 right-4 z-50 font-sans">
             <button id="sandra-toggle-btn" class="w-14 h-14 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xl hover:scale-105 transition-transform flex items-center justify-center group overflow-hidden border-2 border-white/20">
