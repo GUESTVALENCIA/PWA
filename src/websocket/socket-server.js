@@ -991,38 +991,43 @@ async function handleAudioTTS(payload, ws, voiceServices) {
 }
 
 /**
- * Handle welcome message - Send pre-recorded welcome audio
+ * Handle initial greeting - Generate greeting in real-time using Deepgram TTS
+ * 🚀 ENTERPRISE: Saludo generado en tiempo real (no pregrabado) para experiencia natural
  */
-async function handleWelcomeMessage(ws, voiceServices) {
+async function handleInitialGreeting(ws, voiceServices) {
   try {
-    logger.info('👋 Sending welcome message...');
+    logger.info('👋 Generating initial greeting in real-time (Deepgram TTS)...');
     
-    if (!voiceServices || !voiceServices.getWelcomeAudio) {
-      logger.error('getWelcomeAudio not available in voiceServices');
-      throw new Error('Welcome audio service not available');
+    if (!voiceServices || !voiceServices.generateVoice) {
+      logger.error('generateVoice not available in voiceServices');
+      throw new Error('Voice generation service not available');
     }
     
-    const welcomeAudio = await voiceServices.getWelcomeAudio();
+    // 🚀 ENTERPRISE: Saludo corto, claro y conciso generado en tiempo real
+    const greetingText = 'Hola, buenas, soy Sandra, tu asistente de Guests Valencia, ¿en qué puedo ayudarte hoy?';
+    
+    logger.info(`🎙️ Generating greeting audio: "${greetingText}"`);
+    const greetingAudio = await voiceServices.generateVoice(greetingText);
 
     ws.send(JSON.stringify({
       route: 'audio',
       action: 'tts',
       payload: {
-        audio: welcomeAudio,
+        audio: greetingAudio,
         format: 'mp3',
-        text: '¡Hola! Soy Sandra, tu asistente virtual de Guests Valencia. ¿En qué puedo ayudarte?',
-        isWelcome: true
+        text: greetingText,
+        isWelcome: true // Mantener flag para diferenciar del audio conversacional
       }
     }));
 
-    logger.info('✅ Welcome message sent');
+    logger.info('✅ Initial greeting sent (generated in real-time)');
   } catch (error) {
-    logger.error('Error sending welcome message:', error);
+    logger.error('Error generating initial greeting:', error);
     ws.send(JSON.stringify({
       route: 'error',
       action: 'message',
       payload: {
-        error: 'Welcome message failed',
+        error: 'Initial greeting failed',
         message: error.message
       }
     }));
