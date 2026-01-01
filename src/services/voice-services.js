@@ -6,7 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { Deepgram } from '@deepgram/sdk';
+import { createClient, LiveTranscriptionEvents } from '@deepgram/sdk';
 import logger from '../utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -24,8 +24,8 @@ class VoiceServices {
     // Initialize Deepgram SDK instance (v3 format)
     if (this.deepgramApiKey) {
       try {
-        this.deepgram = new Deepgram({ apiKey: this.deepgramApiKey });
-        logger.info('[VOICE-SERVICES] ✅ Deepgram SDK initialized successfully');
+        this.deepgram = createClient(this.deepgramApiKey);
+        logger.info('[VOICE-SERVICES] ✅ Deepgram SDK initialized successfully (v3)');
       } catch (error) {
         logger.error('[VOICE-SERVICES] ❌ Failed to initialize Deepgram SDK:', error);
         this.deepgram = null;
@@ -57,7 +57,7 @@ class VoiceServices {
 
     logger.info('[DEEPGRAM] 🔌 Creating streaming connection...');
 
-    const connection = this.deepgram.transcription.live({
+    const connection = this.deepgram.listen.live({
       model: 'nova-2',
       language: language,
       punctuate: true,
@@ -69,40 +69,56 @@ class VoiceServices {
       // When sending WebM containers, Deepgram will detect Opus automatically
     });
 
-    // Set up event handlers
+    let finalizedUtterance = '';
+
+    const flushFinalizedUtterance = (reason, message) => {
+      if (!onTranscriptionFinalized) return;
+      const transcript = finalizedUtterance.trim();
+      if (!transcript) return;
+      finalizedUtterance = '';
+      logger.info(`[DEEPGRAM] ✅ Utterance finalized (${reason}): "${transcript.substring(0, 50)}${transcript.length > 50 ? '...' : ''}"`);
+      onTranscriptionFinalized(transcript, message);
+    };
+
+    // Set up event handlers (Deepgram JS SDK v3)
+    connection.on(LiveTranscriptionEvents.Transcript, (message) => {
+      const transcript = message?.channel?.alternatives?.[0]?.transcript || '';
+      if (!transcript) return;
+
+      if (message?.is_final) {
+        finalizedUtterance = `${finalizedUtterance} ${transcript}`.trim();
+        if (message?.speech_final) {
+          flushFinalizedUtterance('speech_final', message);
+        }
+        return;
+      }
+
+      if (onTranscriptionUpdated) {
+        onTranscriptionUpdated(transcript, message);
+      }
+    });
+
     if (onTranscriptionFinalized) {
-      connection.on('transcriptionFinalized', (message) => {
-        const transcript = message.channel?.alternatives?.[0]?.transcript || '';
-        if (transcript) {
-          logger.info(`[DEEPGRAM] ✅ Transcription finalized: "${transcript.substring(0, 50)}${transcript.length > 50 ? '...' : ''}"`);
-          onTranscriptionFinalized(transcript, message);
-        }
+      connection.on(LiveTranscriptionEvents.UtteranceEnd, (message) => {
+        flushFinalizedUtterance('utterance_end', message);
       });
     }
 
-    if (onTranscriptionUpdated) {
-      connection.on('transcriptionUpdated', (message) => {
-        const interim = message.channel?.alternatives?.[0]?.transcript || '';
-        if (interim) {
-          onTranscriptionUpdated(interim, message);
-        }
+    connection.on(LiveTranscriptionEvents.Error, (error) => {
+      logger.error('[DEEPGRAM] ❌ Connection error:', error);
+      logger.error('[DEEPGRAM] Error details:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack?.substring(0, 200)
       });
-    }
 
-    if (onError) {
-      connection.on('error', (error) => {
-        logger.error('[DEEPGRAM] ❌ Connection error:', error);
-        logger.error('[DEEPGRAM] Error details:', {
-          message: error.message,
-          code: error.code,
-          stack: error.stack?.substring(0, 200)
-        });
+      if (onError) {
         onError(error);
-      });
-    }
+      }
+    });
 
     if (onClose) {
-      connection.on('close', () => {
+      connection.on(LiveTranscriptionEvents.Close, () => {
         logger.info('[DEEPGRAM] 🔌 Connection closed');
         onClose();
       });
