@@ -21,6 +21,20 @@ import { StateManager } from './src/core/state-manager.js';
 import { SystemEventEmitter } from './src/core/event-emitter.js';
 import { initWebSocketServer } from './src/websocket/socket-server.js';
 import logger from './src/utils/logger.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const DEBUG_LOG_PATH = path.join(__dirname, '.cursor/debug.log');
+const debugLog = (location, message, data, hypothesisId) => {
+  try {
+    const logEntry = {location, message, data, timestamp:Date.now(), sessionId:'debug-session', runId:'run1', hypothesisId};
+    if (!fs.existsSync(path.dirname(DEBUG_LOG_PATH))) fs.mkdirSync(path.dirname(DEBUG_LOG_PATH), {recursive:true});
+    fs.appendFileSync(DEBUG_LOG_PATH, JSON.stringify(logEntry) + '\n');
+  } catch(e) {}
+};
 import authMiddleware from './src/middleware/auth.js';
 import projectDetector from './src/middleware/project-detector.js';
 import accessControl from './src/middleware/access-control.js';
@@ -166,9 +180,18 @@ async function startup() {
 
     // 8. Inicializar servicios de voz
     let voiceServices = null;
+    // #region agent log
+    debugLog('server.js:168', 'Starting voice services initialization', {step:'before_import'}, 'A');
+    // #endregion
     try {
       const voiceServicesModule = await import('./src/services/voice-services.js');
+      // #region agent log
+      debugLog('server.js:171', 'After import', {hasModule:!!voiceServicesModule,hasDefault:!!voiceServicesModule.default,defaultKeys:voiceServicesModule.default?Object.keys(voiceServicesModule.default):[]}, 'B');
+      // #endregion
       voiceServices = voiceServicesModule.default;
+      // #region agent log
+      debugLog('server.js:172', 'After assigning default', {hasVoiceServices:!!voiceServices,keys:voiceServices?Object.keys(voiceServices):[],hasDeepgram:!!voiceServices?.deepgram,hasGenerateVoice:!!voiceServices?.generateVoice,hasAI:!!voiceServices?.ai,hasWelcomeAudio:!!voiceServices?.getWelcomeAudio}, 'B');
+      // #endregion
       
       // Validate service structure
       if (!voiceServices) {
@@ -210,6 +233,9 @@ async function startup() {
           aiMethods: voiceServices.ai ? Object.keys(voiceServices.ai) : []
         });
       } else {
+        // #region agent log
+        debugLog('server.js:212', 'Voice services structure incomplete - throwing error', {hasVoiceServices:!!voiceServices,hasDeepgram:!!voiceServices?.deepgram,hasGenerateVoice:!!voiceServices?.generateVoice,hasAI:!!voiceServices?.ai,hasWelcomeAudio:!!voiceServices?.getWelcomeAudio,structure:JSON.stringify(voiceServices).substring(0,300)}, 'C');
+        // #endregion
         logger.error('❌ Voice services partially initialized - missing required services', {
           hasVoiceServices: !!voiceServices,
           hasDeepgram: !!voiceServices?.deepgram,
@@ -221,6 +247,9 @@ async function startup() {
         throw new Error('Voice services structure incomplete');
       }
     } catch (error) {
+      // #region agent log
+      debugLog('server.js:223', 'Voice services initialization FAILED', {errorMessage:error.message,errorStack:error.stack?.substring(0,200),willSetNull:true}, 'A');
+      // #endregion
       logger.error('❌ Voice services initialization failed:', error);
       logger.error('Error details:', {
         message: error.message,
@@ -228,9 +257,15 @@ async function startup() {
         code: error.code
       });
       voiceServices = null; // Ensure it's null on error
+      // #region agent log
+      debugLog('server.js:230', 'Voice services set to null after error', {voiceServicesIsNull:voiceServices===null}, 'A');
+      // #endregion
     }
 
     // 9. Inicializar WebSocket con servicios (después de que todos los servicios estén listos)
+    // #region agent log
+    debugLog('server.js:235', 'Before initWebSocketServer call', {voiceServicesIsNull:voiceServices===null,hasVoiceServices:!!voiceServices,willPassToInit:true}, 'E');
+    // #endregion
     logger.info('Initializing WebSocket server with all services...');
     initWebSocketServer(wss, stateManager, systemEventEmitter, neonService, voiceServices);
     logger.info('✅ WebSocket server initialized');
