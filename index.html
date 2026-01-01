@@ -797,12 +797,54 @@
         this.responseWatchdogTimeout = null;
         this._mcpConfigPromise = null;
         this.chatLocked = false;
+        // Voice Library Manager - Pre-cargar voz nativa
+        this.voiceLibraryManager = {
+          nativeVoiceAudio: null,
+          isLoaded: false,
+          loadNativeVoice: async () => {
+            if (this.voiceLibraryManager.isLoaded) return;
+            try {
+              console.log('[VOICE-LIB] 📁 Cargando voz nativa: assets/audio/sandra-conversational.wav');
+              this.voiceLibraryManager.nativeVoiceAudio = new Audio('assets/audio/sandra-conversational.wav');
+              this.voiceLibraryManager.nativeVoiceAudio.preload = 'auto';
+              this.voiceLibraryManager.nativeVoiceAudio.volume = 1.0;
+              
+              await new Promise((resolve, reject) => {
+                this.voiceLibraryManager.nativeVoiceAudio.addEventListener('canplaythrough', resolve, { once: true });
+                this.voiceLibraryManager.nativeVoiceAudio.addEventListener('error', reject, { once: true });
+              });
+              
+              this.voiceLibraryManager.isLoaded = true;
+              console.log('[VOICE-LIB] ✅ Voz nativa cargada correctamente');
+            } catch (error) {
+              console.error('[VOICE-LIB] ❌ Error cargando voz nativa:', error);
+              // Fallback: intentar welcome.mp3
+              try {
+                this.voiceLibraryManager.nativeVoiceAudio = new Audio('assets/audio/welcome.mp3');
+                this.voiceLibraryManager.nativeVoiceAudio.preload = 'auto';
+                this.voiceLibraryManager.nativeVoiceAudio.volume = 1.0;
+                await new Promise((resolve, reject) => {
+                  this.voiceLibraryManager.nativeVoiceAudio.addEventListener('canplaythrough', resolve, { once: true });
+                  this.voiceLibraryManager.nativeVoiceAudio.addEventListener('error', reject, { once: true });
+                });
+                this.voiceLibraryManager.isLoaded = true;
+                console.log('[VOICE-LIB] ✅ Usando welcome.mp3 como fallback');
+              } catch (fallbackError) {
+                console.error('[VOICE-LIB] ❌ Error en fallback:', fallbackError);
+              }
+            }
+          }
+        };
         this.init();
       }
 
-      init() {
+      async init() {
         this.createWidgetUI();
         this.bindEvents();
+        // Pre-cargar voz nativa en segundo plano
+        this.voiceLibraryManager.loadNativeVoice().catch(err => {
+          console.warn('[VOICE-LIB] Voz nativa no disponible, se usará TTS del servidor:', err);
+        });
       }
 
       createWidgetUI() {
@@ -1568,20 +1610,26 @@
             return;
           }
 
-          // Manejar mensaje de noSpeech (sin transcripción)
-          if (data.route === 'conserje' && data.action === 'message' && data.payload && data.payload.type === 'noSpeech' && data.payload.message) {
-            console.log('[MCP] ⚠️ No se detectó habla, solicitando TTS del mensaje');
+          // Manejar mensaje de respuesta completa del servidor (texto para reproducir con voz nativa)
+          if (data.route === 'conserje' && data.action === 'message' && data.payload && data.payload.type === 'response_complete' && data.payload.text) {
+            console.log('[MCP] ✅ Respuesta completa recibida, reproduciendo con voz nativa');
             this.clearResponseWatchdog();
             this.awaitingResponse = false;
-            try {
-              ws.send(JSON.stringify({
-                route: 'audio',
-                action: 'tts',
-                payload: { text: data.payload.message }
-              }));
-            } catch (err) {
-              console.error('[MCP] Error solicitando TTS para noSpeech:', err);
-            }
+            
+            const responseText = data.payload.text;
+            // Mostrar mensaje en el chat
+            this.addMessage(responseText, 'system');
+            
+            // Reproducir con voz nativa local
+            this.playNativeVoice(responseText);
+            return;
+          }
+
+          // Manejar mensaje de noSpeech (sin transcripción)
+          if (data.route === 'conserje' && data.action === 'message' && data.payload && data.payload.type === 'noSpeech' && data.payload.message) {
+            console.log('[MCP] ⚠️ No se detectó habla');
+            this.clearResponseWatchdog();
+            this.awaitingResponse = false;
             return;
           }
 
@@ -1791,6 +1839,52 @@
           console.error("[AUDIO] ❌ play() promise rechazado:", e.name, e.message);
           this.isSpeaking = false;
         });
+      }
+
+      // Reproducir respuesta con voz nativa local
+      async playNativeVoice(text) {
+        console.log('[VOICE-LIB] 🔊 Reproduciendo respuesta con voz nativa:', text.substring(0, 50) + '...');
+        
+        // Asegurar que la voz nativa esté cargada
+        if (!this.voiceLibraryManager.isLoaded) {
+          console.log('[VOICE-LIB] ⏳ Esperando carga de voz nativa...');
+          await this.voiceLibraryManager.loadNativeVoice();
+        }
+
+        if (!this.voiceLibraryManager.nativeVoiceAudio) {
+          console.error('[VOICE-LIB] ❌ Voz nativa no disponible');
+          return;
+        }
+
+        // Detener cualquier audio actual
+        if (this.currentAudio) {
+          this.currentAudio.pause();
+          this.currentAudio.currentTime = 0;
+        }
+
+        this.isSpeaking = true;
+        const audio = this.voiceLibraryManager.nativeVoiceAudio.cloneNode();
+
+        // Configurar eventos
+        audio.addEventListener('ended', () => {
+          console.log('[VOICE-LIB] ✅ Voz nativa finalizada');
+          this.isSpeaking = false;
+        });
+
+        audio.addEventListener('error', (e) => {
+          console.error('[VOICE-LIB] ❌ Error reproduciendo voz nativa:', e);
+          this.isSpeaking = false;
+        });
+
+        // Reproducir
+        this.currentAudio = audio;
+        try {
+          await audio.play();
+          console.log('[VOICE-LIB] ▶️ Voz nativa reproduciéndose');
+        } catch (error) {
+          console.error('[VOICE-LIB] ❌ Error al reproducir:', error);
+          this.isSpeaking = false;
+        }
       }
     }
 
