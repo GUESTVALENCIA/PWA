@@ -4,6 +4,20 @@
  */
 
 import logger from '../utils/logger.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const DEBUG_LOG_PATH = path.join(__dirname, '../../.cursor/debug.log');
+const debugLog = (location, message, data, hypothesisId) => {
+  try {
+    const logEntry = {location, message, data, timestamp:Date.now(), sessionId:'debug-session', runId:'run1', hypothesisId};
+    if (!fs.existsSync(path.dirname(DEBUG_LOG_PATH))) fs.mkdirSync(path.dirname(DEBUG_LOG_PATH), {recursive:true});
+    fs.appendFileSync(DEBUG_LOG_PATH, JSON.stringify(logEntry) + '\n');
+  } catch(e) {}
+};
 
 // Active agent subscriptions: Map<agentId, Set<projectIds>>
 const agentSubscriptions = new Map();
@@ -16,6 +30,9 @@ const deepgramConnections = new Map();
  * Initialize WebSocket server
  */
 export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonService, voiceServices = null) {
+  // #region agent log
+  debugLog('socket-server.js:18', 'initWebSocketServer called', {voiceServicesIsNull:voiceServices===null,hasVoiceServices:!!voiceServices,hasDeepgram:!!voiceServices?.deepgram,hasAI:!!voiceServices?.ai,hasWelcomeAudio:!!voiceServices?.getWelcomeAudio}, 'E');
+  // #endregion
   wss.on('connection', (ws, req) => {
     const agentId = req.headers['x-agent-id'] || `agent_${Math.random().toString(36).substring(7)}`;
     const connectionTime = new Date().toISOString();
@@ -430,7 +447,14 @@ function broadcastToProjectSubscribers(wss, projectId, message) {
 async function handleVoiceMessage(data, agentId, ws, voiceServices) {
   const { route, action, payload } = data;
 
+  // #region agent log
+  debugLog('socket-server.js:430', 'handleVoiceMessage called', {route,action,voiceServicesIsNull:voiceServices===null,hasVoiceServices:!!voiceServices,hasDeepgram:!!voiceServices?.deepgram,hasAI:!!voiceServices?.ai,hasWelcomeAudio:!!voiceServices?.getWelcomeAudio,voiceServicesKeys:voiceServices?Object.keys(voiceServices):[]}, 'D');
+  // #endregion
+
   if (!voiceServices) {
+    // #region agent log
+    debugLog('socket-server.js:433', 'Voice services is NULL - sending error', {route,action}, 'A');
+    // #endregion
     logger.warn('Voice services not available');
     ws.send(JSON.stringify({
       route: 'error',
@@ -445,11 +469,18 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices) {
 
   // Verificar que los servicios estén disponibles
   // Note: generateVoice removed - client uses native local voice instead
+  // CRITICAL: Check for all required properties that server.js validates
   if (!voiceServices.deepgram || !voiceServices.ai || !voiceServices.getWelcomeAudio) {
+    // #region agent log
+    debugLog('socket-server.js:469', 'Voice services missing required properties', {hasDeepgram:!!voiceServices.deepgram,hasAI:!!voiceServices.ai,hasWelcomeAudio:!!voiceServices.getWelcomeAudio,hasGenerateVoice:!!voiceServices.generateVoice,allKeys:voiceServices?Object.keys(voiceServices):[],voiceServicesType:typeof voiceServices}, 'C');
+    // #endregion
     logger.warn('Voice services not fully initialized', {
       hasDeepgram: !!voiceServices.deepgram,
       hasAI: !!voiceServices.ai,
-      hasWelcomeAudio: !!voiceServices.getWelcomeAudio
+      hasWelcomeAudio: !!voiceServices.getWelcomeAudio,
+      hasGenerateVoice: !!voiceServices.generateVoice,
+      allKeys: voiceServices ? Object.keys(voiceServices) : [],
+      voiceServicesType: typeof voiceServices
     });
     ws.send(JSON.stringify({
       route: 'error',
@@ -461,6 +492,10 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices) {
     }));
     return;
   }
+  
+  // #region agent log
+  debugLog('socket-server.js:490', 'Voice services validation PASSED', {hasDeepgram:!!voiceServices.deepgram,hasAI:!!voiceServices.ai,hasWelcomeAudio:!!voiceServices.getWelcomeAudio,hasGenerateVoice:!!voiceServices.generateVoice}, 'D');
+  // #endregion
 
   try {
     switch (route) {
