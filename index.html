@@ -876,7 +876,8 @@
                   <button id="sandra-hangup-btn" class="p-2 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors shadow-sm"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12a9 9 0 1018 0 9 9 0 00-18 0z" /></svg></button>
                   <button id="sandra-mute-btn" class="p-2 rounded-full bg-slate-400 text-white hover:bg-slate-500 transition-colors shadow-sm"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg></button>
                 </div>
-                <div id="sandra-live-transcript" class="hidden mb-2 px-3 py-2 text-[10px] text-slate-600 bg-slate-50 rounded-xl border border-slate-200"></div>
+                <!-- Transcripción en vivo (siempre oculta - solo para uso interno/debug) -->
+                <div id="sandra-live-transcript" class="hidden" style="display: none !important;"></div>
                 <!-- Input Area -->
                 <div class="relative flex items-center gap-1.5">
                   <input type="text" id="sandra-input" placeholder="Escribe tu mensaje..." class="flex-1 bg-slate-100 border-0 rounded-full px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all">
@@ -1851,23 +1852,17 @@
             return;
           }
 
-          // Mostrar transcripción (interim) para feedback en tiempo real
+          // Transcripción (interim) - NO mostrar visualmente, solo para uso interno
           if (data.route === 'conserje' && data.action === 'message' && data.payload && data.payload.type === 'transcription_interim' && data.payload.text) {
-            const liveTranscript = document.getElementById('sandra-live-transcript');
-            if (liveTranscript) {
-              liveTranscript.textContent = `Escuchando: ${data.payload.text}`;
-              liveTranscript.classList.remove('hidden');
-            }
+            // Solo log interno, no mostrar en UI
+            console.log('[STT] Transcripción interim:', data.payload.text);
             return;
           }
 
-          // Mostrar transcripción final detectada por STT (útil para depurar)
+          // Transcripción final - NO mostrar visualmente, solo para uso interno
           if (data.route === 'conserje' && data.action === 'message' && data.payload && data.payload.type === 'transcription_final' && data.payload.text) {
-            const liveTranscript = document.getElementById('sandra-live-transcript');
-            if (liveTranscript) {
-              liveTranscript.textContent = `Has dicho: ${data.payload.text}`;
-              liveTranscript.classList.remove('hidden');
-            }
+            // Solo log interno, no mostrar en UI
+            console.log('[STT] Transcripción final:', data.payload.text);
             return;
           }
 
@@ -2081,6 +2076,7 @@
         const audio = new Audio(blobUrl);
         audio._blobUrl = blobUrl;
         audio.volume = 1.0; // Asegurar volumen máximo
+        audio.playbackRate = 1.0; // Asegurar velocidad normal (no acelerada)
         this.currentAudio = audio;
 
         console.log('[AUDIO] Audio element creado, intentando reproducir...');
