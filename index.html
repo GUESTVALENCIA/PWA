@@ -1729,12 +1729,12 @@
         ws.onopen = async () => {
           console.log('✅ WebSocket conectado (Enterprise Mode)', wsUrl);
 
-          // Enviar mensaje ready para solicitar saludo inicial
-          console.log('[MCP] Enviando mensaje ready al servidor...');
+          // 🚀 ENTERPRISE: Cliente listo - stream activo directamente (sin mensaje de bienvenida)
+          console.log('[MCP] Cliente listo - stream activo, esperando input del usuario');
           ws.send(JSON.stringify({
             route: 'conserje',
             action: 'message',
-            payload: { type: 'ready', message: 'Cliente listo para recibir saludo' }
+            payload: { type: 'ready', message: 'Cliente listo - stream activo' }
           }));
 
           // Esperar capacidades del servidor antes de pedir micr?fono (evita prompts cuando STT no est? disponible)
