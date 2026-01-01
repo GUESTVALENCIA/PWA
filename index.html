@@ -799,57 +799,14 @@
         this.chatLocked = false;
         this.sttAvailable = null;
         this.sttNoticeShown = false;
-        // Voice Library Manager - Pre-cargar voz nativa
-        this.voiceLibraryManager = {
-          nativeVoiceAudio: null,
-          isLoaded: false,
-          loadNativeVoice: async () => {
-            if (this.voiceLibraryManager.isLoaded) return;
-            try {
-              // La voz nativa es `sandra-conversational.wav` (formato WAV)
-              const nativeVoicePath = 'assets/audio/sandra-conversational.wav';
-              console.log('[VOICE-LIB] 📁 Cargando voz nativa:', nativeVoicePath);
-              this.voiceLibraryManager.nativeVoiceAudio = new Audio(nativeVoicePath);
-              this.voiceLibraryManager.nativeVoiceAudio.preload = 'auto';
-              this.voiceLibraryManager.nativeVoiceAudio.volume = 1.0;
-               
-              await new Promise((resolve, reject) => {
-                this.voiceLibraryManager.nativeVoiceAudio.addEventListener('canplaythrough', resolve, { once: true });
-                this.voiceLibraryManager.nativeVoiceAudio.addEventListener('error', reject, { once: true });
-              });
-               
-              this.voiceLibraryManager.isLoaded = true;
-              console.log('[VOICE-LIB] ✅ Voz nativa cargada correctamente');
-            } catch (error) {
-              console.error('[VOICE-LIB] ❌ Error cargando voz nativa:', error);
-              // Fallback: intentar welcome.mp3
-              try {
-                const fallbackPath = 'assets/audio/welcome.mp3';
-                this.voiceLibraryManager.nativeVoiceAudio = new Audio(fallbackPath);
-                this.voiceLibraryManager.nativeVoiceAudio.preload = 'auto';
-                this.voiceLibraryManager.nativeVoiceAudio.volume = 1.0;
-                await new Promise((resolve, reject) => {
-                  this.voiceLibraryManager.nativeVoiceAudio.addEventListener('canplaythrough', resolve, { once: true });
-                  this.voiceLibraryManager.nativeVoiceAudio.addEventListener('error', reject, { once: true });
-                });
-                this.voiceLibraryManager.isLoaded = true;
-                console.log('[VOICE-LIB] ✅ Usando welcome.mp3 como fallback');
-              } catch (fallbackError) {
-                console.error('[VOICE-LIB] ❌ Error en fallback:', fallbackError);
-              }
-            }
-          }
-        };
         this.init();
       }
 
       async init() {
         this.createWidgetUI();
         this.bindEvents();
-        // Pre-cargar voz nativa en segundo plano
-        this.voiceLibraryManager.loadNativeVoice().catch(err => {
-          console.warn('[VOICE-LIB] Voz nativa no disponible, se usará TTS del servidor:', err);
-        });
+        // El servidor usa Deepgram TTS para generar audio y enviarlo al cliente
+        // El cliente solo reproduce el audio recibido del servidor (NO usa SpeechSynthesis)
       }
 
       createWidgetUI() {
@@ -1915,17 +1872,17 @@
           }
 
           // Manejar mensaje de respuesta completa del servidor (SOLO texto - fallback si no hay audio)
-          // NOTA: El flujo correcto es recibir audio con route: 'audio', action: 'tts'
-          // Este es solo un fallback para compatibilidad
+          // NOTA: El servidor DEBE enviar audio con route: 'audio', action: 'tts' usando Deepgram TTS
+          // Si solo recibimos texto, es un error del servidor
           if (data.route === 'conserje' && data.action === 'message' && data.payload && data.payload.type === 'response_complete' && data.payload.text) {
-            console.log('[MCP] ⚠️ Respuesta completa recibida como TEXTO (fallback - debería ser audio)');
+            console.error('[MCP] ❌ ERROR: Respuesta recibida solo como TEXTO - el servidor debe enviar audio TTS con Deepgram');
+            console.error('[MCP] ❌ El servidor debe usar Deepgram TTS y enviar route: "audio", action: "tts"');
             this.clearResponseWatchdog();
             this.awaitingResponse = false;
             
             const responseText = data.payload.text;
             
             // NO mostrar mensaje en el chat cuando hay llamada activa
-            // Solo reproducir con voz
             if (!this.activeCall) {
               this.addMessage(responseText, 'system');
             }
@@ -1936,10 +1893,9 @@
               liveTranscript.textContent = '';
             }
             
-            // FALLBACK: Si solo recibimos texto sin audio, usar SpeechSynthesis temporalmente
-            // NOTA: Esto debería ser reemplazado por audio del servidor
-            console.warn('[MCP] ⚠️ Usando SpeechSynthesis como fallback - el servidor debería enviar audio TTS');
-            this.playNativeVoice(responseText);
+            // NO usar SpeechSynthesis - el servidor debe enviar audio
+            console.error('[MCP] ❌ No se puede reproducir respuesta: el servidor debe enviar audio TTS');
+            this.isSpeaking = false;
             return;
           }
 
@@ -2195,69 +2151,9 @@
         });
       }
 
-      // Reproducir respuesta con voz nativa local usando speechSynthesis
-      async playNativeVoice(text) {
-        if (!text || typeof text !== 'string' || text.trim() === '') {
-          console.warn('[VOICE-LIB] Texto vacío, no se reproduce');
-          return;
-        }
-
-        console.log('[VOICE-LIB] 🔊 Reproduciendo respuesta con voz nativa:', text.substring(0, 50) + '...');
-        
-        // Detener cualquier audio/speech anterior
-        if (this.currentAudio) {
-          this.currentAudio.pause();
-          this.currentAudio.currentTime = 0;
-          this.currentAudio = null;
-        }
-        
-        if (window.speechSynthesis) {
-          window.speechSynthesis.cancel();
-        }
-
-        // Usar speechSynthesis del navegador para convertir texto a voz
-        if (window.speechSynthesis && window.SpeechSynthesisUtterance) {
-          this.isSpeaking = true;
-          
-          const utterance = new SpeechSynthesisUtterance(text);
-          utterance.lang = 'es-ES';
-          utterance.rate = 0.92; // Ritmo calmado
-          utterance.pitch = 1.0;
-          utterance.volume = 1.0;
-
-          // Intentar usar una voz femenina en español si está disponible
-          const voices = window.speechSynthesis.getVoices();
-          const spanishVoice = voices.find(v => v.lang.startsWith('es') && v.name.toLowerCase().includes('female')) ||
-                               voices.find(v => v.lang.startsWith('es-ES')) ||
-                               voices.find(v => v.lang.startsWith('es'));
-          
-          if (spanishVoice) {
-            utterance.voice = spanishVoice;
-            console.log('[VOICE-LIB] Usando voz:', spanishVoice.name);
-          }
-
-          utterance.onend = () => {
-            console.log('[VOICE-LIB] ✅ Voz nativa finalizada');
-            this.isSpeaking = false;
-          };
-
-          utterance.onerror = (e) => {
-            console.error('[VOICE-LIB] ❌ Error reproduciendo voz nativa:', e);
-            this.isSpeaking = false;
-          };
-
-          try {
-            window.speechSynthesis.speak(utterance);
-            console.log('[VOICE-LIB] ▶️ Voz nativa reproduciéndose');
-          } catch (error) {
-            console.error('[VOICE-LIB] ❌ Error al iniciar speechSynthesis:', error);
-            this.isSpeaking = false;
-          }
-        } else {
-          console.error('[VOICE-LIB] ❌ speechSynthesis no disponible en este navegador');
-          this.isSpeaking = false;
-        }
-      }
+      // NOTA: Esta función fue eliminada - NO usar SpeechSynthesis del navegador
+      // El servidor debe enviar audio TTS usando Deepgram con route: 'audio', action: 'tts'
+      // El cliente usa playAudioResponse() para reproducir el audio recibido del servidor
     }
 
     document.addEventListener('DOMContentLoaded', () => {
