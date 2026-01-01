@@ -90,13 +90,7 @@ app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
-// ===== MIDDLEWARE CUSTOM =====
-app.use(authMiddleware);
-app.use(projectDetector);
-app.use(accessControl);
-app.use(rateLimiter);
-
-// ===== HEALTH CHECK =====
+// ===== HEALTH CHECK (BEFORE AUTH) =====
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -105,6 +99,12 @@ app.get('/health', (req, res) => {
     environment: process.env.NODE_ENV
   });
 });
+
+// ===== MIDDLEWARE CUSTOM =====
+app.use(authMiddleware);
+app.use(projectDetector);
+app.use(accessControl);
+app.use(rateLimiter);
 
 // ===== API ROUTES =====
 app.use('/api/projects', projectRoutes);
