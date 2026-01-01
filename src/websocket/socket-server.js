@@ -731,7 +731,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
 
             logger.info(`💬 AI Response received (${aiResponse.length} chars): "${aiResponse.substring(0, 100)}${aiResponse.length > 100 ? '...' : ''}"`);
 
-            // Generate TTS audio using Deepgram
+            // Generate TTS audio using Deepgram (fallback to native voice file if Deepgram fails)
             try {
               const responseAudio = await voiceServices.generateVoice(aiResponse);
               
@@ -747,19 +747,12 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                 }
               }));
 
-              logger.info('✅ Audio TTS response sent to client (Deepgram)');
+              logger.info('✅ Audio TTS response sent to client (Deepgram o voz nativa)');
             } catch (ttsError) {
-              logger.error('[TTS] Error generating audio, sending text only:', ttsError);
-              // Fallback: Send text only if TTS fails
-              ws.send(JSON.stringify({
-                route: 'conserje',
-                action: 'message',
-                payload: {
-                  type: 'response_complete',
-                  text: aiResponse,
-                  language: 'es'
-                }
-              }));
+              logger.error('[TTS] ❌ ERROR CRÍTICO: No se pudo generar audio ni usar voz nativa:', ttsError);
+              // No enviar solo texto - el cliente no puede reproducirlo sin SpeechSynthesis
+              // El error ya se registró, y generateVoice() debería lanzar error solo si fallan TODOS los métodos
+              throw new Error(`TTS failed: ${ttsError.message}`);
             }
           } catch (error) {
             logger.error('[DEEPGRAM] Error processing transcript with AI:', {
