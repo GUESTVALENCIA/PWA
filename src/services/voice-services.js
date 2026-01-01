@@ -82,16 +82,23 @@ class VoiceServices {
     logger.info('[DEEPGRAM] 🔌 Creating streaming connection...');
 
     const liveOptions = {
-      model: 'nova-2',
+      // 🚀 ENTERPRISE: Modelo optimizado para llamadas telefónicas
+      model: 'nova-2-phonecall', // Mejor que 'nova-2' para llamadas conversacionales
       language: language,
       punctuate: true,
       smart_format: true,
       interim_results: true, // CRITICAL: Partial results in real-time
-      endpointing: 300, // CRITICAL: Detect 300ms of silence = end of phrase
+      // 🚀 ENTERPRISE: Reducido a 250ms para detección más rápida de fin de frase
+      endpointing: 250, // Optimizado de 300ms → 250ms (mejor latencia)
       vad_events: true, // CRITICAL: Voice Activity Detection
       // Enable utterance segmentation (helps reliably fire UtteranceEnd events)
       utterances: true,
-      utterance_end_ms: Math.max(300, Math.min(2000, Number(idleTimeoutMs) || 1200))
+      // 🚀 ENTERPRISE: Optimizado para mejor balance latencia/precisión
+      utterance_end_ms: Math.max(300, Math.min(1000, Number(idleTimeoutMs) || 800)),
+      // 🚀 ENTERPRISE: Elimina palabras de relleno ("eh", "um") para llamadas profesionales
+      filler_words: false,
+      // 🚀 ENTERPRISE: Mejor reconocimiento de números en español
+      numerals: true
     };
 
     if (encoding) liveOptions.encoding = encoding;
