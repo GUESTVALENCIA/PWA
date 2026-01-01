@@ -221,8 +221,43 @@ class VoiceServices {
   /**
    * Generate voice using native local audio file (eliminates Cartesia latency)
    */
+  /**
+   * Generate TTS audio from text using Cartesia API (real-time TTS)
+   * Falls back to native voice file if Cartesia is not available
+   */
   async generateVoice(text, voiceId = null) {
-    // Use native local voice file instead of Cartesia API
+    if (!text || text.trim() === '') {
+      // If no text provided, return welcome audio file (for initial greeting)
+      return await this.getWelcomeAudio();
+    }
+
+    // Use Deepgram TTS first (preferred)
+    if (this.deepgramApiKey) {
+      try {
+        logger.info(`[TTS] Generating audio with Deepgram for text: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
+        const audioBase64 = await this._generateDeepgramTTS(text);
+        logger.info('[TTS] ✅ Audio generated successfully with Deepgram');
+        return audioBase64;
+      } catch (deepgramError) {
+        logger.warn('[TTS] Deepgram TTS failed, trying fallback:', deepgramError.message);
+        // Fall through to other fallbacks
+      }
+    }
+
+    // Fallback: Try Cartesia TTS if API key is configured
+    if (this.cartesiaApiKey) {
+      try {
+        logger.info(`[TTS] Generating audio with Cartesia for text: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
+        const audioBase64 = await this._generateCartesiaTTS(text, voiceId || this.cartesiaVoiceId);
+        logger.info('[TTS] ✅ Audio generated successfully with Cartesia');
+        return audioBase64;
+      } catch (cartesiaError) {
+        logger.warn('[TTS] Cartesia TTS failed, falling back to native voice file:', cartesiaError.message);
+        // Fall through to native voice file fallback
+      }
+    }
+
+    // Fallback: Use native local voice file (static audio - not dynamic)
     const nativeVoicePath = path.join(__dirname, '../../assets/audio/sandra-conversational.wav');
     
     // Try alternative paths if the first doesn't work
@@ -234,7 +269,7 @@ class VoiceServices {
 
     for (const voicePath of possiblePaths) {
       if (fs.existsSync(voicePath)) {
-        logger.info(`📁 Using native voice file: ${voicePath}`);
+        logger.info(`[TTS] 📁 Using native voice file: ${voicePath}`);
         const audioBuffer = fs.readFileSync(voicePath);
         return audioBuffer.toString('base64');
       }
@@ -250,13 +285,87 @@ class VoiceServices {
 
     for (const welcomePath of welcomePaths) {
       if (fs.existsSync(welcomePath)) {
-        logger.info(`📁 Using welcome audio as fallback: ${welcomePath}`);
+        logger.info(`[TTS] 📁 Using welcome audio as fallback: ${welcomePath}`);
         const audioBuffer = fs.readFileSync(welcomePath);
         return audioBuffer.toString('base64');
       }
     }
 
     throw new Error('Native voice audio file not found. Expected: assets/audio/sandra-conversational.wav or assets/audio/welcome.mp3');
+  }
+
+  /**
+   * Generate TTS audio using Deepgram API
+   * @private
+   */
+  async _generateDeepgramTTS(text, model = 'aura-2-thalia-es') {
+    // Deepgram TTS models for Spanish: aura-2-thalia-es, aura-2-luna-es, etc.
+    if (!this.deepgramApiKey) {
+      throw new Error('Deepgram API key not configured');
+    }
+
+    try {
+      const response = await fetch(`https://api.deepgram.com/v1/speak?model=${model}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Token ${this.deepgramApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ text })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Deepgram TTS API Error: ${response.status} - ${errorText}`);
+      }
+
+      const audioBuffer = await response.arrayBuffer();
+      const audioBase64 = Buffer.from(audioBuffer).toString('base64');
+      logger.info('[TTS] ✅ Audio generated successfully with Deepgram');
+      return audioBase64;
+    } catch (error) {
+      logger.error('[TTS] Deepgram TTS error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate TTS audio using Cartesia API
+   * @private
+   */
+  async _generateCartesiaTTS(text, voiceId) {
+    const url = 'https://api.cartesia.ai/tts/bytes';
+    const payload = {
+      model_id: 'sonic-multilingual',
+      transcript: text,
+      voice: {
+        mode: 'id',
+        id: voiceId
+      },
+      output_format: {
+        container: 'mp3',
+        sample_rate: 24000
+      }
+    };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Cartesia-Version': '2024-06-10',
+        'X-API-Key': this.cartesiaApiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Cartesia API Error: ${response.status} - ${errorText}`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const audioBuffer = Buffer.from(arrayBuffer);
+    return audioBuffer.toString('base64');
   }
 
   /**
