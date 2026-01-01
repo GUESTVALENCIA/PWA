@@ -21,9 +21,9 @@ class VoiceServices {
     this.groqApiKey = process.env.GROQ_API_KEY;
     this.preferredProvider = (process.env.PREFERRED_AI_PROVIDER || 'groq').toLowerCase();
     
-    // Initialize Deepgram SDK instance
+    // Initialize Deepgram SDK instance (v3 format)
     if (this.deepgramApiKey) {
-      this.deepgram = new Deepgram(this.deepgramApiKey);
+      this.deepgram = new Deepgram({ apiKey: this.deepgramApiKey });
     } else {
       logger.warn('⚠️ Deepgram API Key not configured');
       this.deepgram = null;
