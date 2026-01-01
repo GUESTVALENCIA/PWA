@@ -525,10 +525,8 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices) {
 
       case 'conserje':
         if (action === 'message' && payload?.type === 'ready') {
-          // 🚀 ENTERPRISE: Welcome message eliminado - ir directamente al stream
-          // El cliente ahora espera directamente que el usuario hable sin mensaje inicial
-          logger.info('✅ Client ready - stream activo, esperando input del usuario (sin welcome message)');
-          // No enviar mensaje de bienvenida - stream listo directamente
+          // 🚀 ENTERPRISE: Saludo inicial generado en tiempo real (Deepgram TTS)
+          await handleInitialGreeting(ws, voiceServices);
         } else {
           ws.send(JSON.stringify({
             route: 'error',
