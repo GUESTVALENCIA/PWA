@@ -1395,6 +1395,136 @@
         console.log('[MCP] URL WebSocket construida:', wsUrl);
         const ws = new WebSocket(wsUrl);
         this.activeCall = ws;
+        let sttAvailable = null;
+        let sttCapabilitiesTimeout = null;
+        let microphoneStartPromise = null;
+        let microphoneStarted = false;
+        let sttNoticeShown = false;
+
+        const clearSttCapabilitiesTimeout = () => {
+          if (sttCapabilitiesTimeout) {
+            clearTimeout(sttCapabilitiesTimeout);
+            sttCapabilitiesTimeout = null;
+          }
+        };
+
+        const startMicrophoneCapture = async () => {
+          if (microphoneStarted || microphoneStartPromise) return microphoneStartPromise;
+          if (!this.activeCall || this.activeCall !== ws || ws.readyState !== WebSocket.OPEN) return null;
+          if (sttAvailable === false) return null;
+
+          microphoneStartPromise = (async () => {
+            try {
+              const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                  echoCancellation: true,
+                  noiseSuppression: true,
+                  autoGainControl: true,
+                  channelCount: 1
+                }
+              });
+
+              this.stream = stream;
+
+              const preferredMime = 'audio/webm;codecs=opus';
+              let actualMimeType = preferredMime;
+              try {
+                if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(preferredMime)) {
+                  this.mediaRecorder = new MediaRecorder(stream, { mimeType: preferredMime });
+                } else {
+                  this.mediaRecorder = new MediaRecorder(stream);
+                  actualMimeType = this.mediaRecorder.mimeType || 'audio/webm';
+                }
+              } catch (_) {
+                this.mediaRecorder = new MediaRecorder(stream);
+                actualMimeType = this.mediaRecorder.mimeType || 'audio/webm';
+              }
+
+              this.mediaRecorder.ondataavailable = (event) => {
+                try {
+                  if (!event.data || event.data.size <= 0) return;
+                  if (!this.activeCall || ws.readyState !== WebSocket.OPEN) return;
+                  if (sttAvailable === false) return;
+                  if (this.isMicrophoneMuted || this.isSpeaking || this.awaitingResponse) return;
+
+                  // Convertir audio a base64 y enviar como JSON
+                  const reader = new FileReader();
+                  reader.onloadend = () => {
+                    if (ws.readyState === WebSocket.OPEN) {
+                      try {
+                        // Convertir ArrayBuffer a base64
+                        const arrayBuffer = reader.result;
+                        const bytes = new Uint8Array(arrayBuffer);
+                        let binary = '';
+                        for (let i = 0; i < bytes.byteLength; i++) {
+                          binary += String.fromCharCode(bytes[i]);
+                        }
+                        const base64Audio = btoa(binary);
+
+                        // Enviar como JSON seg??n la especificaci??n
+                        ws.send(JSON.stringify({
+                          route: 'audio',
+                          action: 'stt',
+                          payload: {
+                            audio: base64Audio,
+                            format: 'webm',
+                            mimeType: actualMimeType
+                          }
+                        }));
+                        console.log('[MCP] Audio enviado como JSON base64, tama??o:', base64Audio.length);
+                      } catch (err) {
+                        console.error('[MCP] Error convirtiendo audio a base64:', err);
+                      }
+                    }
+                  };
+                  reader.readAsArrayBuffer(event.data);
+
+                } catch (err) {
+                  console.error('[MCP] Error en ondataavailable', err);
+                }
+              };
+
+              this.mediaRecorder.start(1000); // Slices de 1000ms (1 segundo) para mejor compatibilidad con Deepgram
+              microphoneStarted = true;
+              console.log("???? Microphone recording started (Enterprise Streaming)");
+
+            } catch (err) {
+              console.error('[MCP] ??? Error accediendo al micr??fono:', err);
+              
+              // Manejar diferentes tipos de errores
+              let errorMessage = 'No se pudo acceder al micr??fono.';
+              if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                errorMessage = 'Por favor, permite el acceso al micr??fono en la configuraci??n de tu navegador.';
+              } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                errorMessage = 'No se encontr?? ning??n micr??fono. Por favor, conecta un micr??fono.';
+              } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+                errorMessage = 'El micr??fono est?? siendo usado por otra aplicaci??n.';
+              }
+              
+              // Mostrar mensaje al usuario en el chat en lugar de alert
+              const messagesContainer = document.getElementById('sandra-messages');
+              if (messagesContainer) {
+                const errorHtml = `
+                  <div class="flex gap-2">
+                    <div class="w-6 h-6 rounded-full bg-gradient-to-tr from-blue-400 to-purple-500 flex-shrink-0 flex items-center justify-center text-[10px] text-white font-bold">S</div>
+                    <div class="bg-white p-2.5 rounded-xl rounded-tl-none shadow-sm border border-red-200 text-xs text-red-700 max-w-[85%]">
+                      <p>?????? ${errorMessage}</p>
+                      <p class="mt-1 text-[10px] text-red-600">La llamada de voz requiere acceso al micr??fono.</p>
+                    </div>
+                  </div>`;
+                messagesContainer.insertAdjacentHTML('beforeend', errorHtml);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+              }
+              
+              this.stopAudioCapture();
+              this.hangupCall();
+            } finally {
+              microphoneStartPromise = null;
+            }
+          })();
+
+          return microphoneStartPromise;
+        };
 
         ws.onopen = async () => {
           console.log('✅ WebSocket conectado (Enterprise Mode)', wsUrl);
@@ -1407,110 +1537,12 @@
             payload: { type: 'ready', message: 'Cliente listo para recibir saludo' }
           }));
 
-          // Start Microphone Capture
-          try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-              audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true,
-                channelCount: 1
-              }
-            });
-
-            this.stream = stream;
-
-            const preferredMime = 'audio/webm;codecs=opus';
-            let actualMimeType = preferredMime;
-            try {
-              if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(preferredMime)) {
-                this.mediaRecorder = new MediaRecorder(stream, { mimeType: preferredMime });
-              } else {
-                this.mediaRecorder = new MediaRecorder(stream);
-                actualMimeType = this.mediaRecorder.mimeType || 'audio/webm';
-              }
-            } catch (_) {
-              this.mediaRecorder = new MediaRecorder(stream);
-              actualMimeType = this.mediaRecorder.mimeType || 'audio/webm';
-            }
-
-            this.mediaRecorder.ondataavailable = (event) => {
-              try {
-                if (!event.data || event.data.size <= 0) return;
-                if (!this.activeCall || ws.readyState !== WebSocket.OPEN) return;
-                if (this.isMicrophoneMuted || this.isSpeaking || this.awaitingResponse) return;
-
-                // Convertir audio a base64 y enviar como JSON
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                  if (ws.readyState === WebSocket.OPEN) {
-                    try {
-                      // Convertir ArrayBuffer a base64
-                      const arrayBuffer = reader.result;
-                      const bytes = new Uint8Array(arrayBuffer);
-                      let binary = '';
-                      for (let i = 0; i < bytes.byteLength; i++) {
-                        binary += String.fromCharCode(bytes[i]);
-                      }
-                      const base64Audio = btoa(binary);
-
-                      // Enviar como JSON según la especificación
-                      ws.send(JSON.stringify({
-                        route: 'audio',
-                        action: 'stt',
-                        payload: {
-                          audio: base64Audio,
-                          format: 'webm',
-                          mimeType: actualMimeType
-                        }
-                      }));
-                      console.log('[MCP] Audio enviado como JSON base64, tamaño:', base64Audio.length);
-                    } catch (err) {
-                      console.error('[MCP] Error convirtiendo audio a base64:', err);
-                    }
-                  }
-                };
-                reader.readAsArrayBuffer(event.data);
-
-              } catch (err) {
-                console.error('[MCP] Error en ondataavailable', err);
-              }
-            };
-
-            this.mediaRecorder.start(1000); // Slices de 1000ms (1 segundo) para mejor compatibilidad con Deepgram
-            console.log("🎤 Microphone recording started (Enterprise Streaming)");
-
-          } catch (err) {
-            console.error('[MCP] ❌ Error accediendo al micrófono:', err);
-            
-            // Manejar diferentes tipos de errores
-            let errorMessage = 'No se pudo acceder al micrófono.';
-            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-              errorMessage = 'Por favor, permite el acceso al micrófono en la configuración de tu navegador.';
-            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-              errorMessage = 'No se encontró ningún micrófono. Por favor, conecta un micrófono.';
-            } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-              errorMessage = 'El micrófono está siendo usado por otra aplicación.';
-            }
-            
-            // Mostrar mensaje al usuario en el chat en lugar de alert
-            const messagesContainer = document.getElementById('sandra-messages');
-            if (messagesContainer) {
-              const errorHtml = `
-                <div class="flex gap-2">
-                  <div class="w-6 h-6 rounded-full bg-gradient-to-tr from-blue-400 to-purple-500 flex-shrink-0 flex items-center justify-center text-[10px] text-white font-bold">S</div>
-                  <div class="bg-white p-2.5 rounded-xl rounded-tl-none shadow-sm border border-red-200 text-xs text-red-700 max-w-[85%]">
-                    <p>⚠️ ${errorMessage}</p>
-                    <p class="mt-1 text-[10px] text-red-600">La llamada de voz requiere acceso al micrófono.</p>
-                  </div>
-                </div>`;
-              messagesContainer.insertAdjacentHTML('beforeend', errorHtml);
-              messagesContainer.scrollTop = messagesContainer.scrollHeight;
-            }
-            
-            this.stopAudioCapture();
-            this.hangupCall();
-          }
+          // Esperar capacidades del servidor antes de pedir micr?fono (evita prompts cuando STT no est? disponible)
+          sttCapabilitiesTimeout = setTimeout(() => {
+            if (sttAvailable === false) return;
+            if (sttAvailable === null) sttAvailable = true;
+            startMicrophoneCapture();
+          }, 1500);
         };
 
         ws.onmessage = async (event) => {
