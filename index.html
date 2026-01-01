@@ -806,9 +806,8 @@
           loadNativeVoice: async () => {
             if (this.voiceLibraryManager.isLoaded) return;
             try {
-              // La biblioteca de voces define que la voz por defecto es `sandra-voice.mp3`.
-              // Usamos esa ruta para que coincida con `assets/config/voice-library.json`.
-              const nativeVoicePath = 'assets/audio/sandra-voice.mp3';
+              // La voz nativa es `sandra-conversational.wav` (formato WAV)
+              const nativeVoicePath = 'assets/audio/sandra-conversational.wav';
               console.log('[VOICE-LIB] 📁 Cargando voz nativa:', nativeVoicePath);
               this.voiceLibraryManager.nativeVoiceAudio = new Audio(nativeVoicePath);
               this.voiceLibraryManager.nativeVoiceAudio.preload = 'auto';
@@ -1915,9 +1914,11 @@
             return;
           }
 
-          // Manejar mensaje de respuesta completa del servidor (texto para reproducir con voz nativa)
+          // Manejar mensaje de respuesta completa del servidor (SOLO texto - fallback si no hay audio)
+          // NOTA: El flujo correcto es recibir audio con route: 'audio', action: 'tts'
+          // Este es solo un fallback para compatibilidad
           if (data.route === 'conserje' && data.action === 'message' && data.payload && data.payload.type === 'response_complete' && data.payload.text) {
-            console.log('[MCP] ✅ Respuesta completa recibida, reproduciendo con voz nativa');
+            console.log('[MCP] ⚠️ Respuesta completa recibida como TEXTO (fallback - debería ser audio)');
             this.clearResponseWatchdog();
             this.awaitingResponse = false;
             
@@ -1935,7 +1936,9 @@
               liveTranscript.textContent = '';
             }
             
-            // Reproducir con voz nativa local usando el texto real
+            // FALLBACK: Si solo recibimos texto sin audio, usar SpeechSynthesis temporalmente
+            // NOTA: Esto debería ser reemplazado por audio del servidor
+            console.warn('[MCP] ⚠️ Usando SpeechSynthesis como fallback - el servidor debería enviar audio TTS');
             this.playNativeVoice(responseText);
             return;
           }
@@ -2019,6 +2022,14 @@
       }
 
       addMessage(text, type) {
+        // NO agregar mensajes al chat durante llamada de voz activa
+        // EXCEPCIÓN: Los mensajes del usuario ('user') siempre se muestran para feedback visual
+        // Las respuestas del sistema durante llamada de voz NO se muestran (van solo a voz)
+        if (this.activeCall && type !== 'user') {
+          console.log('[CHAT] ⚠️ Mensaje bloqueado durante llamada: Tipo:', type, 'Texto:', text.substring(0, 50));
+          return;
+        }
+
         // Asegurar que el prompt de llamada esté visible cuando se envía mensaje (si no hay llamada activa)
         if (!this.activeCall && !this.chatLocked) {
           const callPrompt = document.getElementById('sandra-call-prompt');
@@ -2029,6 +2040,11 @@
         }
 
         const container = document.getElementById('sandra-messages');
+        if (!container) {
+          console.error('[CHAT] ❌ Contenedor de mensajes no encontrado');
+          return;
+        }
+
         const isUser = type === 'user';
         const html = `
           <div class="flex gap-2 ${isUser ? 'flex-row-reverse' : ''}">
