@@ -6,6 +6,12 @@ import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger.js';
 
 const authMiddleware = (req, res, next) => {
+  // Public endpoints that don't require authentication
+  const publicEndpoints = ['/health', '/api/voice/diagnose'];
+  if (publicEndpoints.includes(req.path)) {
+    return next();
+  }
+
   const token = req.headers.authorization?.split(' ')[1] || req.headers['x-api-key'];
 
   if (!token) {
