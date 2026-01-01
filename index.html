@@ -2092,8 +2092,8 @@
         const audio = new Audio(blobUrl);
         audio._blobUrl = blobUrl;
         audio.volume = 1.0; // Asegurar volumen máximo
-        // Control de velocidad: 0.85 = 15% más lento (para evitar audio acelerado)
-        audio.playbackRate = 0.85; // Ralentizar ligeramente para mejor comprensión
+        // Control de velocidad: 0.5 = 50% de velocidad (mitad de velocidad para mejor comprensión)
+        audio.playbackRate = 0.5; // Velocidad a la mitad para evitar audio acelerado
         this.currentAudio = audio;
         
         console.log('[AUDIO] ⚙️ Configuración de audio:', {
