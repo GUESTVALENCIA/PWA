@@ -57,8 +57,8 @@ class VoiceServices {
       interim_results: true, // CRITICAL: Partial results in real-time
       endpointing: 300, // CRITICAL: Detect 300ms of silence = end of phrase
       vad_events: true, // CRITICAL: Voice Activity Detection
-      encoding: 'opus', // For WebM/Opus
-      sample_rate: 48000 // Opus default sample rate
+      // Do NOT specify encoding/sample_rate for WebM - let Deepgram auto-detect
+      // When sending WebM containers, Deepgram will detect Opus automatically
     });
 
     // Set up event handlers
@@ -84,6 +84,11 @@ class VoiceServices {
     if (onError) {
       connection.on('error', (error) => {
         logger.error('[DEEPGRAM] ❌ Connection error:', error);
+        logger.error('[DEEPGRAM] Error details:', {
+          message: error.message,
+          code: error.code,
+          stack: error.stack?.substring(0, 200)
+        });
         onError(error);
       });
     }
@@ -95,7 +100,13 @@ class VoiceServices {
       });
     }
 
-    logger.info('[DEEPGRAM] ✅ Streaming connection created');
+    logger.info('[DEEPGRAM] ✅ Streaming connection created with auto-detect for WebM/Opus');
+    
+    // Log connection state for debugging
+    if (connection.getReadyState) {
+      logger.info(`[DEEPGRAM] Connection ready state: ${connection.getReadyState()}`);
+    }
+    
     return connection;
   }
 
