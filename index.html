@@ -1325,6 +1325,22 @@
         }
         console.log('📞 Colgando llamada...', { reason });
 
+        // 🚀 CRÍTICO: Detener audio inmediatamente (arregla bug de llamada que no se cierra)
+        if (this.currentAudio) {
+          try {
+            this.currentAudio.pause();
+            this.currentAudio.currentTime = 0;
+            if (this.currentAudio._blobUrl) {
+              URL.revokeObjectURL(this.currentAudio._blobUrl);
+              this.currentAudio._blobUrl = null;
+            }
+            this.currentAudio = null;
+            console.log('[HANGUP] ✅ Audio detenido y limpiado');
+          } catch (error) {
+            console.error('[HANGUP] Error deteniendo audio:', error);
+          }
+        }
+
         // Cerrar WebSocket
         if (this.activeCall) {
           try {
