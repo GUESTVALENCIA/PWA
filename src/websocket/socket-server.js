@@ -560,7 +560,7 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices) {
  * Maintains persistent connection per client for real-time transcription
  */
 async function handleAudioSTT(payload, ws, voiceServices, agentId) {
-  const { audio, format, mimeType } = payload;
+  const { audio, format, mimeType, encoding, sampleRate, channels } = payload;
 
   if (!audio) {
     ws.send(JSON.stringify({
@@ -608,15 +608,25 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
     // Decode base64 audio to Buffer
     let audioBuffer;
     try {
+      const normalizedFormat = typeof format === 'string' ? format.toLowerCase() : '';
+      const normalizedMimeType = typeof mimeType === 'string' ? mimeType.toLowerCase() : '';
       audioBuffer = Buffer.from(audio, 'base64');
       if (audioBuffer.length === 0) {
         logger.warn('[DEEPGRAM] Empty audio buffer, skipping');
         return;
       }
-      // Skip chunks that are too small (likely incomplete WebM container)
-      // WebM chunks need to be at least 2KB to be valid containers
-      if (audioBuffer.length < 2000) {
-        logger.debug(`[DEEPGRAM] Audio chunk too small: ${audioBuffer.length} bytes, skipping (need 2000+ for valid WebM)`);
+
+      const looksLikeContainer =
+        normalizedFormat.includes('webm') ||
+        normalizedFormat.includes('mp4') ||
+        normalizedFormat.includes('ogg') ||
+        normalizedMimeType.includes('webm') ||
+        normalizedMimeType.includes('mp4') ||
+        normalizedMimeType.includes('ogg');
+
+      // Skip tiny container chunks (often incomplete headers). Raw PCM (linear16) can be small.
+      if (looksLikeContainer && audioBuffer.length < 2000) {
+        logger.debug(`[DEEPGRAM] Audio chunk too small: ${audioBuffer.length} bytes, skipping (need 2000+ for valid container)`);
         return;
       }
     } catch (error) {
@@ -645,17 +655,27 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
     
     if (!deepgramData || !deepgramData.connection) {
       logger.info(`[DEEPGRAM] 🔌 Creating new streaming connection for ${agentId}`);
-      
+
+      const resolvedEncoding = (typeof encoding === 'string' && encoding.trim()) ? encoding.trim() : null;
+      const resolvedSampleRate = Number.isFinite(Number(sampleRate)) ? Number(sampleRate) : null;
+      const resolvedChannels = Number.isFinite(Number(channels)) ? Number(channels) : null;
+       
       deepgramData = {
         connection: null,
         isProcessing: false,
-        pendingAudio: []
+        pendingAudio: [],
+        lastInterimSentAt: 0,
+        lastInterimText: ''
       };
       deepgramConnections.set(agentId, deepgramData);
 
       // Create new Deepgram streaming connection
       const connection = voiceServices.deepgram.createStreamingConnection({
         language: 'es',
+        encoding: resolvedEncoding,
+        sampleRate: resolvedSampleRate,
+        channels: resolvedChannels,
+        idleTimeoutMs: 1200,
         onTranscriptionFinalized: async (transcript, message) => {
           // Handle finalized transcription (VAD detected end of phrase)
           if (deepgramData && deepgramData.isProcessing) {
@@ -669,6 +689,21 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
           }
 
           logger.info(`[DEEPGRAM] 📝 Finalized transcript: "${transcript}"`);
+
+          // Emit transcript to client (useful for debugging / UX feedback)
+          try {
+            if (ws.readyState === 1) {
+              ws.send(JSON.stringify({
+                route: 'conserje',
+                action: 'message',
+                payload: {
+                  type: 'transcription_final',
+                  text: transcript,
+                  language: 'es'
+                }
+              }));
+            }
+          } catch (_) {}
           
           // Mark as processing to prevent duplicate processing
           if (deepgramData) {
@@ -724,6 +759,34 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
         onTranscriptionUpdated: (interim, message) => {
           // Send interim transcription for real-time feedback (optional)
           logger.debug(`[DEEPGRAM] Interim: "${interim}"`);
+
+          try {
+            if (!interim || !interim.trim()) return;
+            if (ws.readyState !== 1) return;
+
+            const now = Date.now();
+            const lastText = deepgramData?.lastInterimText || '';
+            const lastAt = deepgramData?.lastInterimSentAt || 0;
+
+            // Throttle: avoid spamming the UI (max ~4 msgs/sec) and skip duplicates
+            if (interim === lastText && (now - lastAt) < 1500) return;
+            if ((now - lastAt) < 250) return;
+
+            if (deepgramData) {
+              deepgramData.lastInterimText = interim;
+              deepgramData.lastInterimSentAt = now;
+            }
+
+            ws.send(JSON.stringify({
+              route: 'conserje',
+              action: 'message',
+              payload: {
+                type: 'transcription_interim',
+                text: interim,
+                language: 'es'
+              }
+            }));
+          } catch (_) {}
         },
         onError: (error) => {
           logger.error('[DEEPGRAM] Streaming connection error:', error);
@@ -731,10 +794,13 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
           if (!sttErrorAgents.has(agentId)) {
             sttErrorAgents.add(agentId);
             ws.send(JSON.stringify({
-              type: 'error',
-              error: 'STT streaming error',
-              code: 'DEEPGRAM_STREAM_ERROR',
-              details: error?.message || 'Unknown Deepgram streaming error'
+              route: 'error',
+              action: 'message',
+              payload: {
+                error: 'STT streaming error',
+                code: 'DEEPGRAM_STREAM_ERROR',
+                message: error?.message || 'Unknown Deepgram streaming error'
+              }
             }));
           }
 
