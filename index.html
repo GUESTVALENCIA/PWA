@@ -2024,6 +2024,13 @@
       }
 
       addMessage(text, type) {
+        // CRÍTICO: NO agregar mensajes al chat durante llamada de voz activa
+        // Las llamadas de voz usan WebSocket y las respuestas van SOLO a voz, no al chat
+        if (this.activeCall) {
+          console.log('[CHAT] ⚠️ Mensaje bloqueado: hay llamada de voz activa. Tipo:', type, 'Texto:', text.substring(0, 50));
+          return;
+        }
+
         // Asegurar que el prompt de llamada esté visible cuando se envía mensaje (si no hay llamada activa)
         if (!this.activeCall && !this.chatLocked) {
           const callPrompt = document.getElementById('sandra-call-prompt');
@@ -2034,6 +2041,11 @@
         }
 
         const container = document.getElementById('sandra-messages');
+        if (!container) {
+          console.error('[CHAT] ❌ Contenedor de mensajes no encontrado');
+          return;
+        }
+
         const isUser = type === 'user';
         const html = `
           <div class="flex gap-2 ${isUser ? 'flex-row-reverse' : ''}">
