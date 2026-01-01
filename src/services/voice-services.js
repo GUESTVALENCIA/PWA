@@ -278,9 +278,7 @@ export default {
     createStreamingConnection: (options) => voiceServices.createStreamingConnection(options),
     transcribeAudio: (audio, format) => voiceServices.transcribeAudio(audio, format) // Deprecated - use createStreamingConnection
   },
-  cartesia: {
-    generateVoice: (text, voiceId) => voiceServices.generateVoice(text, voiceId)
-  },
+  generateVoice: (text, voiceId) => voiceServices.generateVoice(text, voiceId), // Directly expose generateVoice (native local voice, not Cartesia)
   ai: {
     processMessage: (message) => voiceServices.processMessage(message)
   },
