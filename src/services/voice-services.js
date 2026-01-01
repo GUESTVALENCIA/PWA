@@ -15,8 +15,11 @@ const __dirname = path.dirname(__filename);
 class VoiceServices {
   constructor() {
     this.deepgramApiKey = process.env.DEEPGRAM_API_KEY;
-    this.cartesiaApiKey = process.env.CARTESIA_API_KEY;
-    this.cartesiaVoiceId = process.env.CARTESIA_VOICE_ID || 'sandra';
+    // 🚫 CARTESIA DESHABILITADO: No usar API de Cartesia - solo voz nativa
+    // this.cartesiaApiKey = process.env.CARTESIA_API_KEY; // NO USAR
+    // this.cartesiaVoiceId = process.env.CARTESIA_VOICE_ID || 'sandra'; // NO USAR
+    this.cartesiaApiKey = null; // Forzado a null para asegurar que NO se use
+    this.cartesiaVoiceId = null; // Forzado a null
     this.openaiApiKey = process.env.OPENAI_API_KEY;
     this.groqApiKey = process.env.GROQ_API_KEY;
     this.geminiApiKey = process.env.GEMINI_API_KEY;
@@ -317,40 +320,14 @@ class VoiceServices {
   /**
    * Generate TTS audio using Cartesia API
    * @private
+   * ⚠️ DESHABILITADO: No se usa Cartesia - solo voz nativa (archivo WAV)
+   * Este método existe pero NO debe ser llamado
    */
   async _generateCartesiaTTS(text, voiceId) {
-    const url = 'https://api.cartesia.ai/tts/bytes';
-    const payload = {
-      model_id: 'sonic-multilingual',
-      transcript: text,
-      voice: {
-        mode: 'id',
-        id: voiceId
-      },
-      output_format: {
-        container: 'mp3',
-        sample_rate: 24000
-      }
-    };
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Cartesia-Version': '2024-06-10',
-        'X-API-Key': this.cartesiaApiKey,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Cartesia API Error: ${response.status} - ${errorText}`);
-    }
-
-    const arrayBuffer = await response.arrayBuffer();
-    const audioBuffer = Buffer.from(arrayBuffer);
-    return audioBuffer.toString('base64');
+    // 🚫 BLOQUEADO: Cartesia deshabilitado - usar solo voz nativa
+    logger.error('[CARTESIA] ❌ ERROR: Intento de usar Cartesia TTS - está DESHABILITADO');
+    logger.error('[CARTESIA] ❌ Solo se debe usar voz nativa (sandra-conversational.wav)');
+    throw new Error('Cartesia TTS está DESHABILITADO. Usar solo voz nativa (sandra-conversational.wav).');
   }
 
   /**
