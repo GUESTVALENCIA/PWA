@@ -1342,6 +1342,9 @@
         this.awaitingResponse = false;
         this.isSpeaking = false;
         
+        // 🚀 ENTERPRISE: Limpiar barge-in detection
+        this.cleanupBargeIn();
+        
         // Reactivar input del chat cuando se cierra la llamada
         const input = document.getElementById('sandra-input');
         const sendBtn = document.getElementById('sandra-send-btn');
@@ -1378,6 +1381,9 @@
         this.awaitingResponse = false;
         // NO cambiar isSpeaking aquí - el audio debe terminar naturalmente
         // this.isSpeaking = false; // REMOVED - permite que el audio termine completo
+        
+        // 🚀 ENTERPRISE: Limpiar barge-in detection
+        this.cleanupBargeIn();
 
         if (this.pcmProcessor) {
           try { this.pcmProcessor.disconnect(); } catch (_) { }
@@ -1534,6 +1540,9 @@
                   this.pcmSource = source;
                   this.pcmProcessor = processor;
                   this.pcmSilenceGain = silenceGain;
+
+                  // 🚀 ENTERPRISE: Configurar barge-in avanzado (después de crear contexto de audio)
+                  this.setupBargeInDetection(ctx, stream);
 
                   const targetSampleRate = 16000;
                   const chunkMs = 250;
@@ -2028,6 +2037,94 @@
         }, (e) => console.error("Error decodificando audio stream:", e));
       }
 
+      // 🚀 ENTERPRISE: Barge-in avanzado - detectar voz del usuario para bajar volumen (no cortar)
+      setupBargeInDetection(audioContext, stream) {
+        if (!stream || !audioContext) {
+          console.warn('[BARGE-IN] No se puede configurar: stream o audioContext no disponible');
+          return;
+        }
+        
+        try {
+          // Crear AnalyserNode para detectar nivel de audio del micrófono
+          this.bargeInAnalyser = audioContext.createAnalyser();
+          this.bargeInAnalyser.fftSize = 2048;
+          this.bargeInAnalyser.smoothingTimeConstant = 0.8; // Suavizado para evitar fluctuaciones
+          
+          const source = audioContext.createMediaStreamSource(stream);
+          source.connect(this.bargeInAnalyser);
+          
+          const dataArray = new Uint8Array(this.bargeInAnalyser.frequencyBinCount);
+          
+          // Monitorear nivel de audio cada 50ms (20 veces por segundo)
+          this.bargeInCheckInterval = setInterval(() => {
+            if (!this.currentAudio || !this.isSpeaking) {
+              this.isUserSpeaking = false;
+              return;
+            }
+            
+            try {
+              this.bargeInAnalyser.getByteTimeDomainData(dataArray);
+              
+              // Calcular nivel promedio de audio
+              let sum = 0;
+              for (let i = 0; i < dataArray.length; i++) {
+                const normalized = (dataArray[i] / 128.0) - 1.0;
+                sum += Math.abs(normalized);
+              }
+              const average = sum / dataArray.length;
+              
+              // Umbral ajustable: 0.15 = usuario hablando claramente
+              const SPEAKING_THRESHOLD = 0.15;
+              
+              if (average > SPEAKING_THRESHOLD && this.isSpeaking) {
+                // Usuario está hablando mientras Sandra habla
+                if (!this.isUserSpeaking) {
+                  this.isUserSpeaking = true;
+                  // 🎯 BAJAR VOLUMEN (no pausar) - estilo OpenAI Realtime
+                  if (this.currentAudio) {
+                    this.audioVolumeBeforeBargeIn = this.currentAudio.volume;
+                    this.currentAudio.volume = 0.2; // Bajar a 20% del volumen original
+                    console.log('[BARGE-IN] 🔇 Usuario habla, bajando volumen de Sandra a', this.currentAudio.volume.toFixed(2));
+                  }
+                }
+              } else {
+                // Usuario dejó de hablar o nivel bajo
+                if (this.isUserSpeaking && this.currentAudio) {
+                  this.isUserSpeaking = false;
+                  // Restaurar volumen original
+                  this.currentAudio.volume = this.audioVolumeBeforeBargeIn;
+                  console.log('[BARGE-IN] 🔊 Usuario calló, restaurando volumen de Sandra a', this.audioVolumeBeforeBargeIn.toFixed(2));
+                }
+              }
+            } catch (error) {
+              console.error('[BARGE-IN] Error en detección:', error);
+            }
+          }, 50); // Check cada 50ms para respuesta rápida
+          
+          console.log('[BARGE-IN] ✅ Sistema de barge-in avanzado configurado');
+        } catch (error) {
+          console.error('[BARGE-IN] Error configurando barge-in:', error);
+        }
+      }
+
+      cleanupBargeIn() {
+        if (this.bargeInCheckInterval) {
+          clearInterval(this.bargeInCheckInterval);
+          this.bargeInCheckInterval = null;
+        }
+        if (this.bargeInAnalyser) {
+          try {
+            this.bargeInAnalyser.disconnect();
+          } catch (_) {}
+          this.bargeInAnalyser = null;
+        }
+        this.isUserSpeaking = false;
+        // Restaurar volumen si estaba bajado
+        if (this.currentAudio && this.isUserSpeaking) {
+          this.currentAudio.volume = this.audioVolumeBeforeBargeIn;
+        }
+      }
+
       // AUDIO FIX: Improved playAudioResponse with 3s delay on revoke
       playAudioResponse(audioBase64, isWelcome = false) {
         console.log('[AUDIO] playAudioResponse called with isWelcome:', isWelcome, 'audioBase64 length:', audioBase64?.length);
@@ -2092,13 +2189,21 @@
         const audio = new Audio(blobUrl);
         audio._blobUrl = blobUrl;
         audio.volume = 1.0; // Asegurar volumen máximo
-        // Control de velocidad: 0.5 = 50% de velocidad (mitad de velocidad para mejor comprensión)
-        audio.playbackRate = 0.5; // Velocidad a la mitad para evitar audio acelerado
+        
+        // 🎯 CONTROL DE VELOCIDAD: Solo aplicar a voz conversacional, NO al welcome
+        if (isWelcome) {
+          audio.playbackRate = 1.0; // Welcome: velocidad normal
+        } else {
+          // Voz conversacional: reducir velocidad para evitar audio acelerado
+          audio.playbackRate = 0.5; // 50% de velocidad (ajustable según necesidad)
+        }
+        
         this.currentAudio = audio;
         
         console.log('[AUDIO] ⚙️ Configuración de audio:', {
           volume: audio.volume,
           playbackRate: audio.playbackRate,
+          isWelcome: isWelcome,
           duration: 'unknown (se cargará después)'
         });
 
