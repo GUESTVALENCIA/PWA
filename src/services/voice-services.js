@@ -23,7 +23,14 @@ class VoiceServices {
     
     // Initialize Deepgram SDK instance (v3 format)
     if (this.deepgramApiKey) {
-      this.deepgram = new Deepgram({ apiKey: this.deepgramApiKey });
+      try {
+        this.deepgram = new Deepgram({ apiKey: this.deepgramApiKey });
+        logger.info('[VOICE-SERVICES] ✅ Deepgram SDK initialized successfully');
+      } catch (error) {
+        logger.error('[VOICE-SERVICES] ❌ Failed to initialize Deepgram SDK:', error);
+        this.deepgram = null;
+        // Don't throw - allow service to initialize with null deepgram for graceful degradation
+      }
     } else {
       logger.warn('⚠️ Deepgram API Key not configured');
       this.deepgram = null;
@@ -36,6 +43,7 @@ class VoiceServices {
    */
   createStreamingConnection(options = {}) {
     if (!this.deepgram) {
+      logger.error('[VOICE-SERVICES] createStreamingConnection called but Deepgram SDK not initialized');
       throw new Error('Deepgram SDK not initialized - check DEEPGRAM_API_KEY');
     }
 
@@ -270,17 +278,52 @@ Sé amable, profesional y útil.`;
 }
 
 // Create singleton instance
-const voiceServices = new VoiceServices();
+let voiceServicesInstance = null;
+try {
+  voiceServicesInstance = new VoiceServices();
+  logger.info('[VOICE-SERVICES] ✅ VoiceServices instance created successfully');
+  logger.info('[VOICE-SERVICES] Instance structure:', {
+    hasDeepgram: !!voiceServicesInstance.deepgram,
+    hasGenerateVoice: typeof voiceServicesInstance.generateVoice === 'function',
+    hasAI: !!voiceServicesInstance.ai,
+    hasGetWelcomeAudio: typeof voiceServicesInstance.getWelcomeAudio === 'function'
+  });
+} catch (error) {
+  logger.error('[VOICE-SERVICES] ❌ Failed to create VoiceServices instance:', error);
+  logger.error('[VOICE-SERVICES] Error details:', {
+    message: error.message,
+    stack: error.stack?.substring(0, 300)
+  });
+  // Create a minimal instance to prevent module import failure
+  // This will cause server.js validation to fail, which is correct behavior
+  voiceServicesInstance = {
+    deepgram: null,
+    generateVoice: () => Promise.reject(new Error('VoiceServices not initialized')),
+    ai: { processMessage: () => Promise.reject(new Error('VoiceServices not initialized')) },
+    getWelcomeAudio: () => Promise.reject(new Error('VoiceServices not initialized'))
+  };
+}
 
 // Export service methods as an object for use in WebSocket handler
-export default {
+const exportedServices = {
   deepgram: {
-    createStreamingConnection: (options) => voiceServices.createStreamingConnection(options),
-    transcribeAudio: (audio, format) => voiceServices.transcribeAudio(audio, format) // Deprecated - use createStreamingConnection
+    createStreamingConnection: (options) => voiceServicesInstance.createStreamingConnection(options),
+    transcribeAudio: (audio, format) => voiceServicesInstance.transcribeAudio(audio, format) // Deprecated - use createStreamingConnection
   },
-  generateVoice: (text, voiceId) => voiceServices.generateVoice(text, voiceId), // Directly expose generateVoice (native local voice, not Cartesia)
+  generateVoice: (text, voiceId) => voiceServicesInstance.generateVoice(text, voiceId), // Directly expose generateVoice (native local voice, not Cartesia)
   ai: {
-    processMessage: (message) => voiceServices.processMessage(message)
+    processMessage: (message) => voiceServicesInstance.processMessage(message)
   },
-  getWelcomeAudio: () => voiceServices.getWelcomeAudio()
+  getWelcomeAudio: () => voiceServicesInstance.getWelcomeAudio()
 };
+
+// Log export structure for debugging
+logger.info('[VOICE-SERVICES] Export structure:', {
+  hasDeepgram: !!exportedServices.deepgram,
+  hasGenerateVoice: typeof exportedServices.generateVoice === 'function',
+  hasAI: !!exportedServices.ai,
+  hasGetWelcomeAudio: typeof exportedServices.getWelcomeAudio === 'function',
+  exportKeys: Object.keys(exportedServices)
+});
+
+export default exportedServices;
