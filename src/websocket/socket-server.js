@@ -731,18 +731,36 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
 
             logger.info(`💬 AI Response received (${aiResponse.length} chars): "${aiResponse.substring(0, 100)}${aiResponse.length > 100 ? '...' : ''}"`);
 
-            // Send TEXT response to client (client will use native voice to play)
-            ws.send(JSON.stringify({
-              route: 'conserje',
-              action: 'message',
-              payload: {
-                type: 'response_complete',
-                text: aiResponse,
-                language: 'es'
-              }
-            }));
+            // Generate TTS audio using Deepgram
+            try {
+              const responseAudio = await voiceServices.generateVoice(aiResponse);
+              
+              // Send AUDIO response to client
+              ws.send(JSON.stringify({
+                route: 'audio',
+                action: 'tts',
+                payload: {
+                  audio: responseAudio,
+                  format: 'mp3',
+                  text: aiResponse,
+                  language: 'es'
+                }
+              }));
 
-            logger.info('✅ Text response sent to client (will use native voice)');
+              logger.info('✅ Audio TTS response sent to client (Deepgram)');
+            } catch (ttsError) {
+              logger.error('[TTS] Error generating audio, sending text only:', ttsError);
+              // Fallback: Send text only if TTS fails
+              ws.send(JSON.stringify({
+                route: 'conserje',
+                action: 'message',
+                payload: {
+                  type: 'response_complete',
+                  text: aiResponse,
+                  language: 'es'
+                }
+              }));
+            }
           } catch (error) {
             logger.error('[DEEPGRAM] Error processing transcript with AI:', {
               error: error.message,
