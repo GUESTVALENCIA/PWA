@@ -1016,7 +1016,7 @@
         const hangupBtn = document.getElementById('sandra-hangup-btn');
         if (hangupBtn) {
           hangupBtn.addEventListener('click', () => {
-            this.hangupCall();
+            this.hangupCall('user');
           });
         }
 
@@ -1329,8 +1329,12 @@
         }, 12000);
       }
 
-      hangupCall() {
-        console.log('📞 Colgando llamada...');
+      hangupCall(reason = 'unknown') {
+        if (this.sttAvailable === false && reason !== 'user' && reason !== 'mic_error') {
+          console.log('📞 Hangup ignorado (STT desactivado)', { reason });
+          return;
+        }
+        console.log('📞 Colgando llamada...', { reason });
 
         // Cerrar WebSocket
         if (this.activeCall) {
@@ -1413,7 +1417,7 @@
         const startMicrophoneCapture = async () => {
           if (microphoneStarted || microphoneStartPromise) return microphoneStartPromise;
           if (!this.activeCall || this.activeCall !== ws || ws.readyState !== WebSocket.OPEN) return null;
-          if (sttAvailable === false) return null;
+          if (this.sttAvailable === false) return null;
 
           microphoneStartPromise = (async () => {
             try {
@@ -1446,7 +1450,7 @@
                 try {
                   if (!event.data || event.data.size <= 0) return;
                   if (!this.activeCall || ws.readyState !== WebSocket.OPEN) return;
-                  if (sttAvailable === false) return;
+                  if (this.sttAvailable === false) return;
                   if (this.isMicrophoneMuted || this.isSpeaking || this.awaitingResponse) return;
 
                   // Convertir audio a base64 y enviar como JSON
@@ -1519,7 +1523,7 @@
               }
               
               this.stopAudioCapture();
-              this.hangupCall();
+              this.hangupCall('mic_error');
             } finally {
               microphoneStartPromise = null;
             }
@@ -1541,8 +1545,8 @@
 
           // Esperar capacidades del servidor antes de pedir micr?fono (evita prompts cuando STT no est? disponible)
           sttCapabilitiesTimeout = setTimeout(() => {
-            if (sttAvailable === false) return;
-            if (sttAvailable === null) sttAvailable = true;
+            if (this.sttAvailable === false) return;
+            if (this.sttAvailable === null) this.sttAvailable = true;
             startMicrophoneCapture();
           }, 1500);
         };
@@ -1593,13 +1597,13 @@
           }
 
           if (data.type === 'connection_established' && data.capabilities && typeof data.capabilities.stt === 'boolean') {
-            sttAvailable = data.capabilities.stt;
+            this.sttAvailable = data.capabilities.stt;
             clearSttCapabilitiesTimeout();
 
-            if (!sttAvailable) {
-              if (!sttNoticeShown) {
+            if (!this.sttAvailable) {
+              if (!this.sttNoticeShown) {
                 this.addMessage('La transcripci??n de voz no est?? disponible en este momento (STT desactivado en el servidor).', 'system');
-                sttNoticeShown = true;
+                this.sttNoticeShown = true;
               }
               this.stopAudioCapture();
             } else {
@@ -1673,12 +1677,12 @@
 	            this.clearResponseWatchdog();
 	            this.awaitingResponse = false;
 
-	            // Si falta Deepgram, detener streaming para evitar spam de errores
-	            if (isDeepgramNotConfigured) {
-	              this.hangupCall();
-	            }
-	            return;
-	          }
+            // Si falta Deepgram, detener streaming para evitar spam de errores
+            if (isDeepgramNotConfigured) {
+              this.hangupCall('stt_unavailable');
+            }
+            return;
+          }
 
           // Manejar mensaje de respuesta completa del servidor (texto para reproducir con voz nativa)
           if (data.route === 'conserje' && data.action === 'message' && data.payload && data.payload.type === 'response_complete' && data.payload.text) {
@@ -1745,7 +1749,8 @@
         ws.onclose = (event) => {
           console.log('[MCP] WebSocket cerrado', { code: event.code, reason: event.reason, wasClean: event.wasClean });
           clearSttCapabilitiesTimeout();
-          sttAvailable = null;
+          this.sttAvailable = null;
+          this.sttNoticeShown = false;
           microphoneStartPromise = null;
           microphoneStarted = false;
           this.stopAudioCapture();
