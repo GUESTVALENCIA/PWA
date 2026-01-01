@@ -19,7 +19,27 @@ class VoiceServices {
     this.cartesiaVoiceId = process.env.CARTESIA_VOICE_ID || 'sandra';
     this.openaiApiKey = process.env.OPENAI_API_KEY;
     this.groqApiKey = process.env.GROQ_API_KEY;
+    this.geminiApiKey = process.env.GEMINI_API_KEY;
     this.preferredProvider = (process.env.PREFERRED_AI_PROVIDER || 'groq').toLowerCase();
+    
+    // Log configured providers for debugging
+    const configuredProviders = [];
+    if (this.groqApiKey) configuredProviders.push('Groq');
+    if (this.openaiApiKey) configuredProviders.push('OpenAI');
+    if (this.geminiApiKey) configuredProviders.push('Gemini');
+    
+    logger.info('[VOICE-SERVICES] AI Providers status:', {
+      configured: configuredProviders.length > 0 ? configuredProviders.join(', ') : 'NONE',
+      groq: this.groqApiKey ? `✅ (${this.groqApiKey.length} chars)` : '❌',
+      openai: this.openaiApiKey ? `✅ (${this.openaiApiKey.length} chars)` : '❌',
+      gemini: this.geminiApiKey ? `✅ (${this.geminiApiKey.length} chars)` : '❌',
+      preferred: this.preferredProvider
+    });
+    
+    if (configuredProviders.length === 0) {
+      logger.error('[VOICE-SERVICES] ⚠️ WARNING: No AI providers configured!');
+      logger.error('[VOICE-SERVICES] Configure at least one: GROQ_API_KEY, OPENAI_API_KEY, or GEMINI_API_KEY');
+    }
     
     // Initialize Deepgram SDK instance (v3 format)
     if (this.deepgramApiKey) {
@@ -240,7 +260,7 @@ class VoiceServices {
   }
 
   /**
-   * Process message with AI (Groq preferred, OpenAI as fallback)
+   * Process message with AI (Groq preferred, OpenAI and Gemini as fallbacks)
    */
   async processMessage(userMessage) {
     const systemPrompt = `Eres Sandra, la asistente virtual de Guests Valencia, especializada en hospitalidad y turismo.
@@ -249,78 +269,244 @@ Actúa como una experta en Hospitalidad y Turismo.
 Sé breve: máximo 4 frases salvo que se pida detalle.
 Sé amable, profesional y útil.`;
 
-    // Try Groq first (preferred for this project)
-    if ((this.preferredProvider === 'groq' || !this.preferredProvider) && this.groqApiKey) {
+    const errors = [];
+
+    // Try preferred provider first
+    if (this.preferredProvider === 'groq' && this.groqApiKey) {
       try {
+        logger.info('[AI] Attempting Groq (preferred)...');
         return await this._callGroq(userMessage, systemPrompt);
       } catch (error) {
-        logger.warn('Groq failed, trying OpenAI fallback:', error.message);
+        errors.push({ provider: 'Groq', error: error.message });
+        logger.warn('[AI] Groq failed:', error.message);
       }
-    }
-
-    // Try OpenAI as fallback
-    if (this.openaiApiKey) {
+    } else if (this.preferredProvider === 'openai' && this.openaiApiKey) {
       try {
+        logger.info('[AI] Attempting OpenAI (preferred)...');
         return await this._callOpenAI(userMessage, systemPrompt);
       } catch (error) {
-        logger.error('All AI providers failed:', error);
-        throw new Error('All AI providers failed');
+        errors.push({ provider: 'OpenAI', error: error.message });
+        logger.warn('[AI] OpenAI failed:', error.message);
+      }
+    } else if (this.preferredProvider === 'gemini' && this.geminiApiKey) {
+      try {
+        logger.info('[AI] Attempting Gemini (preferred)...');
+        return await this._callGemini(userMessage, systemPrompt);
+      } catch (error) {
+        errors.push({ provider: 'Gemini', error: error.message });
+        logger.warn('[AI] Gemini failed:', error.message);
       }
     }
 
-    throw new Error('No AI API keys configured (Groq or OpenAI required)');
+    // Try all other providers as fallbacks
+    if (this.preferredProvider !== 'groq' && this.groqApiKey) {
+      try {
+        logger.info('[AI] Attempting Groq (fallback)...');
+        return await this._callGroq(userMessage, systemPrompt);
+      } catch (error) {
+        errors.push({ provider: 'Groq', error: error.message });
+        logger.warn('[AI] Groq fallback failed:', error.message);
+      }
+    }
+
+    if (this.preferredProvider !== 'openai' && this.openaiApiKey) {
+      try {
+        logger.info('[AI] Attempting OpenAI (fallback)...');
+        return await this._callOpenAI(userMessage, systemPrompt);
+      } catch (error) {
+        errors.push({ provider: 'OpenAI', error: error.message });
+        logger.warn('[AI] OpenAI fallback failed:', error.message);
+      }
+    }
+
+    if (this.preferredProvider !== 'gemini' && this.geminiApiKey) {
+      try {
+        logger.info('[AI] Attempting Gemini (fallback)...');
+        return await this._callGemini(userMessage, systemPrompt);
+      } catch (error) {
+        errors.push({ provider: 'Gemini', error: error.message });
+        logger.warn('[AI] Gemini fallback failed:', error.message);
+      }
+    }
+
+    // All providers failed
+    if (errors.length === 0) {
+      // No providers configured at all
+      const configured = [];
+      if (this.groqApiKey) configured.push('Groq');
+      if (this.openaiApiKey) configured.push('OpenAI');
+      if (this.geminiApiKey) configured.push('Gemini');
+      
+      if (configured.length === 0) {
+        const errorMsg = 'No AI providers configured. Configure at least one: GROQ_API_KEY, OPENAI_API_KEY, or GEMINI_API_KEY in Render Dashboard.';
+        logger.error('[AI] ' + errorMsg);
+        throw new Error(errorMsg);
+      } else {
+        const errorMsg = `All configured AI providers failed. Configured: ${configured.join(', ')}. Check API keys in Render Dashboard.`;
+        logger.error('[AI] ' + errorMsg);
+        throw new Error(errorMsg);
+      }
+    } else {
+      const errorMessage = `All AI providers failed. Errors: ${errors.map(e => `${e.provider}: ${e.error.substring(0, 100)}`).join('; ')}`;
+      logger.error('[AI] All providers failed:', errors);
+      throw new Error(errorMessage);
+    }
   }
 
   async _callOpenAI(userMessage, systemPrompt) {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.openaiApiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage }
-        ],
-        temperature: 0.7
-      })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`OpenAI Error: ${response.status} - ${errorText}`);
+    if (!this.openaiApiKey) {
+      throw new Error('OPENAI_API_KEY not configured');
     }
 
-    const data = await response.json();
-    return data.choices[0].message.content;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.openaiApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userMessage }
+          ],
+          temperature: 0.7,
+          max_tokens: 200
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        const errorMsg = errorText.length > 200 ? errorText.substring(0, 200) : errorText;
+        throw new Error(`OpenAI Error ${response.status}: ${errorMsg}`);
+      }
+
+      const data = await response.json();
+      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+        throw new Error('OpenAI: Invalid response format');
+      }
+      return data.choices[0].message.content;
+    } catch (error) {
+      clearTimeout(timeout);
+      if (error.name === 'AbortError') {
+        throw new Error('OpenAI: Request timeout (30s)');
+      }
+      throw error;
+    }
   }
 
   async _callGroq(userMessage, systemPrompt) {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.groqApiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'qwen2.5-72b-instruct',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage }
-        ],
-        temperature: 0.7
-      })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Groq Error: ${response.status} - ${errorText}`);
+    if (!this.groqApiKey) {
+      throw new Error('GROQ_API_KEY not configured');
     }
 
-    const data = await response.json();
-    return data.choices[0].message.content;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+    try {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.groqApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'qwen2.5-72b-instruct',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userMessage }
+          ],
+          temperature: 0.7,
+          max_tokens: 200
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        const errorMsg = errorText.length > 200 ? errorText.substring(0, 200) : errorText;
+        throw new Error(`Groq Error ${response.status}: ${errorMsg}`);
+      }
+
+      const data = await response.json();
+      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+        throw new Error('Groq: Invalid response format');
+      }
+      return data.choices[0].message.content;
+    } catch (error) {
+      clearTimeout(timeout);
+      if (error.name === 'AbortError') {
+        throw new Error('Groq: Request timeout (30s)');
+      }
+      throw error;
+    }
+  }
+
+  async _callGemini(userMessage, systemPrompt) {
+    if (!this.geminiApiKey) {
+      throw new Error('GEMINI_API_KEY not configured');
+    }
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${this.geminiApiKey}`;
+    
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: `${systemPrompt}\n\nUsuario: ${userMessage}\n\nSandra:`
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 200
+          }
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        const errorMsg = errorText.length > 200 ? errorText.substring(0, 200) : errorText;
+        throw new Error(`Gemini Error ${response.status}: ${errorMsg}`);
+      }
+
+      const data = await response.json();
+      if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+        throw new Error('Gemini: Invalid response format');
+      }
+      
+      const text = data.candidates[0].content.parts[0]?.text;
+      if (!text) {
+        throw new Error('Gemini: No text in response');
+      }
+      
+      return text.trim();
+    } catch (error) {
+      clearTimeout(timeout);
+      if (error.name === 'AbortError') {
+        throw new Error('Gemini: Request timeout (30s)');
+      }
+      throw error;
+    }
   }
 
   /**
