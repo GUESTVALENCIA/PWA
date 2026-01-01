@@ -598,26 +598,43 @@ Sé amable, profesional y útil.`;
 
   /**
    * Get welcome audio (pre-recorded file)
+   * Uses the same conversational voice file for consistent tone
    */
   async getWelcomeAudio() {
-    // Try to find welcome.mp3 in assets/audio/ (relative to project root)
+    // Use the same conversational voice file for welcome message (same tone, no latency)
+    const nativeVoicePath = path.join(__dirname, '../../assets/audio/sandra-conversational.wav');
+    
     const possiblePaths = [
-      path.join(__dirname, '../../assets/audio/welcome.mp3'),
-      path.join(__dirname, '../../../assets/audio/welcome.mp3'),
-      path.join(process.cwd(), 'assets/audio/welcome.mp3')
+      nativeVoicePath,
+      path.join(process.cwd(), 'assets/audio/sandra-conversational.wav'),
+      path.join(__dirname, '../../../assets/audio/sandra-conversational.wav')
     ];
 
-    for (const welcomePath of possiblePaths) {
+    for (const voicePath of possiblePaths) {
+      if (fs.existsSync(voicePath)) {
+        logger.info(`📁 Using conversational voice for welcome (same tone, no latency): ${voicePath}`);
+        const audioBuffer = fs.readFileSync(voicePath);
+        return audioBuffer.toString('base64');
+      }
+    }
+
+    // Fallback: try welcome.mp3 if conversational.wav not found
+    logger.warn('⚠️ Conversational voice file not found, trying welcome.mp3 as fallback');
+    const welcomePaths = [
+      path.join(__dirname, '../../assets/audio/welcome.mp3'),
+      path.join(process.cwd(), 'assets/audio/welcome.mp3'),
+      path.join(__dirname, '../../../assets/audio/welcome.mp3')
+    ];
+
+    for (const welcomePath of welcomePaths) {
       if (fs.existsSync(welcomePath)) {
-        logger.info(`📁 Found welcome audio at: ${welcomePath}`);
+        logger.info(`📁 Using welcome.mp3 as fallback: ${welcomePath}`);
         const audioBuffer = fs.readFileSync(welcomePath);
         return audioBuffer.toString('base64');
       }
     }
 
-    // If file not found, try using conversational voice as fallback
-    logger.warn('⚠️ Welcome audio file not found, using conversational voice as fallback');
-    return await this.generateVoice(''); // Will use sandra-conversational.wav
+    throw new Error('Welcome audio file not found. Expected: assets/audio/sandra-conversational.wav or assets/audio/welcome.mp3');
   }
 }
 
