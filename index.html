@@ -14,9 +14,9 @@
 
   <!-- PWA -->
   <meta name="theme-color" content="#0F172A">
-	  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="manifest" href="/manifest.webmanifest?v=2">
 	  <link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/favicon-32x32.png">
-	  <link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png">
+  <link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png?v=2">
 	  <meta name="apple-mobile-web-app-capable" content="yes">
 	  <meta name="mobile-web-app-capable" content="yes">
 	  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1590,6 +1590,22 @@
             return;
           }
 
+          if (data.type === 'connection_established' && data.capabilities && typeof data.capabilities.stt === 'boolean') {
+            sttAvailable = data.capabilities.stt;
+            clearSttCapabilitiesTimeout();
+
+            if (!sttAvailable) {
+              if (!sttNoticeShown) {
+                this.addMessage('La transcripci??n de voz no est?? disponible en este momento (STT desactivado en el servidor).', 'system');
+                sttNoticeShown = true;
+              }
+              this.stopAudioCapture();
+            } else {
+              startMicrophoneCapture();
+            }
+            return;
+          }
+
           // PRIMERO: Manejar mensajes que no tienen route/action (formato diferente del servidor)
           if (!data.route && !data.action && !data.error && data.type !== 'error') {
             console.log('[MCP] Mensaje sin route/action, estructura completa:', JSON.stringify(data, null, 2));
@@ -1726,6 +1742,10 @@
 
         ws.onclose = (event) => {
           console.log('[MCP] WebSocket cerrado', { code: event.code, reason: event.reason, wasClean: event.wasClean });
+          clearSttCapabilitiesTimeout();
+          sttAvailable = null;
+          microphoneStartPromise = null;
+          microphoneStarted = false;
           this.stopAudioCapture();
           this.activeCall = null;
           this.setHeroCallActive(false);
