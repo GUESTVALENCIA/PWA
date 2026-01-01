@@ -10,7 +10,7 @@
  * 5. Pass to native voice system (Sandra)
  */
 
-const { Deepgram } = require('@deepgram/sdk');
+const { createClient } = require('@deepgram/sdk');
 
 module.exports = async function handler(req, res) {
   // CORS
@@ -51,19 +51,20 @@ module.exports = async function handler(req, res) {
         // Convertir base64 a Buffer si es necesario
         const audioBuffer = Buffer.from(audioData, 'base64');
 
-        const deepgram = new Deepgram({ apiKey: DEEPGRAM_API_KEY });
+        const deepgram = createClient(DEEPGRAM_API_KEY);
 
-        const response = await deepgram.listen.prerecorded.transcribeBuffer(
-          audioBuffer,
-          {
-            model: 'nova-2',
-            language: language === 'es' ? 'es' : language === 'en' ? 'en' : 'es',
-            smart_format: true
-          }
-        );
+        const { result, error } = await deepgram.listen.prerecorded.transcribeFile(audioBuffer, {
+          model: 'nova-2',
+          language: language === 'es' ? 'es' : language === 'en' ? 'en' : 'es',
+          smart_format: true
+        });
+
+        if (error) {
+          throw error;
+        }
 
         // Extraer texto transcrito
-        const transcript = response.result?.results?.channels?.[0]?.alternatives?.[0]?.transcript;
+        const transcript = result?.results?.channels?.[0]?.alternatives?.[0]?.transcript;
 
         if (!transcript) {
           console.error('[CHAT-TEXT] Deepgram no devolvió transcripción');
