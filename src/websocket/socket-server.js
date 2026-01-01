@@ -27,6 +27,8 @@ const agentConnections = new Map();
 const deepgramConnections = new Map();
 // Track agents where STT is not available (prevents error spam)
 const sttUnavailableAgents = new Set();
+// Track agents where STT errors already reported (prevents error spam)
+const sttErrorAgents = new Set();
 
 /**
  * Initialize WebSocket server
@@ -90,6 +92,7 @@ export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonS
 	        deepgramConnections.delete(agentId);
 	      }
 	      sttUnavailableAgents.delete(agentId);
+	      sttErrorAgents.delete(agentId);
 	      
 	      agentConnections.delete(agentId);
 	      agentSubscriptions.delete(agentId);
@@ -626,9 +629,10 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
     
     // Check if connection exists and is ready
     if (deepgramData && deepgramData.connection) {
-      // Verify connection is still open
-      if (deepgramData.connection.getReadyState && deepgramData.connection.getReadyState() !== 1) {
-        logger.warn(`[DEEPGRAM] Connection closed (state: ${deepgramData.connection.getReadyState()}), recreating...`);
+      // Verify connection is still open (0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED)
+      const state = deepgramData.connection.getReadyState ? deepgramData.connection.getReadyState() : null;
+      if (state === 2 || state === 3) {
+        logger.warn(`[DEEPGRAM] Connection closed (state: ${state}), recreating...`);
         try {
           deepgramData.connection.finish();
         } catch (e) {
@@ -642,6 +646,13 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
     if (!deepgramData || !deepgramData.connection) {
       logger.info(`[DEEPGRAM] 🔌 Creating new streaming connection for ${agentId}`);
       
+      deepgramData = {
+        connection: null,
+        isProcessing: false,
+        pendingAudio: []
+      };
+      deepgramConnections.set(agentId, deepgramData);
+
       // Create new Deepgram streaming connection
       const connection = voiceServices.deepgram.createStreamingConnection({
         language: 'es',
@@ -716,6 +727,17 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
         },
         onError: (error) => {
           logger.error('[DEEPGRAM] Streaming connection error:', error);
+
+          if (!sttErrorAgents.has(agentId)) {
+            sttErrorAgents.add(agentId);
+            ws.send(JSON.stringify({
+              type: 'error',
+              error: 'STT streaming error',
+              code: 'DEEPGRAM_STREAM_ERROR',
+              details: error?.message || 'Unknown Deepgram streaming error'
+            }));
+          }
+
           deepgramConnections.delete(agentId);
         },
         onClose: () => {
@@ -724,12 +746,22 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
         }
       });
 
-      // Store connection data
-      deepgramData = {
-        connection: connection,
-        isProcessing: false
-      };
-      deepgramConnections.set(agentId, deepgramData);
+      deepgramData.connection = connection;
+
+      // Buffer audio until Deepgram socket is OPEN (prevents dropping the first WebM header chunk)
+      connection.on('open', () => {
+        try {
+          const pendingCount = deepgramData?.pendingAudio?.length || 0;
+          if (!pendingCount) return;
+          logger.info(`[DEEPGRAM] Connection open. Flushing ${pendingCount} buffered chunks for ${agentId}`);
+          const buffersToFlush = deepgramData.pendingAudio.splice(0, pendingCount);
+          for (const buf of buffersToFlush) {
+            deepgramData.connection.send(buf);
+          }
+        } catch (flushError) {
+          logger.error('[DEEPGRAM] Error flushing buffered audio:', flushError);
+        }
+      });
       
       logger.info(`[DEEPGRAM] ✅ Streaming connection established for ${agentId}`);
     }
@@ -739,9 +771,24 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
       try {
         // Check connection state before sending
         const readyState = deepgramData.connection.getReadyState ? deepgramData.connection.getReadyState() : null;
+        if (readyState === 0) {
+          // CONNECTING: buffer to avoid losing WebM headers on the first chunks
+          deepgramData.pendingAudio.push(audioBuffer);
+          if (deepgramData.pendingAudio.length > 10) deepgramData.pendingAudio.shift();
+          return;
+        }
+
         if (readyState !== null && readyState !== 1) {
-          logger.warn(`[DEEPGRAM] Connection not ready (state: ${readyState}), skipping chunk (will recreate on next valid chunk)`);
-          return; // Skip this chunk, connection will be recreated on next chunk
+          logger.warn(`[DEEPGRAM] Connection not ready (state: ${readyState}), skipping chunk`);
+          return;
+        }
+
+        // Flush any buffered chunks first (if the socket is now open)
+        if (deepgramData.pendingAudio && deepgramData.pendingAudio.length) {
+          const buffersToFlush = deepgramData.pendingAudio.splice(0, deepgramData.pendingAudio.length);
+          for (const buf of buffersToFlush) {
+            deepgramData.connection.send(buf);
+          }
         }
         
         // Send audio buffer to Deepgram
