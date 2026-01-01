@@ -797,6 +797,8 @@
         this.responseWatchdogTimeout = null;
         this._mcpConfigPromise = null;
         this.chatLocked = false;
+        this.sttAvailable = null;
+        this.sttNoticeShown = false;
         // Voice Library Manager - Pre-cargar voz nativa
         this.voiceLibraryManager = {
           nativeVoiceAudio: null,
@@ -1395,11 +1397,11 @@
         console.log('[MCP] URL WebSocket construida:', wsUrl);
         const ws = new WebSocket(wsUrl);
         this.activeCall = ws;
-        let sttAvailable = null;
+        this.sttAvailable = null;
+        this.sttNoticeShown = false;
         let sttCapabilitiesTimeout = null;
         let microphoneStartPromise = null;
         let microphoneStarted = false;
-        let sttNoticeShown = false;
 
         const clearSttCapabilitiesTimeout = () => {
           if (sttCapabilitiesTimeout) {
