@@ -965,8 +965,14 @@
         toggleBtn.addEventListener('click', toggleChat);
         closeBtn.addEventListener('click', toggleChat);
 
-        // Send Message
+          // Send Message
         const sendMessage = async () => {
+          // Bloquear envío de mensajes si hay llamada activa
+          if (this.activeCall || this.chatLocked) {
+            console.warn('[CHAT] ⚠️ Chat deshabilitado durante llamada activa');
+            return;
+          }
+
           const text = input.value.trim();
           if (!text) return;
           this.addMessage(text, 'user');
@@ -992,7 +998,11 @@
           }
         };
         sendBtn.addEventListener('click', sendMessage);
-        input.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+        input.addEventListener('keypress', (e) => { 
+          if (e.key === 'Enter' && !this.activeCall && !this.chatLocked) {
+            sendMessage();
+          }
+        });
 
         // Call Buttons Logic
         if (acceptCallBtn) {
@@ -1107,6 +1117,17 @@
         console.log('Iniciando llamada conversacional...');
         if (this.chatLocked || this.activeCall || this.ringTimeout) return;
         this.chatLocked = true;
+
+        // Deshabilitar input del chat cuando hay llamada activa
+        const input = document.getElementById('sandra-input');
+        const sendBtn = document.getElementById('sandra-send-btn');
+        if (input) {
+          input.disabled = true;
+          input.placeholder = 'Llamada activa - El chat está deshabilitado';
+        }
+        if (sendBtn) {
+          sendBtn.disabled = true;
+        }
 
         // Ocultar prompt de llamada cuando inicia
         const callPrompt = document.getElementById('sandra-call-prompt');
@@ -1357,6 +1378,17 @@
         this.setHeroCallActive(false);
         this.awaitingResponse = false;
         this.isSpeaking = false;
+        
+        // Reactivar input del chat cuando se cierra la llamada
+        const input = document.getElementById('sandra-input');
+        const sendBtn = document.getElementById('sandra-send-btn');
+        if (input) {
+          input.disabled = false;
+          input.placeholder = 'Escribe tu mensaje...';
+        }
+        if (sendBtn) {
+          sendBtn.disabled = false;
+        }
 
         // Ocultar controles de llamada
         const callControls = document.getElementById('sandra-call-controls');
@@ -1425,6 +1457,17 @@
         // Ocultar prompt de llamada cuando inicia la llamada real
         const callPrompt = document.getElementById('sandra-call-prompt');
         if (callPrompt) callPrompt.style.display = 'none';
+        
+        // Desactivar input del chat cuando hay llamada activa
+        const input = document.getElementById('sandra-input');
+        const sendBtn = document.getElementById('sandra-send-btn');
+        if (input) {
+          input.disabled = true;
+          input.placeholder = 'Llamada activa...';
+        }
+        if (sendBtn) {
+          sendBtn.disabled = true;
+        }
 
         console.log('[MCP] Iniciando llamada en tiempo real...');
         const cfg = await this.getMcpConfig();
@@ -1435,6 +1478,17 @@
         this.activeCall = ws;
         this.sttAvailable = null;
         this.sttNoticeShown = false;
+        
+        // Desactivar input del chat cuando hay llamada activa
+        const input = document.getElementById('sandra-input');
+        const sendBtn = document.getElementById('sandra-send-btn');
+        if (input) {
+          input.disabled = true;
+          input.placeholder = 'Llamada activa...';
+        }
+        if (sendBtn) {
+          sendBtn.disabled = true;
+        }
         let sttCapabilitiesTimeout = null;
         let microphoneStartPromise = null;
         let microphoneStarted = false;
@@ -1870,8 +1924,12 @@
             this.awaitingResponse = false;
             
             const responseText = data.payload.text;
-            // Mostrar mensaje en el chat
-            this.addMessage(responseText, 'system');
+            
+            // NO mostrar mensaje en el chat cuando hay llamada activa
+            // Solo reproducir con voz
+            if (!this.activeCall) {
+              this.addMessage(responseText, 'system');
+            }
 
             const liveTranscript = document.getElementById('sandra-live-transcript');
             if (liveTranscript) {
@@ -1879,7 +1937,7 @@
               liveTranscript.textContent = '';
             }
             
-            // Reproducir con voz nativa local
+            // Reproducir con voz nativa local usando el texto real
             this.playNativeVoice(responseText);
             return;
           }
@@ -1941,6 +1999,18 @@
           this.stopAudioCapture();
           this.activeCall = null;
           this.setHeroCallActive(false);
+          this.chatLocked = false;
+
+          // Rehabilitar input del chat cuando termina la llamada
+          const input = document.getElementById('sandra-input');
+          const sendBtn = document.getElementById('sandra-send-btn');
+          if (input) {
+            input.disabled = false;
+            input.placeholder = 'Escribe tu mensaje...';
+          }
+          if (sendBtn) {
+            sendBtn.disabled = false;
+          }
 
           const liveTranscript = document.getElementById('sandra-live-transcript');
           if (liveTranscript) {
@@ -2111,48 +2181,66 @@
         });
       }
 
-      // Reproducir respuesta con voz nativa local
+      // Reproducir respuesta con voz nativa local usando speechSynthesis
       async playNativeVoice(text) {
-        console.log('[VOICE-LIB] 🔊 Reproduciendo respuesta con voz nativa:', text.substring(0, 50) + '...');
-        
-        // Asegurar que la voz nativa esté cargada
-        if (!this.voiceLibraryManager.isLoaded) {
-          console.log('[VOICE-LIB] ⏳ Esperando carga de voz nativa...');
-          await this.voiceLibraryManager.loadNativeVoice();
-        }
-
-        if (!this.voiceLibraryManager.nativeVoiceAudio) {
-          console.error('[VOICE-LIB] ❌ Voz nativa no disponible');
+        if (!text || typeof text !== 'string' || text.trim() === '') {
+          console.warn('[VOICE-LIB] Texto vacío, no se reproduce');
           return;
         }
 
-        // Detener cualquier audio actual
+        console.log('[VOICE-LIB] 🔊 Reproduciendo respuesta con voz nativa:', text.substring(0, 50) + '...');
+        
+        // Detener cualquier audio/speech anterior
         if (this.currentAudio) {
           this.currentAudio.pause();
           this.currentAudio.currentTime = 0;
+          this.currentAudio = null;
+        }
+        
+        if (window.speechSynthesis) {
+          window.speechSynthesis.cancel();
         }
 
-        this.isSpeaking = true;
-        const audio = this.voiceLibraryManager.nativeVoiceAudio.cloneNode();
+        // Usar speechSynthesis del navegador para convertir texto a voz
+        if (window.speechSynthesis && window.SpeechSynthesisUtterance) {
+          this.isSpeaking = true;
+          
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.lang = 'es-ES';
+          utterance.rate = 0.92; // Ritmo calmado
+          utterance.pitch = 1.0;
+          utterance.volume = 1.0;
 
-        // Configurar eventos
-        audio.addEventListener('ended', () => {
-          console.log('[VOICE-LIB] ✅ Voz nativa finalizada');
-          this.isSpeaking = false;
-        });
+          // Intentar usar una voz femenina en español si está disponible
+          const voices = window.speechSynthesis.getVoices();
+          const spanishVoice = voices.find(v => v.lang.startsWith('es') && v.name.toLowerCase().includes('female')) ||
+                               voices.find(v => v.lang.startsWith('es-ES')) ||
+                               voices.find(v => v.lang.startsWith('es'));
+          
+          if (spanishVoice) {
+            utterance.voice = spanishVoice;
+            console.log('[VOICE-LIB] Usando voz:', spanishVoice.name);
+          }
 
-        audio.addEventListener('error', (e) => {
-          console.error('[VOICE-LIB] ❌ Error reproduciendo voz nativa:', e);
-          this.isSpeaking = false;
-        });
+          utterance.onend = () => {
+            console.log('[VOICE-LIB] ✅ Voz nativa finalizada');
+            this.isSpeaking = false;
+          };
 
-        // Reproducir
-        this.currentAudio = audio;
-        try {
-          await audio.play();
-          console.log('[VOICE-LIB] ▶️ Voz nativa reproduciéndose');
-        } catch (error) {
-          console.error('[VOICE-LIB] ❌ Error al reproducir:', error);
+          utterance.onerror = (e) => {
+            console.error('[VOICE-LIB] ❌ Error reproduciendo voz nativa:', e);
+            this.isSpeaking = false;
+          };
+
+          try {
+            window.speechSynthesis.speak(utterance);
+            console.log('[VOICE-LIB] ▶️ Voz nativa reproduciéndose');
+          } catch (error) {
+            console.error('[VOICE-LIB] ❌ Error al iniciar speechSynthesis:', error);
+            this.isSpeaking = false;
+          }
+        } else {
+          console.error('[VOICE-LIB] ❌ speechSynthesis no disponible en este navegador');
           this.isSpeaking = false;
         }
       }
