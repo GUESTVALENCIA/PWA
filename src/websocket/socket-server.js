@@ -38,7 +38,7 @@ export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonS
 	  wss.on('connection', (ws, req) => {
 	    const agentId = req.headers['x-agent-id'] || `agent_${Math.random().toString(36).substring(7)}`;
 	    const connectionTime = new Date().toISOString();
-	    const sttAvailable = voiceServices?.deepgram?.isConfigured !== false;
+		    const sttAvailable = voiceServices?.deepgram?.isConfigured === true;
 
     logger.info(`✅ WebSocket connected: ${agentId}`);
 
