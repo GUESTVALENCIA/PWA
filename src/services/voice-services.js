@@ -75,7 +75,7 @@ class VoiceServices {
       encoding = null,
       sampleRate = null,
       channels = null,
-      idleTimeoutMs = 1200,
+      idleTimeoutMs = 600, // 🚀 ENTERPRISE MAX: Default reducido a 600ms para latencia mínima
       onTranscriptionFinalized = null,
       onTranscriptionUpdated = null,
       onError = null,
@@ -85,23 +85,57 @@ class VoiceServices {
     logger.info('[DEEPGRAM] 🔌 Creating streaming connection...');
 
     const liveOptions = {
-      // 🚀 ENTERPRISE: Modelo optimizado para llamadas telefónicas
-      model: 'nova-2-phonecall', // Mejor que 'nova-2' para llamadas conversacionales
+      // 🚀 ENTERPRISE MAX: Modelo optimizado para llamadas telefónicas de alta calidad
+      model: 'nova-2-phonecall', // Optimizado específicamente para llamadas conversacionales
+      
+      // 🚀 ENTERPRISE MAX: Configuración de idioma
       language: language,
+      
+      // 🚀 ENTERPRISE MAX: Formateo inteligente para mejor legibilidad
       punctuate: true,
       smart_format: true,
-      interim_results: true, // CRITICAL: Partial results in real-time
-      // 🚀 ENTERPRISE: Reducido a 250ms para detección más rápida de fin de frase
-      endpointing: 250, // Optimizado de 300ms → 250ms (mejor latencia)
-      vad_events: true, // CRITICAL: Voice Activity Detection
-      // Enable utterance segmentation (helps reliably fire UtteranceEnd events)
+      
+      // 🚀 ENTERPRISE MAX: Resultados parciales en tiempo real (latencia mínima)
+      interim_results: true,
+      
+      // 🚀 ENTERPRISE MAX: Endpointing optimizado para detección rápida de fin de frase
+      endpointing: 250, // 250ms - latencia mínima para enterprise (default: 300ms)
+      
+      // 🚀 ENTERPRISE MAX: Voice Activity Detection (detecta cuando usuario habla/calla)
+      vad_events: true,
+      
+      // 🚀 ENTERPRISE MAX: Segmentación de utterances (detecta fin de frase natural)
       utterances: true,
-      // 🚀 ENTERPRISE: Optimizado para mejor balance latencia/precisión
-      utterance_end_ms: Math.max(300, Math.min(1000, Number(idleTimeoutMs) || 800)),
-      // 🚀 ENTERPRISE: Elimina palabras de relleno ("eh", "um") para llamadas profesionales
+      
+      // 🚀 ENTERPRISE MAX: Tiempo de espera optimizado para balance latencia/precisión
+      utterance_end_ms: Math.max(300, Math.min(600, Number(idleTimeoutMs) || 600)),
+      
+      // 🚀 ENTERPRISE MAX: Elimina palabras de relleno para llamadas profesionales
       filler_words: false,
-      // 🚀 ENTERPRISE: Mejor reconocimiento de números en español
-      numerals: true
+      
+      // 🚀 ENTERPRISE MAX: Reconocimiento mejorado de números en español
+      numerals: true,
+      
+      // 🚀 ENTERPRISE MAX: Detección de múltiples hablantes (diarización)
+      // diarize: false, // Desactivado por defecto (solo un hablante: usuario)
+      
+      // 🚀 ENTERPRISE MAX: Corrección automática de transcripciones comunes
+      // replace: [], // Array opcional de reemplazos personalizados
+      
+      // 🚀 ENTERPRISE MAX: Keywords para mejor reconocimiento de términos específicos
+      // keywords: [], // Array opcional de palabras clave para mejorar precisión
+      
+      // 🚀 ENTERPRISE MAX: Búsqueda en transcripciones (útil para análisis)
+      // search: [], // Array opcional de términos para buscar
+      
+      // 🚀 ENTERPRISE MAX: Redacción de información sensible (privacidad)
+      // redact: false, // Desactivado por defecto (activar si se requiere privacidad extrema)
+      
+      // 🚀 ENTERPRISE MAX: Tier de calidad (mejora precisión a costa de latencia)
+      // tier: 'nova', // Opciones: 'base', 'enhanced', 'nova' (mejor calidad)
+      
+      // 🚀 ENTERPRISE MAX: Profundidad de contexto para mejor precisión
+      // tier: 'nova' ya está incluido en 'nova-2-phonecall'
     };
 
     if (encoding) liveOptions.encoding = encoding;
@@ -145,7 +179,7 @@ class VoiceServices {
         } catch (error) {
           logger.error('[DEEPGRAM] Error flushing idle utterance:', error);
         }
-      }, Math.max(400, Number(idleTimeoutMs) || 1200));
+      }, Math.max(300, Number(idleTimeoutMs) || 600)); // 🚀 ENTERPRISE MAX: Reducido a 600ms
     };
 
     // Set up event handlers (Deepgram JS SDK v3)
@@ -232,8 +266,8 @@ class VoiceServices {
    * Generate voice using native local audio file (eliminates Cartesia latency)
    */
   /**
-   * Generate TTS audio from text using Cartesia API (real-time TTS)
-   * Falls back to native voice file if Cartesia is not available
+   * Generate voice audio using Deepgram TTS (dynamic audio generation)
+   * Uses Deepgram TTS API to generate audio from text with native voice quality
    */
   async generateVoice(text, voiceId = null) {
     if (!text || text.trim() === '') {
@@ -241,42 +275,39 @@ class VoiceServices {
       return await this.getWelcomeAudio();
     }
 
-    // USE NATIVE VOICE FILE FIRST (to eliminate TTS latency)
-    // This is a purchased native audio file, not generated by TTS APIs
-    const nativeVoicePath = path.join(__dirname, '../../assets/audio/sandra-conversational.wav');
-    
-    // Try alternative paths if the first doesn't work
-    const possiblePaths = [
-      nativeVoicePath,
-      path.join(process.cwd(), 'assets/audio/sandra-conversational.wav'),
-      path.join(__dirname, '../../../assets/audio/sandra-conversational.wav')
-    ];
+    // 🚀 Use Deepgram TTS to generate dynamic audio from text
+    // Deepgram TTS provides low-latency, high-quality voice generation
+    try {
+      logger.info(`[TTS] 🎙️ Generating audio with Deepgram TTS for text: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
+      
+      // Use Deepgram TTS with Spanish voice model
+      // Model: aura-2-thalia-es (Spanish female voice)
+      const audioBase64 = await this._generateDeepgramTTS(text, 'aura-2-thalia-es');
+      
+      logger.info('[TTS] ✅ Audio generated successfully with Deepgram TTS');
+      return audioBase64;
+    } catch (error) {
+      logger.error('[TTS] ❌ Error generating audio with Deepgram TTS:', error);
+      
+      // Fallback: try native voice file if Deepgram fails
+      logger.warn('[TTS] ⚠️ Falling back to native voice file');
+      const nativeVoicePath = path.join(__dirname, '../../assets/audio/sandra-conversational.wav');
+      const possiblePaths = [
+        nativeVoicePath,
+        path.join(process.cwd(), 'assets/audio/sandra-conversational.wav'),
+        path.join(__dirname, '../../../assets/audio/sandra-conversational.wav')
+      ];
 
-    for (const voicePath of possiblePaths) {
-      if (fs.existsSync(voicePath)) {
-        logger.info(`[VOICE] 📁 Using native voice file (purchased audio - no TTS latency): ${voicePath}`);
-        const audioBuffer = fs.readFileSync(voicePath);
-        return audioBuffer.toString('base64');
+      for (const voicePath of possiblePaths) {
+        if (fs.existsSync(voicePath)) {
+          logger.info(`[TTS] 📁 Using native voice file as fallback: ${voicePath}`);
+          const audioBuffer = fs.readFileSync(voicePath);
+          return audioBuffer.toString('base64');
+        }
       }
+      
+      throw new Error(`TTS generation failed: ${error.message}`);
     }
-
-    // Fallback: try welcome.mp3 if conversational.wav not found
-    logger.warn('⚠️ Native conversational voice not found, trying welcome.mp3 as fallback');
-    const welcomePaths = [
-      path.join(__dirname, '../../assets/audio/welcome.mp3'),
-      path.join(process.cwd(), 'assets/audio/welcome.mp3'),
-      path.join(__dirname, '../../../assets/audio/welcome.mp3')
-    ];
-
-    for (const welcomePath of welcomePaths) {
-      if (fs.existsSync(welcomePath)) {
-        logger.info(`[VOICE] 📁 Using welcome audio as fallback: ${welcomePath}`);
-        const audioBuffer = fs.readFileSync(welcomePath);
-        return audioBuffer.toString('base64');
-      }
-    }
-
-    throw new Error('Native voice audio file not found. Expected: assets/audio/sandra-conversational.wav or assets/audio/welcome.mp3');
   }
 
   /**
