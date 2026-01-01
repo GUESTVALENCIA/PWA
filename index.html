@@ -1467,7 +1467,7 @@
                         }
                         const base64Audio = btoa(binary);
 
-                        // Enviar como JSON seg??n la especificaci??n
+                        // Enviar como JSON según la especificación
                         ws.send(JSON.stringify({
                           route: 'audio',
                           action: 'stt',
@@ -1477,7 +1477,7 @@
                             mimeType: actualMimeType
                           }
                         }));
-                        console.log('[MCP] Audio enviado como JSON base64, tama??o:', base64Audio.length);
+                        console.log('[MCP] Audio enviado como JSON base64, tamaño:', base64Audio.length);
                       } catch (err) {
                         console.error('[MCP] Error convirtiendo audio a base64:', err);
                       }
@@ -1492,19 +1492,19 @@
 
               this.mediaRecorder.start(1000); // Slices de 1000ms (1 segundo) para mejor compatibilidad con Deepgram
               microphoneStarted = true;
-              console.log("???? Microphone recording started (Enterprise Streaming)");
+              console.log('🎤 Microphone recording started (Enterprise Streaming)');
 
             } catch (err) {
-              console.error('[MCP] ??? Error accediendo al micr??fono:', err);
+              console.error('[MCP] ❌ Error accediendo al micrófono:', err);
               
               // Manejar diferentes tipos de errores
-              let errorMessage = 'No se pudo acceder al micr??fono.';
+              let errorMessage = 'No se pudo acceder al micrófono.';
               if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                errorMessage = 'Por favor, permite el acceso al micr??fono en la configuraci??n de tu navegador.';
+                errorMessage = 'Por favor, permite el acceso al micrófono en la configuración de tu navegador.';
               } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-                errorMessage = 'No se encontr?? ning??n micr??fono. Por favor, conecta un micr??fono.';
+                errorMessage = 'No se encontró ningún micrófono. Por favor, conecta un micrófono.';
               } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-                errorMessage = 'El micr??fono est?? siendo usado por otra aplicaci??n.';
+                errorMessage = 'El micrófono está siendo usado por otra aplicación.';
               }
               
               // Mostrar mensaje al usuario en el chat en lugar de alert
@@ -1514,8 +1514,8 @@
                   <div class="flex gap-2">
                     <div class="w-6 h-6 rounded-full bg-gradient-to-tr from-blue-400 to-purple-500 flex-shrink-0 flex items-center justify-center text-[10px] text-white font-bold">S</div>
                     <div class="bg-white p-2.5 rounded-xl rounded-tl-none shadow-sm border border-red-200 text-xs text-red-700 max-w-[85%]">
-                      <p>?????? ${errorMessage}</p>
-                      <p class="mt-1 text-[10px] text-red-600">La llamada de voz requiere acceso al micr??fono.</p>
+                      <p>⚠️ ${errorMessage}</p>
+                      <p class="mt-1 text-[10px] text-red-600">La llamada de voz requiere acceso al micrófono.</p>
                     </div>
                   </div>`;
                 messagesContainer.insertAdjacentHTML('beforeend', errorHtml);
@@ -1602,7 +1602,7 @@
 
             if (!this.sttAvailable) {
               if (!this.sttNoticeShown) {
-                this.addMessage('La transcripci??n de voz no est?? disponible en este momento (STT desactivado en el servidor).', 'system');
+                this.addMessage('La transcripción de voz no está disponible en este momento (STT desactivado en el servidor).', 'system');
                 this.sttNoticeShown = true;
               }
               this.stopAudioCapture();
@@ -1665,7 +1665,7 @@
 	              rawErrorText.includes('Deepgram SDK not initialized');
 
 	            const userErrorText = isDeepgramNotConfigured
-	              ? 'La transcripci??n de voz no est?? disponible en este momento (DEEPGRAM_API_KEY no configurada en el servidor).'
+	              ? 'La transcripción de voz no está disponible en este momento (DEEPGRAM_API_KEY no configurada en el servidor).'
 	              : rawErrorText;
 
 	            console.error('[MCP] ❌ Error del servidor:', rawErrorText);
