@@ -1883,13 +1883,9 @@
 
             console.error('[MCP] ❌ Error del servidor:', rawErrorText);
 
-            // Solo agregar error al chat si NO hay llamada activa
-            // Durante llamada de voz, los errores se manejan de otra forma
-            if (!this.activeCall) {
-              try {
-                this.addMessage(userErrorText, 'system');
-              } catch (_) { }
-            }
+            try {
+              this.addMessage(userErrorText, 'system');
+            } catch (_) { }
 
 	            this.clearResponseWatchdog();
 	            this.awaitingResponse = false;
@@ -1922,7 +1918,6 @@
           }
 
           // Manejar mensaje de respuesta completa del servidor (texto para reproducir con voz nativa)
-          // IMPORTANTE: Este mensaje SOLO viene durante llamada de voz, NUNCA durante chat de texto
           if (data.route === 'conserje' && data.action === 'message' && data.payload && data.payload.type === 'response_complete' && data.payload.text) {
             console.log('[MCP] ✅ Respuesta completa recibida, reproduciendo con voz nativa');
             this.clearResponseWatchdog();
@@ -1930,9 +1925,11 @@
             
             const responseText = data.payload.text;
             
-            // CRÍTICO: NUNCA agregar al chat cuando viene de WebSocket (llamada de voz)
-            // Las respuestas de llamada de voz SOLO van a voz, nunca al chat
-            // El chat de texto usa gateway.sendMessage() que es un flujo completamente separado
+            // NO mostrar mensaje en el chat cuando hay llamada activa
+            // Solo reproducir con voz
+            if (!this.activeCall) {
+              this.addMessage(responseText, 'system');
+            }
 
             const liveTranscript = document.getElementById('sandra-live-transcript');
             if (liveTranscript) {
@@ -1940,7 +1937,7 @@
               liveTranscript.textContent = '';
             }
             
-            // Reproducir con voz nativa local usando el texto real del servidor
+            // Reproducir con voz nativa local usando el texto real
             this.playNativeVoice(responseText);
             return;
           }
@@ -2024,13 +2021,6 @@
       }
 
       addMessage(text, type) {
-        // CRÍTICO: NO agregar mensajes al chat durante llamada de voz activa
-        // Las llamadas de voz usan WebSocket y las respuestas van SOLO a voz, no al chat
-        if (this.activeCall) {
-          console.log('[CHAT] ⚠️ Mensaje bloqueado: hay llamada de voz activa. Tipo:', type, 'Texto:', text.substring(0, 50));
-          return;
-        }
-
         // Asegurar que el prompt de llamada esté visible cuando se envía mensaje (si no hay llamada activa)
         if (!this.activeCall && !this.chatLocked) {
           const callPrompt = document.getElementById('sandra-call-prompt');
@@ -2041,11 +2031,6 @@
         }
 
         const container = document.getElementById('sandra-messages');
-        if (!container) {
-          console.error('[CHAT] ❌ Contenedor de mensajes no encontrado');
-          return;
-        }
-
         const isUser = type === 'user';
         const html = `
           <div class="flex gap-2 ${isUser ? 'flex-row-reverse' : ''}">
