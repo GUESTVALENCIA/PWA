@@ -8,7 +8,8 @@ import { logger } from '../utils/logger.js';
 const authMiddleware = (req, res, next) => {
   // Public endpoints that don't require authentication
   const publicEndpoints = ['/health', '/api/voice/diagnose'];
-  if (publicEndpoints.includes(req.path)) {
+  // ✅ Allow public access to all Sandra routes (Chat & Voice)
+  if (publicEndpoints.includes(req.path) || req.path.startsWith('/api/sandra/')) {
     return next();
   }
 
@@ -24,8 +25,8 @@ const authMiddleware = (req, res, next) => {
     next();
   } catch (error) {
     if (token.startsWith('cursor_') || token.startsWith('claude_') ||
-        token.startsWith('chatgpt_') || token.startsWith('qwen_') ||
-        token.startsWith('gemini_')) {
+      token.startsWith('chatgpt_') || token.startsWith('qwen_') ||
+      token.startsWith('gemini_')) {
       // API key directa
       req.agent = { id: token.split('_')[0], type: 'api_key' };
       next();
