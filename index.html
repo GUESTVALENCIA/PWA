@@ -799,12 +799,18 @@
         this.chatLocked = false;
         this.sttAvailable = null;
         this.sttNoticeShown = false;
+        // 🚀 FASE 1: AudioWorklet para PCM playback
+        this.audioWorkletContext = null;
+        this.audioWorkletNode = null;
+        this.audioWorkletReady = false;
         this.init();
       }
 
       async init() {
         this.createWidgetUI();
         this.bindEvents();
+        // 🚀 FASE 1: Inicializar AudioWorklet para reproducción PCM
+        await this.setupAudioWorklet();
         // El servidor usa Deepgram TTS para generar audio y enviarlo al cliente
         // El cliente solo reproduce el audio recibido del servidor (NO usa SpeechSynthesis)
       }
@@ -1832,11 +1838,51 @@
             }
           }
 
-          // Manejar respuesta de audio TTS (formato estándar)
+          // 🚀 FASE 1: Manejar chunks PCM de TTS WebSocket streaming
+          if (data.route === 'audio' && data.action === 'tts_chunk' && data.payload && data.payload.audio) {
+            console.log('[MCP] ✅ Recibido chunk PCM de TTS WebSocket');
+            this.clearResponseWatchdog();
+            if (data.payload.isFirst) {
+              this.awaitingResponse = false;
+              this.isSpeaking = true;
+            }
+            // Reproducir chunk PCM usando AudioWorklet
+            this.handleTTSAudioChunk(data.payload.audio);
+            return;
+          }
+
+          // 🚀 FASE 1: Manejar finalización de TTS streaming
+          if (data.route === 'audio' && data.action === 'tts_complete') {
+            console.log('[MCP] ✅ TTS streaming completado');
+            this.isSpeaking = false;
+            return;
+          }
+
+          // Manejar respuesta de audio TTS (formato estándar - MP3/WAV)
           if (data.route === 'audio' && data.action === 'tts' && data.payload && data.payload.audio) {
             console.log('[MCP] ✅ Recibida respuesta de audio TTS');
             this.clearResponseWatchdog();
             this.awaitingResponse = false;
+            
+            // 🚀 FASE 1: Si es audio nativo (WAV), intentar usar AudioWorklet
+            if (data.payload.isNative && data.payload.format === 'wav' && this.audioWorkletReady) {
+              try {
+                // Decodificar base64 a ArrayBuffer
+                const binaryString = atob(data.payload.audio);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                  bytes[i] = binaryString.charCodeAt(i);
+                }
+                
+                if (this.playNativeAudio(bytes.buffer)) {
+                  console.log('[AUDIO] ✅ Audio nativo reproducido con AudioWorklet');
+                  return;
+                }
+              } catch (error) {
+                console.error('[AUDIO] ❌ Error reproduciendo audio nativo, fallback a <audio>:', error);
+              }
+            }
+            
             // Detectar si es el saludo inicial
             const isWelcome = data.payload.isWelcome || (!this.currentAudio && !this.isSpeaking);
             this.playAudioResponse(data.payload.audio, isWelcome);
