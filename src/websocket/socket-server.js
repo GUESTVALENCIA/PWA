@@ -705,7 +705,10 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
         isProcessing: false,
         pendingAudio: [],
         lastInterimSentAt: 0,
-        lastInterimText: ''
+        lastInterimText: '',
+        lastFinalizedTranscript: '', // Track last finalized transcript to prevent duplicates
+        lastFinalizedTimestamp: 0, // Timestamp of last finalized transcript
+        processingTranscript: null // Currently processing transcript (to prevent race conditions)
       };
       deepgramConnections.set(agentId, deepgramData);
 
@@ -717,23 +720,60 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
         channels: resolvedChannels,
         idleTimeoutMs: 600, // 🚀 ENTERPRISE MAX: Reducido a 600ms para latencia mínima (balance óptimo)
         onTranscriptionFinalized: async (transcript, message) => {
-          // Handle finalized transcription (VAD detected end of phrase)
+          // 🚀 ROBUST DEDUPLICATION: Prevent duplicate transcriptions from multiple events
+          const now = Date.now();
+          const transcriptNormalized = transcript?.trim() || '';
+          
+          // Check 1: Empty transcript
+          if (!transcriptNormalized) {
+            logger.debug('[DEEPGRAM] Empty transcript in finalized event, skipping');
+            return;
+          }
+          
+          // Check 2: Already processing another transcript
           if (deepgramData && deepgramData.isProcessing) {
-            logger.warn('[DEEPGRAM] Already processing, skipping duplicate transcription');
-            logger.debug('[DEEPGRAM] Current processing state:', {
+            logger.warn('[DEEPGRAM] Already processing, skipping duplicate transcription', {
               agentId: agentId,
-              isProcessing: deepgramData.isProcessing,
-              transcript: transcript?.substring(0, 50)
+              currentProcessing: deepgramData.processingTranscript?.substring(0, 50),
+              newTranscript: transcriptNormalized.substring(0, 50)
             });
             return;
           }
           
-          if (!transcript || transcript.trim().length === 0) {
-            logger.warn('[DEEPGRAM] Empty transcript in finalized event');
+          // Check 3: Same transcript as last finalized (within 2 seconds) - prevent duplicate events
+          if (deepgramData && 
+              deepgramData.lastFinalizedTranscript === transcriptNormalized &&
+              (now - deepgramData.lastFinalizedTimestamp) < 2000) {
+            logger.warn('[DEEPGRAM] Duplicate finalized transcript detected, skipping', {
+              agentId: agentId,
+              transcript: transcriptNormalized.substring(0, 50),
+              timeSinceLast: now - deepgramData.lastFinalizedTimestamp
+            });
+            return;
+          }
+          
+          // Check 4: Transcript is subset of currently processing (race condition protection)
+          if (deepgramData && 
+              deepgramData.processingTranscript &&
+              transcriptNormalized.length < deepgramData.processingTranscript.length &&
+              deepgramData.processingTranscript.includes(transcriptNormalized)) {
+            logger.warn('[DEEPGRAM] New transcript is subset of processing transcript, skipping', {
+              agentId: agentId,
+              processing: deepgramData.processingTranscript.substring(0, 50),
+              new: transcriptNormalized.substring(0, 50)
+            });
             return;
           }
 
-          logger.info(`[DEEPGRAM] 📝 Finalized transcript: "${transcript}"`);
+          // ✅ VALID TRANSCRIPT - Process it
+          logger.info(`[DEEPGRAM] ✅ Utterance finalized (${message?.type || 'unknown'}): "${transcriptNormalized}"`);
+          
+          // Update tracking
+          if (deepgramData) {
+            deepgramData.lastFinalizedTranscript = transcriptNormalized;
+            deepgramData.lastFinalizedTimestamp = now;
+            deepgramData.processingTranscript = transcriptNormalized;
+          }
 
           // Emit transcript to client (useful for debugging / UX feedback)
           try {
@@ -824,7 +864,9 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                       payload: {
                         audio: pcmBase64,
                         format: 'pcm',
-                        sampleRate: 24000,
+                        encoding: 'linear16',
+                        sampleRate: 48000, // WebRTC quality (48kHz)
+                        channels: 1,
                         isFirst: firstChunk
                       }
                     }));
@@ -952,9 +994,10 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
               }
             }));
           } finally {
-            // Reset processing flag
+            // Reset processing flag and clear processing transcript
             if (deepgramData) {
               deepgramData.isProcessing = false;
+              deepgramData.processingTranscript = null;
             }
           }
         },
@@ -1290,13 +1333,15 @@ async function handleInitialGreeting(ws, voiceServices) {
             ws.send(JSON.stringify({
               route: 'audio',
               action: 'tts_chunk',
-              payload: {
-                audio: pcmBase64,
-                format: 'pcm',
-                sampleRate: 24000,
-                isFirst: firstChunk,
-                isWelcome: true
-              }
+                      payload: {
+                        audio: pcmBase64,
+                        format: 'pcm',
+                        encoding: 'linear16',
+                        sampleRate: 48000, // WebRTC quality (48kHz)
+                        channels: 1,
+                        isFirst: firstChunk,
+                        isWelcome: true
+                      }
             }));
             firstChunk = false;
             logger.debug(`[TTS] 📤 Sent PCM chunk to client (${pcmBase64.length} chars base64)`);
