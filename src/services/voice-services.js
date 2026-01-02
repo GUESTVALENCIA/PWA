@@ -115,7 +115,7 @@ class VoiceServices {
 
     const liveOptions = {
       // 🚀 ENTERPRISE MAX: Modelo optimizado para llamadas telefónicas de alta calidad
-      model: 'nova-3', // 🔧 ACTUALIZADO: Usando nova-3 (según configuración Voice Agent de Deepgram Playground)
+      model: 'nova-2', // ✅ Nova 2 según recomendación ChatGPT 5.2 (llamadas reales)
       
       // 🚀 ENTERPRISE MAX: Configuración de idioma
       language: language,
@@ -167,8 +167,9 @@ class VoiceServices {
       // tier: 'nova' ya está incluido en 'nova-2-phonecall'
     };
 
-    if (encoding) liveOptions.encoding = encoding;
-    if (sampleRate) liveOptions.sample_rate = sampleRate;
+    // ✅ Configuración de audio según JSON Deepgram Playground
+    liveOptions.encoding = encoding || 'linear16';
+    liveOptions.sample_rate = sampleRate || 48000; // ✅ 48000 Hz según JSON Deepgram Playground
     if (channels) liveOptions.channels = channels;
 
     const connection = this.deepgram.listen.live(liveOptions);
