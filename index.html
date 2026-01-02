@@ -1566,7 +1566,7 @@
                   // 🚀 ENTERPRISE: Configurar barge-in avanzado (después de crear contexto de audio)
                   this.setupBargeInDetection(ctx, stream);
 
-                  const targetSampleRate = 16000;
+                  const targetSampleRate = 48000; // ✅ Actualizado según JSON Deepgram Playground (48000 Hz input)
                   const chunkMs = 250;
                   const chunkSamples = Math.round(targetSampleRate * (chunkMs / 1000));
                   let chunkBuffer = new Int16Array(chunkSamples);
