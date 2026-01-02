@@ -24,7 +24,25 @@ class VoiceServices {
     this.openaiApiKey = process.env.OPENAI_API_KEY;
     this.groqApiKey = process.env.GROQ_API_KEY;
     this.geminiApiKey = process.env.GEMINI_API_KEY;
-    this.preferredProvider = (process.env.PREFERRED_AI_PROVIDER || 'groq').toLowerCase();
+    
+    // 🚀 LÓGICA DE ENTORNO: Detectar automáticamente desarrollo vs producción
+    const isDevelopment = process.env.NODE_ENV === 'development' || 
+                          process.env.NODE_ENV === 'dev' || 
+                          !process.env.NODE_ENV || 
+                          process.env.NODE_ENV === '';
+    const isProduction = !isDevelopment;
+    
+    // 🎯 PRODUCCIÓN: OpenAI GPT-4o-mini (principal)
+    // 🛠️ DESARROLLO: Groq (para desarrollo local)
+    // Si hay PREFERRED_AI_PROVIDER explícito, respetarlo, sino usar lógica de entorno
+    if (process.env.PREFERRED_AI_PROVIDER) {
+      this.preferredProvider = process.env.PREFERRED_AI_PROVIDER.toLowerCase();
+      logger.info(`[VOICE-SERVICES] Proveedor preferido configurado manualmente: ${this.preferredProvider}`);
+    } else {
+      // Lógica automática: Producción = OpenAI, Desarrollo = Groq
+      this.preferredProvider = isProduction ? 'openai' : 'groq';
+      logger.info(`[VOICE-SERVICES] 🎯 Entorno detectado: ${isProduction ? 'PRODUCCIÓN' : 'DESARROLLO'} → Proveedor: ${this.preferredProvider.toUpperCase()}`);
+    }
     
     // Log configured providers for debugging
     const configuredProviders = [];
@@ -32,12 +50,22 @@ class VoiceServices {
     if (this.openaiApiKey) configuredProviders.push('OpenAI');
     if (this.geminiApiKey) configuredProviders.push('Gemini');
     
+    // Detectar entorno para logging (mismo cálculo que arriba)
+    const isDevelopmentForLog = process.env.NODE_ENV === 'development' || 
+                                 process.env.NODE_ENV === 'dev' || 
+                                 !process.env.NODE_ENV || 
+                                 process.env.NODE_ENV === '';
+    const isProductionForLog = !isDevelopmentForLog;
+    const entorno = isProductionForLog ? 'PRODUCCIÓN' : 'DESARROLLO';
+    
     logger.info('[VOICE-SERVICES] AI Providers status:', {
+      entorno: entorno,
       configured: configuredProviders.length > 0 ? configuredProviders.join(', ') : 'NONE',
-      groq: this.groqApiKey ? `✅ (${this.groqApiKey.length} chars)` : '❌',
-      openai: this.openaiApiKey ? `✅ (${this.openaiApiKey.length} chars)` : '❌',
-      gemini: this.geminiApiKey ? `✅ (${this.geminiApiKey.length} chars)` : '❌',
-      preferred: this.preferredProvider
+      groq: this.groqApiKey ? `✅ (${this.groqApiKey.length} chars) - ${isDevelopmentForLog ? 'PRINCIPAL (dev)' : 'RESERVADO (dev)'}` : '❌',
+      openai: this.openaiApiKey ? `✅ (${this.openaiApiKey.length} chars) - ${isProductionForLog ? 'PRINCIPAL (prod)' : 'FALLBACK'}` : '❌',
+      gemini: this.geminiApiKey ? `✅ (${this.geminiApiKey.length} chars) - FALLBACK` : '❌',
+      preferred: this.preferredProvider.toUpperCase(),
+      modelo: this.preferredProvider === 'openai' ? 'gpt-4o-mini' : (this.preferredProvider === 'groq' ? 'gpt-oss-20b' : 'N/A')
     });
     
     if (configuredProviders.length === 0) {
@@ -608,7 +636,7 @@ Sé amable, profesional y útil.`;
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: 'gpt-4o-mini', // 🎯 PRODUCCIÓN: GPT-4o-mini (modelo principal para producción)
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage }
