@@ -864,9 +864,38 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                     firstBytes: isBuffer ? Array.from(data.slice(0, 10)) : 'N/A'
                   });
                   
-                  // Deepgram TTS sends messages as Buffers (binary) for audio
-                  // Check if it's a Buffer (binary audio data)
+                  // ⚠️ CRITICAL: Deepgram TTS sends BOTH JSON (as Buffer) and PCM audio (as Buffer)
+                  // We must check if Buffer contains JSON before treating it as PCM
                   if (Buffer.isBuffer(data)) {
+                    // Check if Buffer starts with '{' (JSON) - Deepgram sends metadata as JSON in Buffer
+                    if (data.length > 0 && data[0] === 123) { // 123 = '{' in ASCII
+                      // This is JSON metadata, not PCM audio
+                      try {
+                        const messageStr = data.toString('utf8');
+                        const message = JSON.parse(messageStr);
+                        logger.info('[TTS] 📋 Received JSON metadata (as Buffer):', message);
+                        
+                        if (message.type === 'Metadata') {
+                          logger.info('[TTS] 📋 Received metadata:', message);
+                          return; // Skip metadata, wait for audio chunks
+                        } else if (message.type === 'Flushed') {
+                          logger.info('[TTS] ✅ TTS buffer flushed');
+                          return;
+                        } else if (message.type === 'Error') {
+                          logger.error('[TTS] ❌ TTS error:', message);
+                          handleTTSFallback(aiResponse, ws);
+                          return;
+                        } else {
+                          logger.debug('[TTS] Unknown JSON message type:', message.type);
+                          return; // Skip unknown JSON messages
+                        }
+                      } catch (e) {
+                        logger.warn('[TTS] ⚠️ Buffer starts with { but failed to parse as JSON:', e.message);
+                        // Continue to treat as PCM if JSON parsing fails
+                      }
+                    }
+                    
+                    // This is PCM audio data (not JSON)
                     // Validate PCM data (must be even number of bytes for Int16)
                     if (data.length === 0) {
                       logger.debug('[TTS] Empty buffer, skipping');
