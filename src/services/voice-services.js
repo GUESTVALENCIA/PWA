@@ -510,6 +510,9 @@ class VoiceServices {
         }
       });
 
+      let configureSent = false;
+      let configureAcknowledged = false;
+      
       ws.on('open', () => {
         // Configure connection for PCM streaming - WebRTC quality (48kHz)
         // Send Configure IMMEDIATELY - no delay needed
@@ -523,12 +526,51 @@ class VoiceServices {
         logger.info(`[TTS] 📤 Sending Configure message:`, configureMessage);
         
         try {
-          ws.send(JSON.stringify(configureMessage));
-          logger.info(`[TTS] ✅ Deepgram TTS WebSocket connected and configured (model: ${model})`);
-          resolve(ws);
+          const messageStr = JSON.stringify(configureMessage);
+          logger.debug(`[TTS] 📤 Configure message JSON:`, messageStr);
+          ws.send(messageStr);
+          configureSent = true;
+          logger.info(`[TTS] ✅ Configure message sent (model: ${model})`);
+          
+          // Resolve after a small delay to allow Configure to be processed
+          // Don't wait for acknowledgment - Deepgram processes Configure asynchronously
+          setTimeout(() => {
+            if (!configureAcknowledged) {
+              logger.info(`[TTS] ✅ Deepgram TTS WebSocket connected and configured (model: ${model})`);
+              resolve(ws);
+            }
+          }, 50);
         } catch (error) {
           logger.error(`[TTS] ❌ Error sending Configure message:`, error);
           reject(error);
+        }
+      });
+      
+      // Listen for any response messages (including metadata/errors)
+      ws.on('message', (data) => {
+        try {
+          // Check if it's a JSON message (not binary audio)
+          if (!Buffer.isBuffer(data) || (data.length > 0 && data[0] === 123)) {
+            const messageStr = Buffer.isBuffer(data) ? data.toString('utf8') : data.toString();
+            const message = JSON.parse(messageStr);
+            
+            if (message.type === 'Metadata') {
+              configureAcknowledged = true;
+              logger.info(`[TTS] ✅ Configure acknowledged via Metadata:`, {
+                model_name: message.model_name,
+                request_id: message.request_id
+              });
+              
+              // If model doesn't match, log warning
+              if (message.model_name && !message.model_name.includes('agustina')) {
+                logger.warn(`[TTS] ⚠️ Model mismatch! Requested: ${model}, Got: ${message.model_name}`);
+              }
+            } else if (message.type === 'Error') {
+              logger.error(`[TTS] ❌ Error from Deepgram:`, message);
+            }
+          }
+        } catch (e) {
+          // Not a JSON message, ignore
         }
       });
       
