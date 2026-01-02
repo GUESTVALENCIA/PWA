@@ -15,11 +15,11 @@
   <!-- PWA -->
   <meta name="theme-color" content="#0F172A">
   <link rel="manifest" href="/manifest.webmanifest?v=2">
-	  <link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/favicon-32x32.png">
   <link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png?v=2">
-	  <meta name="apple-mobile-web-app-capable" content="yes">
-	  <meta name="mobile-web-app-capable" content="yes">
-	  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
   <!-- Open Graph -->
   <meta property="og:type" content="website">
@@ -41,8 +41,8 @@
     href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap"
     rel="stylesheet">
 
-	  <!-- Tailwind -->
-	  <link rel="stylesheet" href="/assets/tailwind.css">
+  <!-- Tailwind -->
+  <link rel="stylesheet" href="/assets/tailwind.css">
 
   <style>
     :root {
@@ -674,62 +674,62 @@
 
   <!-- Persistencia del Hero (solo imagen): aplica + guarda, sin tocar la lógica de llamada -->
   <script>
-      (function () {
-        const heroBg = document.getElementById('hero-background-image');
-        const heroVideo = document.getElementById('hero-video');
-        const heroInput = document.getElementById('hero-media-upload');
-        const STORAGE_KEY = 'gv-hero-image';
-        let currentObjectUrl = null;
+    (function () {
+      const heroBg = document.getElementById('hero-background-image');
+      const heroVideo = document.getElementById('hero-video');
+      const heroInput = document.getElementById('hero-media-upload');
+      const STORAGE_KEY = 'gv-hero-image';
+      let currentObjectUrl = null;
 
-        const applyHeroImage = (url) => {
-          if (heroBg) heroBg.style.backgroundImage = `url('${url}')`;
-          if (heroVideo) heroVideo.setAttribute('poster', url);
-        };
+      const applyHeroImage = (url) => {
+        if (heroBg) heroBg.style.backgroundImage = `url('${url}')`;
+        if (heroVideo) heroVideo.setAttribute('poster', url);
+      };
 
-        const revokeCurrentObjectUrl = () => {
-          if (currentObjectUrl) {
-            URL.revokeObjectURL(currentObjectUrl);
-            currentObjectUrl = null;
+      const revokeCurrentObjectUrl = () => {
+        if (currentObjectUrl) {
+          URL.revokeObjectURL(currentObjectUrl);
+          currentObjectUrl = null;
+        }
+      };
+
+      // 1) Cargar imagen persistida (localStorage)
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) applyHeroImage(saved);
+      } catch (err) {
+        console.warn('No se pudo leer la imagen guardada del Hero', err);
+      }
+
+      // 2) Al subir imagen: mostrar y persistir (sin tocar vídeo/llamada)
+      if (heroInput) {
+        heroInput.addEventListener('change', (e) => {
+          const file = e.target.files && e.target.files[0];
+          if (!file) return;
+
+          if (!file.type || !file.type.startsWith('image/')) {
+            // No forzamos nada: si no es imagen, salimos sin romper el flujo.
+            return;
           }
-        };
 
-        // 1) Cargar imagen persistida (localStorage)
-        try {
-          const saved = localStorage.getItem(STORAGE_KEY);
-          if (saved) applyHeroImage(saved);
-        } catch (err) {
-          console.warn('No se pudo leer la imagen guardada del Hero', err);
-        }
+          // Mostrar al instante
+          revokeCurrentObjectUrl();
+          currentObjectUrl = URL.createObjectURL(file);
+          applyHeroImage(currentObjectUrl);
 
-        // 2) Al subir imagen: mostrar y persistir (sin tocar vídeo/llamada)
-        if (heroInput) {
-          heroInput.addEventListener('change', (e) => {
-            const file = e.target.files && e.target.files[0];
-            if (!file) return;
-
-            if (!file.type || !file.type.startsWith('image/')) {
-              // No forzamos nada: si no es imagen, salimos sin romper el flujo.
-              return;
+          // Persistir (dataURL)
+          const reader = new FileReader();
+          reader.onload = () => {
+            try {
+              localStorage.setItem(STORAGE_KEY, String(reader.result || ''));
+            } catch (err) {
+              console.warn('No se pudo guardar la imagen del Hero (localStorage)', err);
             }
-
-            // Mostrar al instante
-            revokeCurrentObjectUrl();
-            currentObjectUrl = URL.createObjectURL(file);
-            applyHeroImage(currentObjectUrl);
-
-            // Persistir (dataURL)
-            const reader = new FileReader();
-            reader.onload = () => {
-              try {
-                localStorage.setItem(STORAGE_KEY, String(reader.result || ''));
-              } catch (err) {
-                console.warn('No se pudo guardar la imagen del Hero (localStorage)', err);
-              }
-            };
-            reader.readAsDataURL(file);
-          });
-        }
-      })();
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+    })();
   </script>
 
   <!-- SANDRA WIDGET SCRIPT -->
@@ -934,7 +934,7 @@
         toggleBtn.addEventListener('click', toggleChat);
         closeBtn.addEventListener('click', toggleChat);
 
-          // Send Message
+        // Send Message
         const sendMessage = async () => {
           // Bloquear envío de mensajes si hay llamada activa
           if (this.activeCall || this.chatLocked) {
@@ -967,7 +967,7 @@
           }
         };
         sendBtn.addEventListener('click', sendMessage);
-        input.addEventListener('keypress', (e) => { 
+        input.addEventListener('keypress', (e) => {
           if (e.key === 'Enter' && !this.activeCall && !this.chatLocked) {
             sendMessage();
           }
@@ -1363,10 +1363,10 @@
         this.setHeroCallActive(false);
         this.awaitingResponse = false;
         this.isSpeaking = false;
-        
+
         // 🚀 ENTERPRISE: Limpiar barge-in detection
         this.cleanupBargeIn();
-        
+
         // Reactivar input del chat cuando se cierra la llamada
         const input = document.getElementById('sandra-input');
         const sendBtn = document.getElementById('sandra-send-btn');
@@ -1403,7 +1403,7 @@
         this.awaitingResponse = false;
         // NO cambiar isSpeaking aquí - el audio debe terminar naturalmente
         // this.isSpeaking = false; // REMOVED - permite que el audio termine completo
-        
+
         // 🚀 ENTERPRISE: Limpiar barge-in detection
         this.cleanupBargeIn();
 
@@ -1449,7 +1449,7 @@
         // Ocultar prompt de llamada cuando inicia la llamada real
         const callPrompt = document.getElementById('sandra-call-prompt');
         if (callPrompt) callPrompt.style.display = 'none';
-        
+
         // Desactivar input del chat cuando hay llamada activa
         const input = document.getElementById('sandra-input');
         const sendBtn = document.getElementById('sandra-send-btn');
@@ -1470,7 +1470,7 @@
         this.activeCall = ws;
         this.sttAvailable = null;
         this.sttNoticeShown = false;
-        
+
         // NOTE: Ya desactivamos input/sendBtn arriba. No redeclarar variables aquí:
         // redeclarar `const input` en el mismo scope rompe el script con SyntaxError.
         let sttCapabilitiesTimeout = null;
@@ -1613,8 +1613,7 @@
                   };
 
                   console.log(`[MCP] 🎤 Captura PCM iniciada (linear16 ${targetSampleRate}Hz)`);
-                  // #region agent log
-                  fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.html:1615',message:'Client PCM streaming started',data:{targetSampleRate,encoding:'linear16',channels:1,ctxSampleRate:ctx.sampleRate},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+                  // #region agent log - debug removed
                   // #endregion
                   return true;
                 } catch (err) {
@@ -1699,7 +1698,7 @@
 
             } catch (err) {
               console.error('[MCP] ❌ Error accediendo al micrófono:', err);
-              
+
               // Manejar diferentes tipos de errores
               let errorMessage = 'No se pudo acceder al micrófono.';
               if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
@@ -1709,7 +1708,7 @@
               } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
                 errorMessage = 'El micrófono está siendo usado por otra aplicación.';
               }
-              
+
               // Mostrar mensaje al usuario en el chat en lugar de alert
               const messagesContainer = document.getElementById('sandra-messages');
               if (messagesContainer) {
@@ -1724,7 +1723,7 @@
                 messagesContainer.insertAdjacentHTML('beforeend', errorHtml);
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
               }
-              
+
               this.stopAudioCapture();
               this.hangupCall('mic_error');
             } finally {
@@ -1793,7 +1792,7 @@
 
           // Verificación adicional (ya manejado arriba, pero por seguridad)
           if (data.type === 'error' && data.error && (
-            data.error.includes('Unknown message type') || 
+            data.error.includes('Unknown message type') ||
             data.error.includes('Unknown message type: undefined')
           )) {
             return;
@@ -1818,7 +1817,7 @@
           // PRIMERO: Manejar mensajes que no tienen route/action (formato diferente del servidor)
           if (!data.route && !data.action && !data.error && data.type !== 'error') {
             console.log('[MCP] Mensaje sin route/action, estructura completa:', JSON.stringify(data, null, 2));
-            
+
             // Intentar detectar si es un mensaje de audio de respuesta
             if (data.audio || data.payload?.audio) {
               const audioBase64 = data.audio || data.payload?.audio;
@@ -1829,7 +1828,7 @@
               this.playAudioResponse(audioBase64, isWelcome);
               return;
             }
-            
+
             // Si tiene type, podría ser un mensaje de otro formato
             if (data.type) {
               console.log('[MCP] Mensaje con type:', data.type, 'payload:', data.payload || data);
@@ -1866,7 +1865,7 @@
             console.log('[MCP] ✅ Recibida respuesta de audio TTS');
             this.clearResponseWatchdog();
             this.awaitingResponse = false;
-            
+
             // 🚀 FASE 1: Si es audio nativo (WAV), intentar usar AudioWorklet
             if (data.payload.isNative && data.payload.format === 'wav' && this.audioWorkletReady) {
               try {
@@ -1876,7 +1875,7 @@
                 for (let i = 0; i < binaryString.length; i++) {
                   bytes[i] = binaryString.charCodeAt(i);
                 }
-                
+
                 if (this.playNativeAudio(bytes.buffer)) {
                   console.log('[AUDIO] ✅ Audio nativo reproducido con AudioWorklet');
                   return;
@@ -1885,31 +1884,31 @@
                 console.error('[AUDIO] ❌ Error reproduciendo audio nativo, fallback a <audio>:', error);
               }
             }
-            
+
             // Detectar si es el saludo inicial
             const isWelcome = data.payload.isWelcome || (!this.currentAudio && !this.isSpeaking);
             this.playAudioResponse(data.payload.audio, isWelcome);
             return;
           }
 
-	          // Manejar mensajes de error del servidor
-	          if (data.route === 'error' && data.action === 'message' && data.payload) {
-	            const payloadError = (typeof data.payload.error === 'string') ? data.payload.error : '';
-	            const payloadMessage = (typeof data.payload.message === 'string') ? data.payload.message : '';
-	            const errorCode = (typeof data.payload.code === 'string') ? data.payload.code : '';
+          // Manejar mensajes de error del servidor
+          if (data.route === 'error' && data.action === 'message' && data.payload) {
+            const payloadError = (typeof data.payload.error === 'string') ? data.payload.error : '';
+            const payloadMessage = (typeof data.payload.message === 'string') ? data.payload.message : '';
+            const errorCode = (typeof data.payload.code === 'string') ? data.payload.code : '';
 
-	            const rawErrorText = (payloadError && payloadMessage && payloadMessage !== payloadError)
-	              ? `${payloadError}: ${payloadMessage}`
-	              : (payloadMessage || payloadError || 'Error desconocido');
+            const rawErrorText = (payloadError && payloadMessage && payloadMessage !== payloadError)
+              ? `${payloadError}: ${payloadMessage}`
+              : (payloadMessage || payloadError || 'Error desconocido');
 
-	            const isDeepgramNotConfigured =
-	              errorCode === 'DEEPGRAM_NOT_CONFIGURED' ||
-	              rawErrorText.includes('DEEPGRAM_API_KEY') ||
-	              rawErrorText.includes('Deepgram SDK not initialized');
+            const isDeepgramNotConfigured =
+              errorCode === 'DEEPGRAM_NOT_CONFIGURED' ||
+              rawErrorText.includes('DEEPGRAM_API_KEY') ||
+              rawErrorText.includes('Deepgram SDK not initialized');
 
-	            const userErrorText = isDeepgramNotConfigured
-	              ? 'La transcripción de voz no está disponible en este momento (DEEPGRAM_API_KEY no configurada en el servidor).'
-	              : rawErrorText;
+            const userErrorText = isDeepgramNotConfigured
+              ? 'La transcripción de voz no está disponible en este momento (DEEPGRAM_API_KEY no configurada en el servidor).'
+              : rawErrorText;
 
             console.error('[MCP] ❌ Error del servidor:', rawErrorText);
 
@@ -1917,8 +1916,8 @@
               this.addMessage(userErrorText, 'system');
             } catch (_) { }
 
-	            this.clearResponseWatchdog();
-	            this.awaitingResponse = false;
+            this.clearResponseWatchdog();
+            this.awaitingResponse = false;
 
             // Si falta Deepgram, detener streaming para evitar spam de errores
             if (isDeepgramNotConfigured) {
@@ -1949,9 +1948,9 @@
             console.error('[MCP] ❌ El servidor debe usar Deepgram TTS y enviar route: "audio", action: "tts"');
             this.clearResponseWatchdog();
             this.awaitingResponse = false;
-            
+
             const responseText = data.payload.text;
-            
+
             // NO mostrar mensaje en el chat cuando hay llamada activa
             if (!this.activeCall) {
               this.addMessage(responseText, 'system');
@@ -1962,7 +1961,7 @@
               liveTranscript.classList.add('hidden');
               liveTranscript.textContent = '';
             }
-            
+
             // NO usar SpeechSynthesis - el servidor debe enviar audio
             console.error('[MCP] ❌ No se puede reproducir respuesta: el servidor debe enviar audio TTS');
             this.isSpeaking = false;
@@ -2109,14 +2108,14 @@
           this.audioWorkletContext = new (window.AudioContext || window.webkitAudioContext)({
             sampleRate: 24000
           });
-          
+
           // Load AudioWorklet processor
           await this.audioWorkletContext.audioWorklet.addModule('assets/js/audio-worklet-processor.js');
-          
+
           // Create AudioWorkletNode
           this.audioWorkletNode = new AudioWorkletNode(this.audioWorkletContext, 'pcm-playback-processor');
           this.audioWorkletNode.connect(this.audioWorkletContext.destination);
-          
+
           this.audioWorkletReady = true;
           console.log('[AUDIO] ✅ AudioWorklet initialized successfully');
         } catch (error) {
@@ -2218,28 +2217,28 @@
           console.warn('[BARGE-IN] No se puede configurar: stream o audioContext no disponible');
           return;
         }
-        
+
         try {
           // Crear AnalyserNode para detectar nivel de audio del micrófono
           this.bargeInAnalyser = audioContext.createAnalyser();
           this.bargeInAnalyser.fftSize = 2048;
           this.bargeInAnalyser.smoothingTimeConstant = 0.8; // Suavizado para evitar fluctuaciones
-          
+
           const source = audioContext.createMediaStreamSource(stream);
           source.connect(this.bargeInAnalyser);
-          
+
           const dataArray = new Uint8Array(this.bargeInAnalyser.frequencyBinCount);
-          
+
           // Monitorear nivel de audio cada 50ms (20 veces por segundo)
           this.bargeInCheckInterval = setInterval(() => {
             if (!this.currentAudio || !this.isSpeaking) {
               this.isUserSpeaking = false;
               return;
             }
-            
+
             try {
               this.bargeInAnalyser.getByteTimeDomainData(dataArray);
-              
+
               // Calcular nivel promedio de audio
               let sum = 0;
               for (let i = 0; i < dataArray.length; i++) {
@@ -2247,10 +2246,10 @@
                 sum += Math.abs(normalized);
               }
               const average = sum / dataArray.length;
-              
+
               // Umbral ajustable: 0.15 = usuario hablando claramente
               const SPEAKING_THRESHOLD = 0.15;
-              
+
               if (average > SPEAKING_THRESHOLD && this.isSpeaking) {
                 // Usuario está hablando mientras Sandra habla
                 if (!this.isUserSpeaking) {
@@ -2275,7 +2274,7 @@
               console.error('[BARGE-IN] Error en detección:', error);
             }
           }, 50); // Check cada 50ms para respuesta rápida
-          
+
           console.log('[BARGE-IN] ✅ Sistema de barge-in avanzado configurado');
         } catch (error) {
           console.error('[BARGE-IN] Error configurando barge-in:', error);
@@ -2290,7 +2289,7 @@
         if (this.bargeInAnalyser) {
           try {
             this.bargeInAnalyser.disconnect();
-          } catch (_) {}
+          } catch (_) { }
           this.bargeInAnalyser = null;
         }
         this.isUserSpeaking = false;
@@ -2372,17 +2371,16 @@
         const audio = new Audio(blobUrl);
         audio._blobUrl = blobUrl;
         audio.volume = 1.0; // Asegurar volumen máximo
-        
-        // 🎯 CONTROL DE VELOCIDAD: Solo aplicar a voz conversacional, NO al welcome
+
+        // 🎯 CONTROL DE VELOCIDAD: Normal para ambos casos
         if (isWelcome) {
-          audio.playbackRate = 1.0; // Welcome: velocidad normal
+          audio.playbackRate = 1.0;
         } else {
-          // Voz conversacional: reducir velocidad para evitar audio acelerado
-          audio.playbackRate = 0.5; // 50% de velocidad (ajustable según necesidad)
+          audio.playbackRate = 1.0;
         }
-        
+
         this.currentAudio = audio;
-        
+
         console.log('[AUDIO] ⚙️ Configuración de audio:', {
           volume: audio.volume,
           playbackRate: audio.playbackRate,
@@ -2395,7 +2393,7 @@
         // Para el saludo inicial, esperar a que el buffer esté completamente cargado
         if (isWelcome) {
           console.log('[AUDIO] ⏳ Esperando buffer completo del saludo (carga completa para evitar cortes)...');
-          
+
           // Wait for the audio to be fully loaded before playing
           const waitForFullLoad = () => {
             if (audio.readyState >= 4) { // HAVE_ENOUGH_DATA - completely loaded
@@ -2411,7 +2409,7 @@
               setTimeout(waitForFullLoad, 100);
             }
           };
-          
+
           // Wait for canplaythrough (indicates audio can play through to the end)
           audio.addEventListener('canplaythrough', () => {
             console.log('[AUDIO] ✅ Evento canplaythrough disparado - audio listo para reproducirse completo');
@@ -2424,15 +2422,15 @@
               });
             }
           }, { once: true });
-          
+
           audio.addEventListener('loadeddata', () => {
             console.log('[AUDIO] ✅ Evento loadeddata disparado');
           });
-          
+
           audio.addEventListener('loadedmetadata', () => {
             console.log('[AUDIO] ✅ Metadata cargada - Duración:', audio.duration, 'segundos');
           });
-          
+
           waitForFullLoad();
         } else {
           console.log('[AUDIO] ▶️  Reproduciendo audio normal...');
@@ -2452,7 +2450,7 @@
         audio.onended = () => {
           console.log('[AUDIO] ✅ Audio finalizado completamente');
           this.isSpeaking = false;
-          
+
           // CRITICAL FIX: Wait 5 seconds before revoking to ensure audio fully finishes
           // This prevents cutting off the end of the audio and gives time for the buffer to clear
           setTimeout(() => {
