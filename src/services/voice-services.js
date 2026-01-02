@@ -55,17 +55,10 @@ class VoiceServices {
                           process.env.NODE_ENV === '';
     const isProduction = !isDevelopment;
     
-    // 🎯 PRODUCCIÓN: OpenAI GPT-4o-mini (principal)
-    // 🛠️ DESARROLLO: Groq (para desarrollo local)
-    // Si hay PREFERRED_AI_PROVIDER explícito, respetarlo, sino usar lógica de entorno
-    if (process.env.PREFERRED_AI_PROVIDER) {
-      this.preferredProvider = process.env.PREFERRED_AI_PROVIDER.toLowerCase();
-      logger.info(`[VOICE-SERVICES] Proveedor preferido configurado manualmente: ${this.preferredProvider}`);
-    } else {
-      // Lógica automática: Producción = OpenAI, Desarrollo = Groq
-      this.preferredProvider = isProduction ? 'openai' : 'groq';
-      logger.info(`[VOICE-SERVICES] 🎯 Entorno detectado: ${isProduction ? 'PRODUCCIÓN' : 'DESARROLLO'} → Proveedor: ${this.preferredProvider.toUpperCase()}`);
-    }
+    // 🎯 PRODUCCIÓN FIJO: OpenAI GPT-4o-mini (ÚNICO modelo en producción)
+    // ✅ SIMPLIFICADO: Solo OpenAI, sin fallbacks, sin cambios
+    this.preferredProvider = 'openai';
+    logger.info(`[VOICE-SERVICES] 🎯 Modelo FIJO: OpenAI GPT-4o-mini (producción)`);
     
     // Log configured providers for debugging
     const configuredProviders = [];
@@ -832,7 +825,7 @@ class VoiceServices {
   }
 
   /**
-   * Process message with AI (Groq preferred, OpenAI and Gemini as fallbacks)
+   * Process message with AI - SOLO OpenAI GPT-4o-mini (fijado en producción)
    */
   async processMessage(userMessage) {
     const systemPrompt = `Eres Sandra, la asistente virtual de Guests Valencia, especializada en hospitalidad y turismo.
@@ -841,87 +834,19 @@ Actúa como una experta en Hospitalidad y Turismo.
 Sé breve: máximo 4 frases salvo que se pida detalle.
 Sé amable, profesional y útil.`;
 
-    const errors = [];
-
-    // Try preferred provider first
-    if (this.preferredProvider === 'groq' && this.groqApiKey) {
-      try {
-        logger.info('[AI] Attempting Groq (preferred)...');
-        return await this._callGroq(userMessage, systemPrompt);
-      } catch (error) {
-        errors.push({ provider: 'Groq', error: error.message });
-        logger.warn('[AI] Groq failed:', error.message);
-      }
-    } else if (this.preferredProvider === 'openai' && this.openaiApiKey) {
-      try {
-        logger.info('[AI] Attempting OpenAI (preferred)...');
-        return await this._callOpenAI(userMessage, systemPrompt);
-      } catch (error) {
-        errors.push({ provider: 'OpenAI', error: error.message });
-        logger.warn('[AI] OpenAI failed:', error.message);
-      }
-    } else if (this.preferredProvider === 'gemini' && this.geminiApiKey) {
-      try {
-        logger.info('[AI] Attempting Gemini (preferred)...');
-        return await this._callGemini(userMessage, systemPrompt);
-      } catch (error) {
-        errors.push({ provider: 'Gemini', error: error.message });
-        logger.warn('[AI] Gemini failed:', error.message);
-      }
+    // ✅ SOLO OpenAI GPT-4o-mini - Sin fallbacks, sin cambios
+    if (!this.openaiApiKey) {
+      const errorMsg = 'OPENAI_API_KEY no configurada. Configura OPENAI_API_KEY en Render Dashboard.';
+      logger.error('[AI] ' + errorMsg);
+      throw new Error(errorMsg);
     }
 
-    // Try all other providers as fallbacks
-    if (this.preferredProvider !== 'groq' && this.groqApiKey) {
-      try {
-        logger.info('[AI] Attempting Groq (fallback)...');
-        return await this._callGroq(userMessage, systemPrompt);
-      } catch (error) {
-        errors.push({ provider: 'Groq', error: error.message });
-        logger.warn('[AI] Groq fallback failed:', error.message);
-      }
-    }
-
-    if (this.preferredProvider !== 'openai' && this.openaiApiKey) {
-      try {
-        logger.info('[AI] Attempting OpenAI (fallback)...');
-        return await this._callOpenAI(userMessage, systemPrompt);
-      } catch (error) {
-        errors.push({ provider: 'OpenAI', error: error.message });
-        logger.warn('[AI] OpenAI fallback failed:', error.message);
-      }
-    }
-
-    if (this.preferredProvider !== 'gemini' && this.geminiApiKey) {
-      try {
-        logger.info('[AI] Attempting Gemini (fallback)...');
-        return await this._callGemini(userMessage, systemPrompt);
-      } catch (error) {
-        errors.push({ provider: 'Gemini', error: error.message });
-        logger.warn('[AI] Gemini fallback failed:', error.message);
-      }
-    }
-
-    // All providers failed
-    if (errors.length === 0) {
-      // No providers configured at all
-      const configured = [];
-      if (this.groqApiKey) configured.push('Groq');
-      if (this.openaiApiKey) configured.push('OpenAI');
-      if (this.geminiApiKey) configured.push('Gemini');
-      
-      if (configured.length === 0) {
-        const errorMsg = 'No AI providers configured. Configure at least one: GROQ_API_KEY, OPENAI_API_KEY, or GEMINI_API_KEY in Render Dashboard.';
-        logger.error('[AI] ' + errorMsg);
-        throw new Error(errorMsg);
-      } else {
-        const errorMsg = `All configured AI providers failed. Configured: ${configured.join(', ')}. Check API keys in Render Dashboard.`;
-        logger.error('[AI] ' + errorMsg);
-        throw new Error(errorMsg);
-      }
-    } else {
-      const errorMessage = `All AI providers failed. Errors: ${errors.map(e => `${e.provider}: ${e.error.substring(0, 100)}`).join('; ')}`;
-      logger.error('[AI] All providers failed:', errors);
-      throw new Error(errorMessage);
+    try {
+      logger.info('[AI] 🎯 Usando OpenAI GPT-4o-mini (único modelo en producción)...');
+      return await this._callOpenAI(userMessage, systemPrompt);
+    } catch (error) {
+      logger.error('[AI] ❌ Error con OpenAI GPT-4o-mini:', error.message);
+      throw error;
     }
   }
 
