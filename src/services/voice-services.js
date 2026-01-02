@@ -8,6 +8,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createClient, LiveTranscriptionEvents } from '@deepgram/sdk';
 import logger from '../utils/logger.js';
+import WebSocket from 'ws';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -266,64 +267,176 @@ class VoiceServices {
    * Generate voice using native local audio file (eliminates Cartesia latency)
    */
   /**
-   * Generate voice audio using Deepgram TTS (dynamic audio generation)
-   * Uses Deepgram TTS API to generate audio from text with native voice quality
+   * Generate voice audio - supports both native audio and Deepgram TTS streaming
+   * @param {string} text - Text to synthesize (required for TTS, optional for native)
+   * @param {Object} options - Options { useNative: boolean, model: string, streaming: boolean }
+   * @returns {Promise<{type: 'native'|'tts'|'streaming', data: Buffer|string|WebSocket}>}
    */
-  async generateVoice(text, voiceId = null) {
-    if (!text || text.trim() === '') {
-      // If no text provided, return welcome audio file (for initial greeting)
-      return await this.getWelcomeAudio();
+  async generateVoice(text, options = {}) {
+    // Handle legacy call signature (text, voiceId)
+    if (typeof options === 'string' || options === null) {
+      options = { streaming: true, model: 'aura-2-nestor-es' };
     }
 
-    // 🚀 Use Deepgram TTS to generate dynamic audio from text
-    // Deepgram TTS provides low-latency, high-quality voice generation
-    try {
-      logger.info(`[TTS] 🎙️ Generating audio with Deepgram TTS for text: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
-      
-      // Use Deepgram TTS with Spanish voice model
-      // Model: aura-2-thalia-es (Spanish female voice)
-      const audioBase64 = await this._generateDeepgramTTS(text, 'aura-2-thalia-es');
-      
-      logger.info('[TTS] ✅ Audio generated successfully with Deepgram TTS');
-      return audioBase64;
-    } catch (error) {
-      logger.error('[TTS] ❌ Error generating audio with Deepgram TTS:', error);
-      
-      // Fallback: try native voice file if Deepgram fails
-      logger.warn('[TTS] ⚠️ Falling back to native voice file');
-      const nativeVoicePath = path.join(__dirname, '../../assets/audio/sandra-conversational.wav');
-      const possiblePaths = [
-        nativeVoicePath,
-        path.join(process.cwd(), 'assets/audio/sandra-conversational.wav'),
-        path.join(__dirname, '../../../assets/audio/sandra-conversational.wav')
-      ];
+    const { useNative = false, model = 'aura-2-nestor-es', streaming = true } = options;
 
-      for (const voicePath of possiblePaths) {
-        if (fs.existsSync(voicePath)) {
-          logger.info(`[TTS] 📁 Using native voice file as fallback: ${voicePath}`);
-          const audioBuffer = fs.readFileSync(voicePath);
-          return audioBuffer.toString('base64');
+    // Option 1: Use native audio file (lowest latency)
+    if (useNative) {
+      try {
+        const nativeAudioPath = path.join(__dirname, '../../assets/audio/sandra-conversational.wav');
+        if (fs.existsSync(nativeAudioPath)) {
+          const audioBuffer = fs.readFileSync(nativeAudioPath);
+          logger.info('[TTS] ✅ Using native audio file (lowest latency)');
+          return {
+            type: 'native',
+            data: audioBuffer,
+            format: 'wav',
+            sampleRate: 24000
+          };
+        } else {
+          logger.warn('[TTS] ⚠️ Native audio file not found, falling back to TTS');
         }
+      } catch (error) {
+        logger.error('[TTS] ❌ Error loading native audio:', error);
       }
+    }
+
+    // Option 2: Deepgram TTS WebSocket streaming (dynamic responses, lowest latency)
+    if (streaming && text && text.trim() !== '') {
+      logger.info(`[TTS] 🎙️ Creating TTS WebSocket streaming for: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
       
-      throw new Error(`TTS generation failed: ${error.message}`);
+      try {
+        const ttsWs = await this.createTTSStreamingConnection(model);
+        return {
+          type: 'streaming',
+          ws: ttsWs,
+          model: model,
+          text: text // Store text for later use
+        };
+      } catch (error) {
+        logger.error('[TTS] ❌ Error creating TTS WebSocket, falling back to REST:', error);
+        // Fall through to REST API
+      }
+    }
+
+    // Option 3: Deepgram TTS REST API (fallback, MP3 + base64)
+    if (!text || text.trim() === '') {
+      throw new Error('Text is required for TTS generation');
+    }
+
+    logger.info(`[TTS] 🎙️ Generating audio with Deepgram TTS REST API for text: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
+    
+    // Use Deepgram TTS REST API with Spanish voice model
+    // Note: aura-2-thalia-es doesn't exist, using nestor-es or carina-es
+    const audioBase64 = await this._generateDeepgramTTS(text, model);
+    
+    logger.info('[TTS] ✅ Audio generated successfully with Deepgram TTS REST API');
+    return {
+      type: 'tts',
+      data: audioBase64,
+      format: 'mp3'
+    };
+  }
+
+  /**
+   * Create Deepgram TTS WebSocket streaming connection
+   * Returns WebSocket for streaming PCM audio (linear16)
+   * @param {string} model - Deepgram voice model (aura-2-nestor-es, aura-2-carina-es, etc.)
+   * @returns {Promise<WebSocket>} WebSocket connection for TTS streaming
+   */
+  async createTTSStreamingConnection(model = 'aura-2-nestor-es') {
+    if (!this.deepgramApiKey) {
+      throw new Error('Deepgram API key not configured');
+    }
+
+    return new Promise((resolve, reject) => {
+      const ws = new WebSocket('wss://api.deepgram.com/v1/speak', {
+        headers: {
+          'Authorization': `Token ${this.deepgramApiKey}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      ws.on('open', () => {
+        // Configure connection for PCM streaming
+        ws.send(JSON.stringify({
+          type: 'Configure',
+          model: model,
+          encoding: 'linear16', // PCM 16-bit
+          sample_rate: 24000 // 24kHz (optimal for voice)
+        }));
+        
+        logger.info(`[TTS] ✅ Deepgram TTS WebSocket connected and configured (model: ${model})`);
+        resolve(ws);
+      });
+
+      ws.on('error', (error) => {
+        logger.error('[TTS] ❌ TTS WebSocket error:', error);
+        reject(error);
+      });
+
+      // Set timeout for connection
+      setTimeout(() => {
+        if (ws.readyState !== WebSocket.OPEN) {
+          ws.close();
+          reject(new Error('TTS WebSocket connection timeout'));
+        }
+      }, 10000);
+    });
+  }
+
+  /**
+   * Send text to TTS WebSocket for synthesis
+   * @param {WebSocket} ttsWs - TTS WebSocket connection
+   * @param {string} text - Text to synthesize
+   */
+  sendTextToTTS(ttsWs, text) {
+    if (ttsWs && ttsWs.readyState === WebSocket.OPEN) {
+      ttsWs.send(JSON.stringify({
+        type: 'Speak',
+        text: text
+      }));
+      logger.info(`[TTS] 📤 Sent text to TTS: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
+    } else {
+      logger.error('[TTS] ❌ TTS WebSocket not open');
     }
   }
 
   /**
-   * Generate TTS audio using Deepgram API
+   * Flush TTS buffer to start audio generation
+   * @param {WebSocket} ttsWs - TTS WebSocket connection
+   */
+  flushTTS(ttsWs) {
+    if (ttsWs && ttsWs.readyState === WebSocket.OPEN) {
+      ttsWs.send(JSON.stringify({ type: 'Flush' }));
+      logger.info('[TTS] 🔄 Flushed TTS buffer');
+    }
+  }
+
+  /**
+   * Clear TTS buffer (for barge-in)
+   * @param {WebSocket} ttsWs - TTS WebSocket connection
+   */
+  clearTTS(ttsWs) {
+    if (ttsWs && ttsWs.readyState === WebSocket.OPEN) {
+      ttsWs.send(JSON.stringify({ type: 'Clear' }));
+      logger.info('[TTS] 🧹 Cleared TTS buffer');
+    }
+  }
+
+  /**
+   * Generate TTS audio using Deepgram REST API (fallback)
    * @private
    */
-  async _generateDeepgramTTS(text, model = 'aura-2-thalia-es') {
-    // Deepgram TTS models for Spanish: aura-2-thalia-es, aura-2-luna-es, etc.
-    // Specify encoding and sample_rate for consistent audio output
+  async _generateDeepgramTTS(text, model = 'aura-2-nestor-es') {
+    // Deepgram TTS models for Spanish: aura-2-nestor-es, aura-2-carina-es, aura-2-silvia-es
+    // Note: aura-2-thalia-es does NOT exist - using nestor-es (masculine) or carina-es (feminine)
     if (!this.deepgramApiKey) {
       throw new Error('Deepgram API key not configured');
     }
 
     try {
-      // Deepgram TTS endpoint - usar encoding mp3 sin especificar sample_rate para evitar problemas de velocidad
-      // Si se especifica sample_rate incorrecto puede causar audio acelerado
+      // Deepgram TTS REST endpoint - fallback when WebSocket streaming is not available
       const response = await fetch(`https://api.deepgram.com/v1/speak?model=${model}&encoding=mp3`, {
         method: 'POST',
         headers: {
@@ -340,10 +453,10 @@ class VoiceServices {
 
       const audioBuffer = await response.arrayBuffer();
       const audioBase64 = Buffer.from(audioBuffer).toString('base64');
-      logger.info('[TTS] ✅ Audio generated successfully with Deepgram (MP3)');
+      logger.info('[TTS] ✅ Audio generated successfully with Deepgram REST API (MP3)');
       return audioBase64;
     } catch (error) {
-      logger.error('[TTS] Deepgram TTS error:', error);
+      logger.error('[TTS] Deepgram TTS REST API error:', error);
       throw error;
     }
   }
@@ -464,18 +577,18 @@ Sé amable, profesional y útil.`;
     const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.openaiApiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userMessage }
-          ],
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.openaiApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage }
+        ],
           temperature: 0.7,
           max_tokens: 200
         }),
@@ -484,17 +597,17 @@ Sé amable, profesional y útil.`;
 
       clearTimeout(timeout);
 
-      if (!response.ok) {
-        const errorText = await response.text();
+    if (!response.ok) {
+      const errorText = await response.text();
         const errorMsg = errorText.length > 200 ? errorText.substring(0, 200) : errorText;
         throw new Error(`OpenAI Error ${response.status}: ${errorMsg}`);
-      }
+    }
 
-      const data = await response.json();
+    const data = await response.json();
       if (!data.choices || !data.choices[0] || !data.choices[0].message) {
         throw new Error('OpenAI: Invalid response format');
       }
-      return data.choices[0].message.content;
+    return data.choices[0].message.content;
     } catch (error) {
       clearTimeout(timeout);
       if (error.name === 'AbortError') {
@@ -513,18 +626,18 @@ Sé amable, profesional y útil.`;
     const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
     try {
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.groqApiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: 'qwen2.5-72b-instruct',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userMessage }
-          ],
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.groqApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'qwen2.5-72b-instruct',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage }
+        ],
           temperature: 0.7,
           max_tokens: 200
         }),
@@ -533,17 +646,17 @@ Sé amable, profesional y útil.`;
 
       clearTimeout(timeout);
 
-      if (!response.ok) {
-        const errorText = await response.text();
+    if (!response.ok) {
+      const errorText = await response.text();
         const errorMsg = errorText.length > 200 ? errorText.substring(0, 200) : errorText;
         throw new Error(`Groq Error ${response.status}: ${errorMsg}`);
-      }
+    }
 
-      const data = await response.json();
+    const data = await response.json();
       if (!data.choices || !data.choices[0] || !data.choices[0].message) {
         throw new Error('Groq: Invalid response format');
       }
-      return data.choices[0].message.content;
+    return data.choices[0].message.content;
     } catch (error) {
       clearTimeout(timeout);
       if (error.name === 'AbortError') {
@@ -612,44 +725,13 @@ Sé amable, profesional y útil.`;
   }
 
   /**
-   * Get welcome audio (pre-recorded file)
-   * Uses the same conversational voice file for consistent tone
+   * Get welcome audio - DEPRECATED: Now uses Deepgram TTS dynamically
+   * ⚠️ ESTE MÉTODO YA NO SE DEBE USAR - Todo audio debe generarse con Deepgram TTS
    */
   async getWelcomeAudio() {
-    // Use the same conversational voice file for welcome message (same tone, no latency)
-    const nativeVoicePath = path.join(__dirname, '../../assets/audio/sandra-conversational.wav');
-    
-    const possiblePaths = [
-      nativeVoicePath,
-      path.join(process.cwd(), 'assets/audio/sandra-conversational.wav'),
-      path.join(__dirname, '../../../assets/audio/sandra-conversational.wav')
-    ];
-
-    for (const voicePath of possiblePaths) {
-      if (fs.existsSync(voicePath)) {
-        logger.info(`📁 Using conversational voice for welcome (same tone, no latency): ${voicePath}`);
-        const audioBuffer = fs.readFileSync(voicePath);
-        return audioBuffer.toString('base64');
-      }
-    }
-
-    // Fallback: try welcome.mp3 if conversational.wav not found
-    logger.warn('⚠️ Conversational voice file not found, trying welcome.mp3 as fallback');
-    const welcomePaths = [
-      path.join(__dirname, '../../assets/audio/welcome.mp3'),
-      path.join(process.cwd(), 'assets/audio/welcome.mp3'),
-      path.join(__dirname, '../../../assets/audio/welcome.mp3')
-    ];
-
-    for (const welcomePath of welcomePaths) {
-      if (fs.existsSync(welcomePath)) {
-        logger.info(`📁 Using welcome.mp3 as fallback: ${welcomePath}`);
-        const audioBuffer = fs.readFileSync(welcomePath);
-        return audioBuffer.toString('base64');
-      }
-    }
-
-    throw new Error('Welcome audio file not found. Expected: assets/audio/sandra-conversational.wav or assets/audio/welcome.mp3');
+    logger.error('[TTS] ❌ ERROR: getWelcomeAudio() llamado - Este método está DESHABILITADO');
+    logger.error('[TTS] ❌ Todos los audios deben generarse con Deepgram TTS usando generateVoice(text)');
+    throw new Error('getWelcomeAudio() está DESHABILITADO. Usar generateVoice(text) con Deepgram TTS en su lugar.');
   }
 }
 
