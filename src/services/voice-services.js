@@ -931,6 +931,10 @@ const exportedServices = {
     processMessage: (message) => voiceServicesInstance.processMessage(message)
   },
   getWelcomeAudio: () => voiceServicesInstance.getWelcomeAudio(),
+  createTTSStreamingConnection: (model) => voiceServicesInstance.createTTSStreamingConnection(model),
+  sendTextToTTS: (ttsWs, text) => voiceServicesInstance.sendTextToTTS(ttsWs, text),
+  flushTTS: (ttsWs) => voiceServicesInstance.flushTTS(ttsWs),
+  clearTTS: (ttsWs) => voiceServicesInstance.clearTTS(ttsWs),
   capabilities: {
     stt: deepgramConfigured
   }
