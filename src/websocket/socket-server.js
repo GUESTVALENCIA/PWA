@@ -981,13 +981,26 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                 });
                 
                 // Send completion when WebSocket closes
-                ttsWs.on('close', () => {
-                  ws.send(JSON.stringify({
-                    route: 'audio',
-                    action: 'tts_complete',
-                    payload: {}
-                  }));
-                  logger.info('[TTS] ✅ TTS WebSocket streaming completed');
+                ttsWs.on('close', (code, reason) => {
+                  logger.info('[TTS] ✅ TTS WebSocket streaming completed', {
+                    totalChunks: chunksReceived,
+                    totalBytes: totalBytesReceived,
+                    closeCode: code,
+                    closeReason: reason?.toString()
+                  });
+                  
+                  // Only send completion if we received at least one chunk
+                  if (chunksReceived > 0) {
+                    ws.send(JSON.stringify({
+                      route: 'audio',
+                      action: 'tts_complete',
+                      payload: {}
+                    }));
+                  } else {
+                    // No chunks received - fallback to REST API
+                    logger.warn('[TTS] ⚠️ No audio chunks received, falling back to REST API');
+                    handleTTSFallback(aiResponse, ws);
+                  }
                 });
                 
                 ttsWs.on('error', (error) => {
