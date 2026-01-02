@@ -138,7 +138,8 @@ class VoiceServices {
 
     const liveOptions = {
       // 🚀 ENTERPRISE MAX: Modelo optimizado para llamadas telefónicas de alta calidad
-      model: 'nova-2', // ✅ Nova 2 según recomendación ChatGPT 5.2 (llamadas reales)
+      // Usar 'nova' base (más compatible con Pay As You Go) en lugar de 'nova-2'
+      model: 'nova', // ✅ Cambiado a 'nova' base para mayor compatibilidad (Pay As You Go)
       
       // 🚀 ENTERPRISE MAX: Configuración de idioma
       language: language,
