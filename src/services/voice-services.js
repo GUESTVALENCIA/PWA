@@ -657,7 +657,7 @@ Sé amable, profesional y útil.`;
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'qwen2.5-72b-instruct',
+        model: 'gpt-oss-20b', // Modelo GPT OSS 20B de Groq (según imagen Deepgram)
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage }
