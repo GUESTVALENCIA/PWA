@@ -478,16 +478,14 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices) {
   }
 
   // Verificar que los servicios estén disponibles
-  // Note: generateVoice removed - client uses native local voice instead
-  // CRITICAL: Check for all required properties that server.js validates
-  if (!voiceServices.deepgram || !voiceServices.ai || !voiceServices.getWelcomeAudio) {
+  // 🚀 ENTERPRISE: Solo requerir deepgram y AI - getWelcomeAudio ya no se usa (todo con Deepgram TTS)
+  if (!voiceServices.deepgram || !voiceServices.ai || !voiceServices.generateVoice) {
     // #region agent log
     debugLog('socket-server.js:469', 'Voice services missing required properties', {hasDeepgram:!!voiceServices.deepgram,hasAI:!!voiceServices.ai,hasWelcomeAudio:!!voiceServices.getWelcomeAudio,hasGenerateVoice:!!voiceServices.generateVoice,allKeys:voiceServices?Object.keys(voiceServices):[],voiceServicesType:typeof voiceServices}, 'C');
     // #endregion
     logger.warn('Voice services not fully initialized', {
       hasDeepgram: !!voiceServices.deepgram,
       hasAI: !!voiceServices.ai,
-      hasWelcomeAudio: !!voiceServices.getWelcomeAudio,
       hasGenerateVoice: !!voiceServices.generateVoice,
       allKeys: voiceServices ? Object.keys(voiceServices) : [],
       voiceServicesType: typeof voiceServices
@@ -732,28 +730,126 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
 
             logger.info(`💬 AI Response received (${aiResponse.length} chars): "${aiResponse.substring(0, 100)}${aiResponse.length > 100 ? '...' : ''}"`);
 
-            // Generate TTS audio using Deepgram (fallback to native voice file if Deepgram fails)
+            // 🚀 FASE 1: Generate TTS audio using Deepgram WebSocket streaming (preferred) or REST fallback
             try {
-              const responseAudio = await voiceServices.generateVoice(aiResponse);
+              const responseAudio = await voiceServices.generateVoice(aiResponse, { streaming: true, model: 'aura-2-nestor-es' });
               
-              // Send AUDIO response to client
-              ws.send(JSON.stringify({
-                route: 'audio',
-                action: 'tts',
-                payload: {
-                  audio: responseAudio,
-                  format: 'mp3',
-                  text: aiResponse,
-                  language: 'es'
-                }
-              }));
-
-              logger.info('✅ Audio TTS response sent to client (Deepgram o voz nativa)');
+              // Handle different response types
+              if (responseAudio.type === 'streaming' && responseAudio.ws) {
+                // TTS WebSocket streaming - send PCM chunks as they arrive
+                logger.info('[TTS] 🎙️ Using TTS WebSocket streaming (PCM)');
+                
+                const ttsWs = responseAudio.ws;
+                let firstChunk = true;
+                
+                // Send text to TTS
+                voiceServices.sendTextToTTS(ttsWs, aiResponse);
+                
+                // Flush to start audio generation
+                voiceServices.flushTTS(ttsWs);
+                
+                // Handle incoming PCM audio chunks
+                ttsWs.on('message', (data) => {
+                  if (data instanceof Buffer) {
+                    // PCM audio data - send to client as base64
+                    const pcmBase64 = data.toString('base64');
+                    ws.send(JSON.stringify({
+                      route: 'audio',
+                      action: 'tts_chunk',
+                      payload: {
+                        audio: pcmBase64,
+                        format: 'pcm',
+                        sampleRate: 24000,
+                        isFirst: firstChunk
+                      }
+                    }));
+                    firstChunk = false;
+                  } else {
+                    // JSON message (status, etc.)
+                    try {
+                      const message = JSON.parse(data.toString());
+                      if (message.type === 'Flushed') {
+                        logger.info('[TTS] ✅ TTS buffer flushed');
+                      } else if (message.type === 'Error') {
+                        logger.error('[TTS] ❌ TTS error:', message);
+                      }
+                    } catch (e) {
+                      // Not JSON, ignore
+                    }
+                  }
+                });
+                
+                // Send completion when WebSocket closes
+                ttsWs.on('close', () => {
+                  ws.send(JSON.stringify({
+                    route: 'audio',
+                    action: 'tts_complete',
+                    payload: {}
+                  }));
+                  logger.info('[TTS] ✅ TTS WebSocket streaming completed');
+                });
+                
+                ttsWs.on('error', (error) => {
+                  logger.error('[TTS] ❌ TTS WebSocket error:', error);
+                  // Fallback to REST API
+                  handleTTSFallback(aiResponse, ws);
+                });
+                
+              } else if (responseAudio.type === 'native') {
+                // Native audio file - send as base64
+                logger.info('[TTS] ✅ Using native audio file');
+                const audioBase64 = responseAudio.data.toString('base64');
+                ws.send(JSON.stringify({
+                  route: 'audio',
+                  action: 'tts',
+                  payload: {
+                    audio: audioBase64,
+                    format: 'wav',
+                    text: aiResponse,
+                    language: 'es',
+                    isNative: true
+                  }
+                }));
+              } else if (responseAudio.type === 'tts') {
+                // REST API fallback (MP3)
+                logger.info('[TTS] ✅ Using Deepgram REST API (MP3 fallback)');
+                ws.send(JSON.stringify({
+                  route: 'audio',
+                  action: 'tts',
+                  payload: {
+                    audio: responseAudio.data,
+                    format: 'mp3',
+                    text: aiResponse,
+                    language: 'es'
+                  }
+                }));
+              }
+              
+              logger.info('✅ Audio TTS response sent to client');
             } catch (ttsError) {
-              logger.error('[TTS] ❌ ERROR CRÍTICO: No se pudo generar audio ni usar voz nativa:', ttsError);
-              // No enviar solo texto - el cliente no puede reproducirlo sin SpeechSynthesis
-              // El error ya se registró, y generateVoice() debería lanzar error solo si fallan TODOS los métodos
+              logger.error('[TTS] ❌ ERROR CRÍTICO: No se pudo generar audio:', ttsError);
               throw new Error(`TTS failed: ${ttsError.message}`);
+            }
+            
+            // Helper function for REST API fallback
+            async function handleTTSFallback(text, clientWs) {
+              try {
+                const fallbackAudio = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-nestor-es' });
+                if (fallbackAudio.type === 'tts') {
+                  clientWs.send(JSON.stringify({
+                    route: 'audio',
+                    action: 'tts',
+                    payload: {
+                      audio: fallbackAudio.data,
+                      format: 'mp3',
+                      text: text,
+                      language: 'es'
+                    }
+                  }));
+                }
+              } catch (error) {
+                logger.error('[TTS] ❌ Fallback also failed:', error);
+              }
             }
           } catch (error) {
             logger.error('[DEEPGRAM] Error processing transcript with AI:', {
