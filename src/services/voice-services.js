@@ -275,10 +275,10 @@ class VoiceServices {
   async generateVoice(text, options = {}) {
     // Handle legacy call signature (text, voiceId)
     if (typeof options === 'string' || options === null) {
-      options = { streaming: true, model: 'aura-2-elvira-es' };
+      options = { streaming: true, model: 'aura-2-agustina-es' };
     }
 
-    const { useNative = false, model = 'aura-2-elvira-es', streaming = true } = options;
+    const { useNative = false, model = 'aura-2-agustina-es', streaming = true } = options;
 
     // Option 1: Use native audio file (lowest latency)
     if (useNative) {
@@ -344,7 +344,7 @@ class VoiceServices {
    * @param {string} model - Deepgram voice model (aura-2-nestor-es, aura-2-carina-es, etc.)
    * @returns {Promise<WebSocket>} WebSocket connection for TTS streaming
    */
-  async createTTSStreamingConnection(model = 'aura-2-elvira-es') {
+  async createTTSStreamingConnection(model = 'aura-2-agustina-es') {
     if (!this.deepgramApiKey) {
       throw new Error('Deepgram API key not configured');
     }
@@ -428,9 +428,9 @@ class VoiceServices {
    * Generate TTS audio using Deepgram REST API (fallback)
    * @private
    */
-  async _generateDeepgramTTS(text, model = 'aura-2-elvira-es') {
+  async _generateDeepgramTTS(text, model = 'aura-2-agustina-es') {
     // Deepgram TTS models for Spanish (Peninsular):
-    // FEMENINAS: aura-2-elvira-es, aura-2-helena-es, aura-2-laura-es
+    // FEMENINAS: aura-2-carina-es, aura-2-diana-es, aura-2-agustina-es, aura-2-silvia-es
     // MASCULINAS: aura-2-nestor-es
     // OTRAS: aura-2-celeste-es (Colombia), aura-2-estrella-es (México)
     if (!this.deepgramApiKey) {
