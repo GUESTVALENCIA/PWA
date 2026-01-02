@@ -218,11 +218,33 @@ class VoiceServices {
     connection.on(LiveTranscriptionEvents.Error, (error) => {
       clearIdleTimer();
       logger.error('[DEEPGRAM] ❌ Connection error:', error);
-      logger.error('[DEEPGRAM] Error details:', {
-        message: error.message,
-        code: error.code,
-        stack: error.stack?.substring(0, 200)
-      });
+      
+      // Enhanced error logging for WebSocket ErrorEvent
+      const errorDetails = {
+        message: error?.message || '',
+        code: error?.code,
+        stack: error?.stack?.substring(0, 200),
+        type: error?.type,
+        target: error?.target?.url || 'N/A',
+        currentTarget: error?.currentTarget?.url || 'N/A',
+        timeStamp: error?.timeStamp,
+        // String representation
+        stringified: String(error),
+        // Check if it's an ErrorEvent
+        isErrorEvent: error?.constructor?.name === 'ErrorEvent' || error?.type === 'error'
+      };
+      logger.error('[DEEPGRAM] Error details:', errorDetails);
+      
+      // Log API key status (first 10 chars for security)
+      if (this.deepgramApiKey) {
+        logger.error('[DEEPGRAM] API Key status:', {
+          present: true,
+          length: this.deepgramApiKey.length,
+          prefix: this.deepgramApiKey.substring(0, 10) + '...'
+        });
+      } else {
+        logger.error('[DEEPGRAM] API Key status: MISSING');
+      }
 
       if (onError) {
         onError(error);
