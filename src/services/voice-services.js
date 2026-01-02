@@ -433,7 +433,7 @@ class VoiceServices {
 
     const { 
       useNative = false, 
-      model = 'aura-2-celeste-es', // ✅ DEFAULT: aura-2-celeste-es (modelo encontrado en Playground)
+      model = 'aura-2-agustina-es', // ✅ DEFAULT: aura-2-agustina-es (PENINSULAR - España)
       streaming = false, // ✅ DEFAULT: false (usar REST API, más simple y confiable)
       provider = 'deepgram' // ✅ DEFAULT: deepgram (gastar crédito de $200)
     } = options;
