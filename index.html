@@ -2134,8 +2134,25 @@
         }
 
         try {
+          // Validate base64 string
+          if (!pcmChunkBase64 || typeof pcmChunkBase64 !== 'string') {
+            console.warn('[AUDIO] ⚠️ Invalid PCM chunk (not a string), skipping');
+            return;
+          }
+
           // Decode base64 to ArrayBuffer
           const binaryString = atob(pcmChunkBase64);
+          if (binaryString.length === 0) {
+            console.warn('[AUDIO] ⚠️ Empty PCM chunk, skipping');
+            return;
+          }
+
+          // Validate length is multiple of 2 (Int16 requires 2 bytes per sample)
+          if (binaryString.length % 2 !== 0) {
+            console.warn('[AUDIO] ⚠️ Invalid PCM chunk length (not multiple of 2), skipping');
+            return;
+          }
+
           const bytes = new Uint8Array(binaryString.length);
           for (let i = 0; i < binaryString.length; i++) {
             bytes[i] = binaryString.charCodeAt(i);
@@ -2157,6 +2174,7 @@
           this.isSpeaking = true;
         } catch (error) {
           console.error('[AUDIO] ❌ Error handling TTS PCM chunk:', error);
+          // Don't break the flow, just log the error
         }
       }
 

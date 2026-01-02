@@ -816,9 +816,9 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
 
             logger.info(`💬 AI Response received (${aiResponse.length} chars): "${aiResponse.substring(0, 100)}${aiResponse.length > 100 ? '...' : ''}"`);
 
-            // Generar audio de respuesta usando Deepgram TTS
+            // Generar audio de respuesta usando Deepgram TTS (WebSocket streaming para latencia mínima)
             try {
-              const responseAudio = await voiceServices.generateVoice(aiResponse, { streaming: false, model: 'aura-2-agustina-es' });
+              const responseAudio = await voiceServices.generateVoice(aiResponse, { streaming: true, model: 'aura-2-agustina-es' });
               
               // Handle different response types
               if (responseAudio.type === 'tts' && responseAudio.data) {
