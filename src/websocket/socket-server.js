@@ -855,8 +855,37 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                 
                 // Handle incoming PCM audio chunks
                 ttsWs.on('message', (data) => {
-                  if (data instanceof Buffer) {
-                    // PCM audio data - send to client as base64
+                  // Filter out metadata JSON messages (first message is always metadata)
+                  if (!(data instanceof Buffer)) {
+                    try {
+                      const message = JSON.parse(data.toString());
+                      if (message.type === 'Metadata') {
+                        logger.debug('[TTS] 📋 Received metadata:', message);
+                        return; // Skip metadata, wait for audio chunks
+                      } else if (message.type === 'Flushed') {
+                        logger.info('[TTS] ✅ TTS buffer flushed');
+                        return;
+                      } else if (message.type === 'Error') {
+                        logger.error('[TTS] ❌ TTS error:', message);
+                        // Fallback to REST API on error
+                        handleTTSFallback(aiResponse, ws);
+                        return;
+                      }
+                    } catch (e) {
+                      // Not JSON, might be text - ignore
+                      logger.debug('[TTS] Non-buffer, non-JSON message, ignoring');
+                      return;
+                    }
+                  }
+                  
+                  // Only send Buffer data (PCM audio)
+                  if (data instanceof Buffer && data.length > 0) {
+                    // Validate PCM data (must be even number of bytes for Int16)
+                    if (data.length % 2 !== 0) {
+                      logger.warn('[TTS] ⚠️ Invalid PCM chunk size (not multiple of 2), skipping');
+                      return;
+                    }
+                    
                     const pcmBase64 = data.toString('base64');
                     ws.send(JSON.stringify({
                       route: 'audio',
@@ -871,18 +900,6 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                       }
                     }));
                     firstChunk = false;
-                  } else {
-                    // JSON message (status, etc.)
-                    try {
-                      const message = JSON.parse(data.toString());
-                      if (message.type === 'Flushed') {
-                        logger.info('[TTS] ✅ TTS buffer flushed');
-                      } else if (message.type === 'Error') {
-                        logger.error('[TTS] ❌ TTS error:', message);
-                      }
-                    } catch (e) {
-                      // Not JSON, ignore
-                    }
                   }
                 });
                 
