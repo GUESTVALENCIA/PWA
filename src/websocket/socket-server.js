@@ -734,7 +734,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
             // TODO: Habilitar streaming cuando esté completamente funcional
             try {
               // TEMPORAL: Usar REST API en lugar de streaming para evitar problemas
-              const responseAudio = await voiceServices.generateVoice(aiResponse, { streaming: false, model: 'aura-2-nestor-es' });
+              const responseAudio = await voiceServices.generateVoice(aiResponse, { streaming: false, model: 'aura-2-carina-es' });
               
               // Handle different response types
               // TEMPORAL: Solo manejar REST API (tts type) por ahora
@@ -856,7 +856,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
             // Helper function for REST API fallback
             async function handleTTSFallback(text, clientWs) {
               try {
-                const fallbackAudio = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-nestor-es' });
+                const fallbackAudio = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-carina-es' });
                 if (fallbackAudio.type === 'tts') {
                   clientWs.send(JSON.stringify({
                     route: 'audio',
@@ -1084,7 +1084,7 @@ async function handleAudioTTS(payload, ws, voiceServices) {
     // Send text to client for native voice playback (client handles audio locally)
     // Note: We no longer generate audio on server - client uses native voice file
     // ⚠️ CRITICAL: Always use REST API and extract data property
-    const audioResult = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-nestor-es' });
+    const audioResult = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-carina-es' });
     
     // Extract audio data based on type
     let audioData;
@@ -1132,7 +1132,7 @@ async function handleAudioTTS(payload, ws, voiceServices) {
 // Helper function for REST API fallback
 async function handleGreetingFallback(text, clientWs, voiceServices) {
   try {
-    const fallbackAudio = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-nestor-es' });
+    const fallbackAudio = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-carina-es' });
     if (fallbackAudio.type === 'tts') {
       clientWs.send(JSON.stringify({
         route: 'audio',
@@ -1173,7 +1173,7 @@ async function handleInitialGreeting(ws, voiceServices) {
     // TODO: Habilitar streaming cuando esté completamente funcional
     try {
       // TEMPORAL: Usar REST API en lugar de streaming para evitar problemas
-      const greetingAudio = await voiceServices.generateVoice(greetingText, { streaming: false, model: 'aura-2-nestor-es' });
+      const greetingAudio = await voiceServices.generateVoice(greetingText, { streaming: false, model: 'aura-2-carina-es' });
       
       // ⚠️ CRITICAL: Never send WebSocket objects to client - handle streaming server-side
       if (greetingAudio.type === 'streaming' && greetingAudio.ws) {
