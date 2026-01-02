@@ -1567,28 +1567,31 @@ async function handleInitialGreeting(ws, voiceServices) {
           });
         });
         
-        // ⚠️ CRITICAL: Wait for WebSocket to be fully ready AND wait for Configure confirmation
+        // ⚠️ CRITICAL: Send text IMMEDIATELY when WebSocket is ready (no delays)
+        // Deepgram TTS WebSocket closes quickly if no data is sent
         const sendTextAndFlush = () => {
           if (ttsWs.readyState === WebSocket.OPEN) {
-            // Wait a bit more to ensure Configure was processed
+            // Send text IMMEDIATELY - no delay
+            voiceServices.sendTextToTTS(ttsWs, greetingText);
+            
+            // Small delay before flush to ensure text is sent
             setTimeout(() => {
-              // Send text to TTS
-              voiceServices.sendTextToTTS(ttsWs, greetingText);
-              
-              // Wait before flush to ensure text is sent
-              setTimeout(() => {
-                // Flush to start audio generation
-                voiceServices.flushTTS(ttsWs);
-                logger.info('[TTS] ✅ Greeting text sent and flushed, waiting for audio chunks...');
-              }, 50); // Increased delay to ensure Speak is processed
-            }, 100); // Wait for Configure to be fully processed
+              // Flush to start audio generation
+              voiceServices.flushTTS(ttsWs);
+              logger.info('[TTS] ✅ Greeting text sent and flushed, waiting for audio chunks...');
+            }, 10); // Minimal delay for flush
           } else {
             // Wait for connection to open
             ttsWs.once('open', sendTextAndFlush);
           }
         };
         
-        sendTextAndFlush();
+        // If already open, send immediately; otherwise wait for 'open' event
+        if (ttsWs.readyState === WebSocket.OPEN) {
+          sendTextAndFlush();
+        } else {
+          ttsWs.once('open', sendTextAndFlush);
+        }
         
         // ⚠️ CRITICAL: Return immediately - do NOT send greetingAudio object to client
         return; // Exit early if streaming is set up
