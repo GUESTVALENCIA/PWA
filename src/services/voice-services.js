@@ -10,6 +10,29 @@ import { createClient, LiveTranscriptionEvents } from '@deepgram/sdk';
 import logger from '../utils/logger.js';
 import WebSocket from 'ws';
 
+// Debug logging helper
+const debugLog = (location, message, data, hypothesisId) => {
+  try {
+    const logDir = path.join(process.cwd(), '.cursor');
+    const logPath = path.join(logDir, 'debug.log');
+    if (!fs.existsSync(logDir)) {
+      fs.mkdirSync(logDir, { recursive: true });
+    }
+    const logEntry = JSON.stringify({
+      location,
+      message,
+      data,
+      timestamp: Date.now(),
+      sessionId: 'debug-session',
+      runId: 'run1',
+      hypothesisId
+    }) + '\n';
+    fs.appendFileSync(logPath, logEntry, 'utf8');
+  } catch (err) {
+    // Silently fail if log file can't be written
+  }
+};
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -172,12 +195,22 @@ class VoiceServices {
     liveOptions.sample_rate = sampleRate || 48000; // ✅ 48000 Hz según JSON Deepgram Playground
     if (channels) liveOptions.channels = channels;
 
+    // #region agent log
+    debugLog('voice-services.js:174', 'Deepgram connection params before create', {encoding:liveOptions.encoding,sample_rate:liveOptions.sample_rate,channels:liveOptions.channels,model:liveOptions.model}, 'A');
+    // #endregion
+
     const connection = this.deepgram.listen.live(liveOptions);
+    
+    // #region agent log
+    const connectTime = Date.now();
+    debugLog('voice-services.js:182', 'Deepgram connection created', {connectTime,readyState:connection.getReadyState?.()}, 'C');
+    // #endregion
 
     let finalizedUtterance = '';
     let interimUtterance = '';
     let lastMessage = null;
     let idleTimer = null;
+    const connectionStartTime = connectTime; // Store for error handler
 
     const clearIdleTimer = () => {
       if (!idleTimer) return;
@@ -246,9 +279,8 @@ class VoiceServices {
 
     connection.on(LiveTranscriptionEvents.Error, (error) => {
       clearIdleTimer();
-      logger.error('[DEEPGRAM] ❌ Connection error:', error);
-      
-      // Enhanced error logging for WebSocket ErrorEvent
+      const errorTime = Date.now();
+      // #region agent log
       const errorDetails = {
         message: error?.message || '',
         code: error?.code,
@@ -257,11 +289,14 @@ class VoiceServices {
         target: error?.target?.url || 'N/A',
         currentTarget: error?.currentTarget?.url || 'N/A',
         timeStamp: error?.timeStamp,
-        // String representation
         stringified: String(error),
-        // Check if it's an ErrorEvent
-        isErrorEvent: error?.constructor?.name === 'ErrorEvent' || error?.type === 'error'
+        isErrorEvent: error?.constructor?.name === 'ErrorEvent' || error?.type === 'error',
+        readyState: connection.getReadyState?.(),
+        timeSinceConnect: connectionStartTime ? errorTime - connectionStartTime : null
       };
+      debugLog('voice-services.js:257', 'Deepgram ErrorEvent captured', errorDetails, 'ALL');
+      // #endregion
+      logger.error('[DEEPGRAM] ❌ Connection error:', error);
       logger.error('[DEEPGRAM] Error details:', errorDetails);
       
       // Log API key status (first 10 chars for security)
