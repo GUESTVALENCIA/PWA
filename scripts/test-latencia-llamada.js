@@ -39,9 +39,13 @@ const WS_URL = process.env.MCP_SERVER_URL?.replace('https://', 'wss://').replace
 const FIRST_RINGTONE_DURATION_MS = 1430; // 1.43 segundos (duración real del primer ringtone)
 const QUESTION_DELAY_MS = 10; // 10ms después del primer ringtone (1.44s total)
 
-// Audio real - cargar desde archivo o usar audio de prueba
-const AUDIO_FILE_PATH = process.env.TEST_AUDIO_FILE || join(__dirname, '../test-audio.wav'); // Archivo de audio real (opcional)
-const USE_REAL_AUDIO = true; // Siempre usar audio real en producción
+// Audio real - buscar en raíz del proyecto (prioridad)
+const ROOT_DIR = join(__dirname, '..');
+const AUDIO_PRIORITY = [
+  join(ROOT_DIR, 'sandra-conversational.wav'),  // Fallback Sandra Conversacional
+  join(ROOT_DIR, 'test-audio.wav'),              // Audio de prueba personalizado
+  process.env.TEST_AUDIO_FILE || null            // Variable de entorno
+].filter(Boolean);
 
 // Colores para consola
 const colors = {
@@ -69,6 +73,13 @@ const metrics = {
   ttsResponseStartTime: null,
   ttsResponseEndTime: null,
   endTime: null,
+  // Métricas específicas de primera respuesta
+  firstResponseLatency: null,
+  audioQuality: {
+    size: null,
+    format: null,
+    estimatedDuration: null
+  }
 };
 
 // Estado del test
@@ -132,9 +143,9 @@ function printMetrics() {
   const questionSentLatency = getTimeDiff(metrics.firstRingtoneEndTime, metrics.questionSentTime);
   printMetric('4. Pregunta enviada:', formatTime(questionSentLatency), colors.cyan);
 
-  // Fase 5: Latencia TOTAL de respuesta (desde pregunta hasta audio)
-  const totalResponseLatency = getTimeDiff(metrics.questionSentTime, metrics.ttsResponseEndTime);
-  printMetric('5. Latencia TOTAL Respuesta:', formatTime(totalResponseLatency), totalResponseLatency < 5000 ? colors.green : colors.yellow);
+  // Fase 5: ⭐ PRIMERA RESPUESTA DE IA (MÉTRICA PRINCIPAL)
+  const firstResponseLatency = metrics.firstResponseLatency || getTimeDiff(metrics.questionSentTime, metrics.ttsResponseEndTime);
+  printMetric('5. ⭐ PRIMERA RESPUESTA IA:', formatTime(firstResponseLatency), firstResponseLatency < 5000 ? colors.green : colors.yellow);
 
   // Desglose interno de la respuesta (si está disponible)
   if (metrics.transcriptionEndTime && metrics.aiResponseEndTime) {
@@ -165,17 +176,36 @@ function printMetrics() {
   printMetric('  • Respuesta Completa (STT+IA+TTS):', formatTime(responseLatency));
   printMetric('  • Otros (overhead):', formatTime(otherLatency));
 
-  // Análisis de latencia de respuesta
+  // Análisis de latencia de primera respuesta
   console.log('\n' + '-'.repeat(60));
-  console.log(`${colors.bright}🔍 ANÁLISIS:${colors.reset}\n`);
+  console.log(`${colors.bright}🔍 ANÁLISIS - PRIMERA RESPUESTA IA:${colors.reset}\n`);
 
-  const responseLatency = totalResponseLatency || 0;
-  if (responseLatency < 3000) {
-    console.log(`${colors.green}✅ Latencia de respuesta EXCELENTE (< 3s)${colors.reset}`);
-  } else if (responseLatency < 6000) {
-    console.log(`${colors.yellow}⚠️  Latencia de respuesta ACEPTABLE (3-6s)${colors.reset}`);
+  const firstResponseLatency = metrics.firstResponseLatency || 0;
+  if (firstResponseLatency < 3000) {
+    console.log(`${colors.green}✅ Latencia EXCELENTE (< 3s) - Pipeline optimizado${colors.reset}`);
+  } else if (firstResponseLatency < 6000) {
+    console.log(`${colors.yellow}⚠️  Latencia ACEPTABLE (3-6s) - Mejorable${colors.reset}`);
   } else {
-    console.log(`${colors.red}❌ Latencia de respuesta ALTA (> 6s) - Necesita optimización${colors.reset}`);
+    console.log(`${colors.red}❌ Latencia ALTA (> 6s) - Necesita optimización urgente${colors.reset}`);
+  }
+
+  // Análisis de calidad de audio
+  console.log('\n' + '-'.repeat(60));
+  console.log(`${colors.bright}🎵 CALIDAD DE AUDIO:${colors.reset}\n`);
+  
+  if (metrics.audioQuality.size) {
+    printMetric('  • Tamaño audio enviado:', formatTime(metrics.audioQuality.size) + ' bytes');
+    printMetric('  • Formato:', metrics.audioQuality.format.toUpperCase());
+    if (metrics.audioQuality.estimatedDuration) {
+      printMetric('  • Duración estimada:', metrics.audioQuality.estimatedDuration + 's');
+    }
+    
+    // Evaluar calidad
+    if (metrics.audioQuality.size > 10000) {
+      console.log(`${colors.green}✅ Audio de buena calidad (tamaño adecuado)${colors.reset}`);
+    } else {
+      console.log(`${colors.yellow}⚠️  Audio pequeño - puede afectar transcripción${colors.reset}`);
+    }
   }
 
   // Recomendaciones
@@ -223,23 +253,34 @@ async function runLatencyTest() {
             console.log(`${colors.cyan}💬 Enviando audio REAL de producción${colors.reset}`);
             console.log(`   (${formatTime(getTimeDiff(metrics.firstRingtoneEndTime, metrics.questionSentTime))} después del ringtone)\n`);
           
-          // Cargar audio REAL desde archivo o generar audio de prueba real
+          // Cargar audio REAL desde archivo (prioridad: raíz del proyecto)
           let audioBuffer;
           let audioFormat = 'pcm';
           let sampleRate = 48000;
+          let audioFilePath = null;
           
           try {
-            // Intentar cargar archivo de audio real si existe
-            if (fs.existsSync(AUDIO_FILE_PATH)) {
-              audioBuffer = fs.readFileSync(AUDIO_FILE_PATH);
-              console.log(`${colors.green}✅ Audio real cargado desde archivo${colors.reset} (${audioBuffer.length} bytes)\n`);
-              // Detectar formato por extensión
-              if (AUDIO_FILE_PATH.endsWith('.wav')) {
-                audioFormat = 'wav';
-              } else if (AUDIO_FILE_PATH.endsWith('.webm')) {
-                audioFormat = 'webm';
+            // Buscar archivo de audio en orden de prioridad
+            for (const audioPath of AUDIO_PRIORITY) {
+              if (fs.existsSync(audioPath)) {
+                audioBuffer = fs.readFileSync(audioPath);
+                audioFilePath = audioPath;
+                console.log(`${colors.green}✅ Audio real cargado: ${path.basename(audioPath)}${colors.reset} (${audioBuffer.length} bytes)\n`);
+                
+                // Detectar formato por extensión
+                if (audioPath.endsWith('.wav')) {
+                  audioFormat = 'wav';
+                } else if (audioPath.endsWith('.webm')) {
+                  audioFormat = 'webm';
+                } else if (audioPath.endsWith('.mp3')) {
+                  audioFormat = 'mp3';
+                }
+                break; // Usar el primer archivo encontrado
               }
-            } else {
+            }
+            
+            // Si no se encontró ningún archivo, generar audio de prueba
+            if (!audioBuffer) {
               // Generar audio PCM real (tono de prueba - no silencio)
               // 1 segundo de audio PCM a 48kHz, 16-bit, mono
               const duration = 1.0; // 1 segundo
@@ -254,8 +295,21 @@ async function runLatencyTest() {
                 audioBuffer.writeInt16LE(intSample, i * 2);
               }
               
-              console.log(`${colors.yellow}⚠️  Archivo de audio no encontrado, generando tono de prueba${colors.reset} (${audioBuffer.length} bytes)\n`);
-              console.log(`${colors.yellow}💡 Para usar audio real, coloca un archivo .wav o .webm en: ${AUDIO_FILE_PATH}${colors.reset}\n`);
+              console.log(`${colors.yellow}⚠️  Archivos de audio no encontrados, generando tono de prueba${colors.reset} (${audioBuffer.length} bytes)\n`);
+              console.log(`${colors.yellow}💡 Para usar audio real, coloca un archivo en la raíz del proyecto:${colors.reset}`);
+              console.log(`${colors.yellow}   - sandra-conversational.wav (recomendado)${colors.reset}`);
+              console.log(`${colors.yellow}   - test-audio.wav${colors.reset}\n`);
+            }
+            
+            // Guardar métricas de calidad de audio
+            if (audioBuffer) {
+              metrics.audioQuality.size = audioBuffer.length;
+              metrics.audioQuality.format = audioFormat;
+              // Estimar duración: para PCM 48kHz 16-bit mono = 2 bytes por muestra
+              if (audioFormat === 'pcm' || audioFormat === 'wav') {
+                const samples = audioBuffer.length / 2;
+                metrics.audioQuality.estimatedDuration = (samples / sampleRate).toFixed(2);
+              }
             }
           } catch (error) {
             console.error(`${colors.red}❌ Error cargando audio:${colors.reset}`, error.message);
@@ -360,10 +414,17 @@ async function runLatencyTest() {
               metrics.aiResponseEndTime = metrics.ttsResponseEndTime;
             }
             
-            const totalResponseLatency = getTimeDiff(metrics.questionSentTime, metrics.ttsResponseEndTime);
+            // ⭐ MÉTRICA PRINCIPAL: Primera respuesta de IA
+            metrics.firstResponseLatency = getTimeDiff(metrics.questionSentTime, metrics.ttsResponseEndTime);
+            
+            // Calcular calidad del audio recibido
+            const audioBase64 = message.payload.audio || '';
+            const audioSize = audioBase64 ? Math.floor(audioBase64.length * 0.75) : 0; // Base64 es ~33% más grande
+            
             console.log(`${colors.green}✅ Audio respuesta recibido (REAL)${colors.reset}`);
             console.log(`   Texto: "${message.payload.text?.substring(0, 80) || 'N/A'}..."`);
-            console.log(`   ${colors.bright}⏱️  Latencia TOTAL de respuesta: ${formatTime(totalResponseLatency)}${colors.reset}\n`);
+            console.log(`   ${colors.bright}⏱️  Latencia PRIMERA RESPUESTA IA: ${formatTime(metrics.firstResponseLatency)}${colors.reset}`);
+            console.log(`   ${colors.cyan}📊 Calidad Audio: ${formatTime(audioSize)} bytes, formato: ${message.payload.format || 'N/A'}${colors.reset}\n`);
 
             if (!metrics.endTime) {
               metrics.endTime = Date.now();
