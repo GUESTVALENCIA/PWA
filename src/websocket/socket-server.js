@@ -584,15 +584,6 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
   const { audio, format, mimeType, encoding, sampleRate, channels } = payload;
 
   // #region agent log
-  const debugLog = (location, message, data, hypothesisId) => {
-    try {
-      const fs = require('fs');
-      const path = require('path');
-      const logPath = path.join(process.cwd(), '.cursor', 'debug.log');
-      const logEntry = JSON.stringify({location,message,data,timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId}) + '\n';
-      fs.appendFileSync(logPath, logEntry, 'utf8');
-    } catch (err) {}
-  };
   debugLog('socket-server.js:584', 'Audio STT payload received', {encoding,sampleRate,channels,format,audioLength:audio?.length}, 'A');
   // #endregion
 
@@ -706,17 +697,6 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
       const resolvedChannels = Number.isFinite(Number(channels)) ? Number(channels) : 1;
       
       // #region agent log
-      if (!debugLog) {
-        const fs = require('fs');
-        const path = require('path');
-        var debugLog = (location, message, data, hypothesisId) => {
-          try {
-            const logPath = path.join(process.cwd(), '.cursor', 'debug.log');
-            const logEntry = JSON.stringify({location,message,data,timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId}) + '\n';
-            fs.appendFileSync(logPath, logEntry, 'utf8');
-          } catch (err) {}
-        };
-      }
       debugLog('socket-server.js:691', 'Resolved audio params for Deepgram', {resolvedEncoding,resolvedSampleRate,resolvedChannels,originalSampleRate:sampleRate,originalEncoding:encoding}, 'A');
       // #endregion
        
