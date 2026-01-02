@@ -25,7 +25,7 @@
 import dotenv from 'dotenv';
 import WebSocket from 'ws';
 import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { dirname, join, basename } from 'path';
 import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -265,7 +265,7 @@ async function runLatencyTest() {
               if (fs.existsSync(audioPath)) {
                 audioBuffer = fs.readFileSync(audioPath);
                 audioFilePath = audioPath;
-                console.log(`${colors.green}✅ Audio real cargado: ${path.basename(audioPath)}${colors.reset} (${audioBuffer.length} bytes)\n`);
+                console.log(`${colors.green}✅ Audio real cargado: ${basename(audioPath)}${colors.reset} (${audioBuffer.length} bytes)\n`);
                 
                 // Detectar formato por extensión
                 if (audioPath.endsWith('.wav')) {
