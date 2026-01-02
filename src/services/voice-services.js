@@ -199,11 +199,43 @@ class VoiceServices {
     debugLog('voice-services.js:174', 'Deepgram connection params before create', {encoding:liveOptions.encoding,sample_rate:liveOptions.sample_rate,channels:liveOptions.channels,model:liveOptions.model}, 'A');
     // #endregion
 
-    const connection = this.deepgram.listen.live(liveOptions);
+    // #region agent log
+    debugLog('voice-services.js:202', 'About to create Deepgram connection', {
+      model: liveOptions.model,
+      encoding: liveOptions.encoding,
+      sample_rate: liveOptions.sample_rate,
+      channels: liveOptions.channels,
+      language: liveOptions.language,
+      hasApiKey: !!this.deepgramApiKey,
+      apiKeyLength: this.deepgramApiKey?.length || 0
+    }, 'B');
+    // #endregion
+    
+    let connection;
+    try {
+      connection = this.deepgram.listen.live(liveOptions);
+    } catch (createError) {
+      // #region agent log
+      debugLog('voice-services.js:215', 'Deepgram connection creation FAILED', {
+        error: createError?.message,
+        errorType: createError?.constructor?.name,
+        stack: createError?.stack?.substring(0, 300)
+      }, 'B');
+      // #endregion
+      throw createError;
+    }
     
     // #region agent log
     const connectTime = Date.now();
-    debugLog('voice-services.js:182', 'Deepgram connection created', {connectTime,readyState:connection.getReadyState?.()}, 'C');
+    const initialReadyState = connection.getReadyState?.();
+    debugLog('voice-services.js:225', 'Deepgram connection created successfully', {
+      connectTime,
+      readyState: initialReadyState,
+      connectionType: connection?.constructor?.name,
+      hasOn: typeof connection.on === 'function',
+      hasSend: typeof connection.send === 'function',
+      hasFinish: typeof connection.finish === 'function'
+    }, 'C');
     // #endregion
 
     let finalizedUtterance = '';
@@ -280,21 +312,44 @@ class VoiceServices {
     connection.on(LiveTranscriptionEvents.Error, (error) => {
       clearIdleTimer();
       const errorTime = Date.now();
+      
       // #region agent log
+      // Capturar TODA la información posible del error
       const errorDetails = {
         message: error?.message || '',
         code: error?.code,
-        stack: error?.stack?.substring(0, 200),
+        stack: error?.stack?.substring(0, 500),
         type: error?.type,
-        target: error?.target?.url || 'N/A',
-        currentTarget: error?.currentTarget?.url || 'N/A',
+        name: error?.name,
+        constructor: error?.constructor?.name,
+        target: error?.target ? {
+          url: error.target.url,
+          readyState: error.target.readyState,
+          protocol: error.target.protocol,
+          extensions: error.target.extensions
+        } : null,
+        currentTarget: error?.currentTarget ? {
+          url: error.currentTarget.url,
+          readyState: error.currentTarget.readyState
+        } : null,
         timeStamp: error?.timeStamp,
         stringified: String(error),
+        jsonStringified: JSON.stringify(error, Object.getOwnPropertyNames(error)),
         isErrorEvent: error?.constructor?.name === 'ErrorEvent' || error?.type === 'error',
         readyState: connection.getReadyState?.(),
-        timeSinceConnect: connectionStartTime ? errorTime - connectionStartTime : null
+        timeSinceConnect: connectionStartTime ? errorTime - connectionStartTime : null,
+        connectionState: {
+          hasConnection: !!connection,
+          connectionType: connection?.constructor?.name,
+          methods: {
+            on: typeof connection?.on === 'function',
+            send: typeof connection?.send === 'function',
+            finish: typeof connection?.finish === 'function',
+            getReadyState: typeof connection?.getReadyState === 'function'
+          }
+        }
       };
-      debugLog('voice-services.js:257', 'Deepgram ErrorEvent captured', errorDetails, 'ALL');
+      debugLog('voice-services.js:280', 'Deepgram ErrorEvent captured - FULL DETAILS', errorDetails, 'ALL');
       // #endregion
       logger.error('[DEEPGRAM] ❌ Connection error:', error);
       logger.error('[DEEPGRAM] Error details:', errorDetails);
@@ -315,9 +370,24 @@ class VoiceServices {
       }
     });
 
+    // #region agent log
+    connection.on(LiveTranscriptionEvents.Open, () => {
+      debugLog('voice-services.js:373', 'Deepgram connection OPENED', {
+        readyState: connection.getReadyState?.(),
+        timeSinceCreate: Date.now() - connectTime
+      }, 'C');
+    });
+    // #endregion
+    
     if (onClose) {
       connection.on(LiveTranscriptionEvents.Close, () => {
         clearIdleTimer();
+        // #region agent log
+        debugLog('voice-services.js:382', 'Deepgram connection CLOSED', {
+          readyState: connection.getReadyState?.(),
+          timeSinceCreate: Date.now() - connectTime
+        }, 'C');
+        // #endregion
         logger.info('[DEEPGRAM] 🔌 Connection closed');
         onClose();
       });
