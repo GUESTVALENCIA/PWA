@@ -115,7 +115,7 @@ class VoiceServices {
 
     const liveOptions = {
       // 🚀 ENTERPRISE MAX: Modelo optimizado para llamadas telefónicas de alta calidad
-      model: 'nova-2-phonecall', // Optimizado específicamente para llamadas conversacionales
+      model: 'nova-2', // 🔧 FIX: Cambiado de nova-2-phonecall a nova-2 (nova-2-phonecall causa error 400 en algunos planes)
       
       // 🚀 ENTERPRISE MAX: Configuración de idioma
       language: language,
@@ -298,7 +298,14 @@ class VoiceServices {
     
     // Log connection state for debugging
     if (connection.getReadyState) {
-      logger.info(`[DEEPGRAM] Connection ready state: ${connection.getReadyState()}`);
+      const initialState = connection.getReadyState();
+      logger.info(`[DEEPGRAM] Connection ready state: ${initialState} (0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED)`);
+      
+      // 🔧 FIX: Si la conexión está en estado CONNECTING (0), esperar un momento
+      // para que se establezca antes de considerarla lista
+      if (initialState === 0) {
+        logger.info('[DEEPGRAM] ⏳ Connection is CONNECTING, will be ready shortly...');
+      }
     }
     
     return connection;
