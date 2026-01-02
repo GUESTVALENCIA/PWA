@@ -1009,6 +1009,15 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                   handleTTSFallback(aiResponse, ws);
                 });
                 
+                // Handle close events with error codes
+                ttsWs.on('close', (code, reason) => {
+                  if (code === 1008) {
+                    logger.error(`[TTS] ❌ WebSocket closed with Policy Violation (1008): ${reason?.toString() || 'DATA-0000'}`);
+                    logger.error(`[TTS] ⚠️ Model 'aura-2-agustina-es' may not be available. Falling back to REST API.`);
+                    handleTTSFallback(aiResponse, ws);
+                  }
+                });
+                
                 // ⚠️ CRITICAL: Send text IMMEDIATELY when WebSocket is ready (no delays)
                 // Deepgram TTS WebSocket closes quickly if no data is sent
                 const sendTextAndFlush = () => {

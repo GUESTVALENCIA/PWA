@@ -521,10 +521,26 @@ class VoiceServices {
         };
         
         logger.info(`[TTS] 📤 Sending Configure message:`, configureMessage);
-        ws.send(JSON.stringify(configureMessage));
         
-        logger.info(`[TTS] ✅ Deepgram TTS WebSocket connected and configured (model: ${model})`);
-        resolve(ws);
+        try {
+          ws.send(JSON.stringify(configureMessage));
+          logger.info(`[TTS] ✅ Deepgram TTS WebSocket connected and configured (model: ${model})`);
+          resolve(ws);
+        } catch (error) {
+          logger.error(`[TTS] ❌ Error sending Configure message:`, error);
+          reject(error);
+        }
+      });
+      
+      // Handle WebSocket close with error codes
+      ws.on('close', (code, reason) => {
+        if (code === 1008) {
+          logger.error(`[TTS] ❌ WebSocket closed with Policy Violation (1008): ${reason?.toString() || 'DATA-0000'}`);
+          logger.error(`[TTS] ⚠️ This usually means the model '${model}' is not available or the configuration is invalid`);
+          logger.error(`[TTS] 💡 Deepgram may be using a default model instead. Check your Deepgram account for available models.`);
+        } else if (code !== 1000) { // 1000 = normal closure
+          logger.warn(`[TTS] ⚠️ WebSocket closed with code ${code}: ${reason?.toString() || 'Unknown'}`);
+        }
       });
 
       ws.on('error', (error) => {
