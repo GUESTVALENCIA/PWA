@@ -655,6 +655,9 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
     if (!deepgramData || !deepgramData.connection) {
       logger.info(`[DEEPGRAM] 🔌 Creating new streaming connection for ${agentId}`);
 
+      // Clear error status when creating new connection (allows recovery)
+      sttErrorAgents.delete(agentId);
+
       const resolvedEncoding = (typeof encoding === 'string' && encoding.trim()) ? encoding.trim() : null;
       const resolvedSampleRate = Number.isFinite(Number(sampleRate)) ? Number(sampleRate) : null;
       const resolvedChannels = Number.isFinite(Number(channels)) ? Number(channels) : null;
@@ -730,14 +733,11 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
 
             logger.info(`💬 AI Response received (${aiResponse.length} chars): "${aiResponse.substring(0, 100)}${aiResponse.length > 100 ? '...' : ''}"`);
 
-            // 🚀 FASE 1: TEMPORALMENTE usar REST API hasta que streaming funcione
-            // TODO: Habilitar streaming cuando esté completamente funcional
+            // Generar audio de respuesta usando Deepgram TTS
             try {
-              // TEMPORAL: Usar REST API en lugar de streaming para evitar problemas
               const responseAudio = await voiceServices.generateVoice(aiResponse, { streaming: false, model: 'aura-2-carina-es' });
               
               // Handle different response types
-              // TEMPORAL: Solo manejar REST API (tts type) por ahora
               if (responseAudio.type === 'tts' && responseAudio.data) {
                 // REST API fallback (MP3)
                 logger.info('[TTS] ✅ Using Deepgram REST API (MP3)');
@@ -950,6 +950,12 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
         onError: (error) => {
           logger.error('[DEEPGRAM] Streaming connection error:', error);
 
+          // Reset processing flag before removing connection to allow recovery
+          const errorDeepgramData = deepgramConnections.get(agentId);
+          if (errorDeepgramData) {
+            errorDeepgramData.isProcessing = false;
+          }
+
           if (!sttErrorAgents.has(agentId)) {
             sttErrorAgents.add(agentId);
             ws.send(JSON.stringify({
@@ -967,6 +973,13 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
         },
         onClose: () => {
           logger.info(`[DEEPGRAM] Streaming connection closed for ${agentId}`);
+          
+          // Reset processing flag before removing connection to allow recovery
+          const closedDeepgramData = deepgramConnections.get(agentId);
+          if (closedDeepgramData) {
+            closedDeepgramData.isProcessing = false;
+          }
+          
           deepgramConnections.delete(agentId);
         }
       });
@@ -1034,6 +1047,8 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
           } catch (finishError) {
             // Ignore errors when finishing broken connection
           }
+          // Reset processing flag to allow recovery
+          deepgramData.isProcessing = false;
         }
         deepgramConnections.delete(agentId);
         
@@ -1164,16 +1179,15 @@ async function handleInitialGreeting(ws, voiceServices) {
       throw new Error('Voice generation service not available');
     }
     
-    // 🚀 ENTERPRISE: Saludo corto, claro y conciso generado en tiempo real
+    // 🚀 ENTERPRISE: Saludo corto, claro y conciso
     const greetingText = 'Hola, buenas, soy Sandra, tu asistente de Guests Valencia, ¿en qué puedo ayudarte hoy?';
     
     logger.info(`🎙️ Generating greeting audio: "${greetingText}"`);
     
-    // 🚀 FASE 1: TEMPORALMENTE usar REST API hasta que streaming funcione
-    // TODO: Habilitar streaming cuando esté completamente funcional
+    // 🎯 OPCIÓN 1: Usar VOZ NATIVA (la voz real de tu hija)
     try {
-      // TEMPORAL: Usar REST API en lugar de streaming para evitar problemas
-      const greetingAudio = await voiceServices.generateVoice(greetingText, { streaming: false, model: 'aura-2-carina-es' });
+      // Usar voz nativa (archivo WAV local - latencia más baja, tu voz real)
+      const greetingAudio = await voiceServices.generateVoice(greetingText, { useNative: true });
       
       // ⚠️ CRITICAL: Never send WebSocket objects to client - handle streaming server-side
       if (greetingAudio.type === 'streaming' && greetingAudio.ws) {
@@ -1244,7 +1258,26 @@ async function handleInitialGreeting(ws, voiceServices) {
         return; // Exit early if streaming is set up
       }
       
-      // Fallback to REST API if streaming is not available
+      // OPCIÓN 1: Usar VOZ NATIVA (archivo WAV)
+      if (greetingAudio.type === 'native' && greetingAudio.data) {
+        logger.info('[TTS] ✅ Using NATIVE voice file for greeting (your daughter\'s real voice)');
+        const audioBase64 = greetingAudio.data.toString('base64');
+        ws.send(JSON.stringify({
+          route: 'audio',
+          action: 'tts',
+          payload: {
+            audio: audioBase64,
+            format: 'wav',
+            text: greetingText,
+            isWelcome: true,
+            isNative: true
+          }
+        }));
+        logger.info('✅ Initial greeting sent (NATIVE VOICE)');
+        return;
+      }
+      
+      // Fallback to REST API if native not available
       if (greetingAudio.type === 'tts' && greetingAudio.data) {
         logger.info('[TTS] ✅ Using Deepgram REST API for greeting (MP3 fallback)');
         ws.send(JSON.stringify({
