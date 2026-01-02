@@ -647,16 +647,29 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
         } catch (e) {
           // Ignore errors when finishing closed connection
         }
+        // Reset processing flag before deleting to allow recovery
+        if (deepgramData) {
+          deepgramData.isProcessing = false;
+        }
         deepgramConnections.delete(agentId);
         deepgramData = null;
       }
+    }
+    
+    // If we're in error state but enough time has passed, allow recovery
+    if (sttErrorAgents.has(agentId) && (!deepgramData || !deepgramData.connection)) {
+      logger.info(`[DEEPGRAM] Agent ${agentId} in error state, attempting recovery...`);
+      sttErrorAgents.delete(agentId); // Clear error state to allow new connection
     }
     
     if (!deepgramData || !deepgramData.connection) {
       logger.info(`[DEEPGRAM] 🔌 Creating new streaming connection for ${agentId}`);
 
       // Clear error status when creating new connection (allows recovery)
-      sttErrorAgents.delete(agentId);
+      if (sttErrorAgents.has(agentId)) {
+        logger.info(`[DEEPGRAM] Clearing error state for ${agentId} to allow new connection`);
+        sttErrorAgents.delete(agentId);
+      }
 
       const resolvedEncoding = (typeof encoding === 'string' && encoding.trim()) ? encoding.trim() : null;
       const resolvedSampleRate = Number.isFinite(Number(sampleRate)) ? Number(sampleRate) : null;
@@ -682,6 +695,11 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
           // Handle finalized transcription (VAD detected end of phrase)
           if (deepgramData && deepgramData.isProcessing) {
             logger.warn('[DEEPGRAM] Already processing, skipping duplicate transcription');
+            logger.debug('[DEEPGRAM] Current processing state:', {
+              agentId: agentId,
+              isProcessing: deepgramData.isProcessing,
+              transcript: transcript?.substring(0, 50)
+            });
             return;
           }
           
@@ -735,7 +753,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
 
             // Generar audio de respuesta usando Deepgram TTS
             try {
-              const responseAudio = await voiceServices.generateVoice(aiResponse, { streaming: false, model: 'aura-2-elvira-es' });
+              const responseAudio = await voiceServices.generateVoice(aiResponse, { streaming: false, model: 'aura-2-agustina-es' });
               
               // Handle different response types
               if (responseAudio.type === 'tts' && responseAudio.data) {
@@ -856,7 +874,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
             // Helper function for REST API fallback
             async function handleTTSFallback(text, clientWs) {
               try {
-                const fallbackAudio = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-elvira-es' });
+                const fallbackAudio = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-agustina-es' });
                 if (fallbackAudio.type === 'tts') {
                   clientWs.send(JSON.stringify({
                     route: 'audio',
@@ -948,7 +966,13 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
           } catch (_) {}
         },
         onError: (error) => {
-          logger.error('[DEEPGRAM] Streaming connection error:', error);
+          // Log detailed error information for debugging
+          logger.error('[DEEPGRAM] Streaming connection error:', {
+            error: error?.message || 'Unknown error',
+            stack: error?.stack,
+            agentId: agentId,
+            errorObject: error
+          });
 
           // Reset processing flag before removing connection to allow recovery
           const errorDeepgramData = deepgramConnections.get(agentId);
@@ -956,6 +980,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
             errorDeepgramData.isProcessing = false;
           }
 
+          // Send error to client only once, but allow recovery by NOT blocking future connections
           if (!sttErrorAgents.has(agentId)) {
             sttErrorAgents.add(agentId);
             ws.send(JSON.stringify({
@@ -967,9 +992,17 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                 message: error?.message || 'Unknown Deepgram streaming error'
               }
             }));
+            logger.warn(`[DEEPGRAM] STT error reported for ${agentId}, but recovery allowed`);
           }
 
+          // Delete connection to allow recreation on next audio chunk
           deepgramConnections.delete(agentId);
+          // IMPORTANT: Allow recovery by removing from error agents after a short delay
+          // This allows the next audio chunk to create a new connection
+          setTimeout(() => {
+            sttErrorAgents.delete(agentId);
+            logger.info(`[DEEPGRAM] Error agent ${agentId} cleared, ready for recovery`);
+          }, 1000); // Clear after 1 second to allow new connection
         },
         onClose: () => {
           logger.info(`[DEEPGRAM] Streaming connection closed for ${agentId}`);
@@ -1001,7 +1034,12 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
         }
       });
       
-      logger.info(`[DEEPGRAM] ✅ Streaming connection established for ${agentId}`);
+      logger.info(`[DEEPGRAM] ✅ Streaming connection established for ${agentId}`, {
+        agentId: agentId,
+        encoding: resolvedEncoding,
+        sampleRate: resolvedSampleRate,
+        channels: resolvedChannels
+      });
     }
 
     // Send audio buffer to Deepgram streaming connection
@@ -1031,7 +1069,11 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
         
         // Send audio buffer to Deepgram
         deepgramData.connection.send(audioBuffer);
-        logger.debug(`[DEEPGRAM] ✅ Sent audio chunk: ${audioBuffer.length} bytes to ${agentId}`);
+        logger.debug(`[DEEPGRAM] ✅ Sent audio chunk: ${audioBuffer.length} bytes to ${agentId}`, {
+          agentId: agentId,
+          chunkSize: audioBuffer.length,
+          connectionState: deepgramData.connection.getReadyState ? deepgramData.connection.getReadyState() : 'unknown'
+        });
       } catch (error) {
         logger.error('[DEEPGRAM] ❌ Error sending audio to Deepgram:', error);
         logger.error('[DEEPGRAM] Error details:', {
@@ -1099,7 +1141,7 @@ async function handleAudioTTS(payload, ws, voiceServices) {
     // Send text to client for native voice playback (client handles audio locally)
     // Note: We no longer generate audio on server - client uses native voice file
     // ⚠️ CRITICAL: Always use REST API and extract data property
-    const audioResult = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-elvira-es' });
+    const audioResult = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-agustina-es' });
     
     // Extract audio data based on type
     let audioData;
@@ -1147,7 +1189,7 @@ async function handleAudioTTS(payload, ws, voiceServices) {
 // Helper function for REST API fallback
 async function handleGreetingFallback(text, clientWs, voiceServices) {
   try {
-    const fallbackAudio = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-elvira-es' });
+    const fallbackAudio = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-agustina-es' });
     if (fallbackAudio.type === 'tts') {
       clientWs.send(JSON.stringify({
         route: 'audio',
@@ -1186,7 +1228,7 @@ async function handleInitialGreeting(ws, voiceServices) {
     
     // Usar Deepgram TTS para el saludo (temporalmente para probar voces)
     try {
-      const greetingAudio = await voiceServices.generateVoice(greetingText, { useNative: false, model: 'aura-2-elvira-es' });
+      const greetingAudio = await voiceServices.generateVoice(greetingText, { useNative: false, model: 'aura-2-agustina-es' });
       
       // ⚠️ CRITICAL: Never send WebSocket objects to client - handle streaming server-side
       if (greetingAudio.type === 'streaming' && greetingAudio.ws) {
