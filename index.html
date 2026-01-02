@@ -2377,11 +2377,11 @@
         audio._blobUrl = blobUrl;
         audio.volume = 1.0; // Asegurar volumen máximo
 
-        // 🎯 CONTROL DE VELOCIDAD: Normal para ambos casos
+        // 🎯 CONTROL DE VELOCIDAD: Más rápido (15%) para mayor naturalidad
         if (isWelcome) {
-          audio.playbackRate = 1.0;
+          audio.playbackRate = 1.0; // Saludo nativo ya tiene velocidad correcta
         } else {
-          audio.playbackRate = 1.0;
+          audio.playbackRate = 1.15; // Acelerar TTS generado
         }
 
         this.currentAudio = audio;
