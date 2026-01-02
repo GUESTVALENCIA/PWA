@@ -1103,20 +1103,99 @@ async function handleInitialGreeting(ws, voiceServices) {
     const greetingText = 'Hola, buenas, soy Sandra, tu asistente de Guests Valencia, ¿en qué puedo ayudarte hoy?';
     
     logger.info(`🎙️ Generating greeting audio: "${greetingText}"`);
-    const greetingAudio = await voiceServices.generateVoice(greetingText);
-
-    ws.send(JSON.stringify({
-      route: 'audio',
-      action: 'tts',
-      payload: {
-        audio: greetingAudio,
-        format: 'mp3',
-        text: greetingText,
-        isWelcome: true // Mantener flag para diferenciar del audio conversacional
+    
+    // 🚀 FASE 1: Try TTS WebSocket streaming first
+    try {
+      const greetingAudio = await voiceServices.generateVoice(greetingText, { streaming: true, model: 'aura-2-nestor-es' });
+      
+      if (greetingAudio.type === 'streaming' && greetingAudio.ws) {
+        // TTS WebSocket streaming - send PCM chunks as they arrive
+        logger.info('[TTS] 🎙️ Using TTS WebSocket streaming for greeting (PCM)');
+        
+        const ttsWs = greetingAudio.ws;
+        let firstChunk = true;
+        
+        // Send text to TTS
+        voiceServices.sendTextToTTS(ttsWs, greetingText);
+        
+        // Flush to start audio generation
+        voiceServices.flushTTS(ttsWs);
+        
+        // Handle incoming PCM audio chunks
+        ttsWs.on('message', (data) => {
+          if (data instanceof Buffer) {
+            // PCM audio data - send to client as base64
+            const pcmBase64 = data.toString('base64');
+            ws.send(JSON.stringify({
+              route: 'audio',
+              action: 'tts_chunk',
+              payload: {
+                audio: pcmBase64,
+                format: 'pcm',
+                sampleRate: 24000,
+                isFirst: firstChunk,
+                isWelcome: true
+              }
+            }));
+            firstChunk = false;
+          } else {
+            // JSON message (status, etc.)
+            try {
+              const message = JSON.parse(data.toString());
+              if (message.type === 'Flushed') {
+                logger.info('[TTS] ✅ Greeting TTS buffer flushed');
+              } else if (message.type === 'Error') {
+                logger.error('[TTS] ❌ Greeting TTS error:', message);
+              }
+            } catch (e) {
+              // Not JSON, ignore
+            }
+          }
+        });
+        
+        // Send completion when WebSocket closes
+        ttsWs.on('close', () => {
+          ws.send(JSON.stringify({
+            route: 'audio',
+            action: 'tts_complete',
+            payload: {}
+          }));
+          logger.info('[TTS] ✅ Greeting TTS WebSocket streaming completed');
+        });
+        
+        ttsWs.on('error', (error) => {
+          logger.error('[TTS] ❌ Greeting TTS WebSocket error, falling back to REST:', error);
+          // Fallback to REST API
+          handleGreetingFallback(greetingText, ws);
+        });
+        
+        return; // Exit early if streaming is set up
       }
-    }));
-
-    logger.info('✅ Initial greeting sent (generated in real-time)');
+      
+      // Fallback to REST API if streaming is not available
+      if (greetingAudio.type === 'tts') {
+        logger.info('[TTS] ✅ Using Deepgram REST API for greeting (MP3 fallback)');
+        ws.send(JSON.stringify({
+          route: 'audio',
+          action: 'tts',
+          payload: {
+            audio: greetingAudio.data,
+            format: 'mp3',
+            text: greetingText,
+            isWelcome: true
+          }
+        }));
+        logger.info('✅ Initial greeting sent (REST API)');
+        return;
+      }
+    } catch (streamingError) {
+      logger.warn('[TTS] Streaming failed, falling back to REST:', streamingError);
+      // Fall through to REST fallback
+    }
+    
+    // Fallback to REST API
+    await handleGreetingFallback(greetingText, ws);
+    
   } catch (error) {
     logger.error('Error generating initial greeting:', error);
     ws.send(JSON.stringify({
@@ -1127,5 +1206,28 @@ async function handleInitialGreeting(ws, voiceServices) {
         message: error.message
       }
     }));
+  }
+  
+  // Helper function for REST API fallback
+  async function handleGreetingFallback(text, clientWs) {
+    try {
+      const fallbackAudio = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-nestor-es' });
+      if (fallbackAudio.type === 'tts') {
+        clientWs.send(JSON.stringify({
+          route: 'audio',
+          action: 'tts',
+          payload: {
+            audio: fallbackAudio.data,
+            format: 'mp3',
+            text: text,
+            isWelcome: true
+          }
+        }));
+        logger.info('✅ Initial greeting sent (REST API fallback)');
+      }
+    } catch (error) {
+      logger.error('[TTS] ❌ Greeting fallback also failed:', error);
+      throw error;
+    }
   }
 }
