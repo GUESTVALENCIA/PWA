@@ -1612,7 +1612,10 @@
                     }
                   };
 
-                  console.log('[MCP] 🎤 Captura PCM iniciada (linear16 16kHz)');
+                  console.log(`[MCP] 🎤 Captura PCM iniciada (linear16 ${targetSampleRate}Hz)`);
+                  // #region agent log
+                  fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.html:1615',message:'Client PCM streaming started',data:{targetSampleRate,encoding:'linear16',channels:1,ctxSampleRate:ctx.sampleRate},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+                  // #endregion
                   return true;
                 } catch (err) {
                   console.warn('[MCP] PCM no disponible, fallback a MediaRecorder', err);
