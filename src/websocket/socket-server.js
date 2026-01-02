@@ -687,9 +687,10 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
     if (!deepgramData || !deepgramData.connection) {
       logger.info(`[DEEPGRAM] 🔌 Creating new streaming connection for ${agentId}`);
 
-      const resolvedEncoding = (typeof encoding === 'string' && encoding.trim()) ? encoding.trim() : null;
-      const resolvedSampleRate = Number.isFinite(Number(sampleRate)) ? Number(sampleRate) : null;
-      const resolvedChannels = Number.isFinite(Number(channels)) ? Number(channels) : null;
+      // ✅ Configuración según JSON Deepgram Playground
+      const resolvedEncoding = (typeof encoding === 'string' && encoding.trim()) ? encoding.trim() : 'linear16';
+      const resolvedSampleRate = Number.isFinite(Number(sampleRate)) ? Number(sampleRate) : 48000; // ✅ 48000 Hz según JSON
+      const resolvedChannels = Number.isFinite(Number(channels)) ? Number(channels) : 1;
        
       deepgramData = {
         connection: null,
@@ -1251,7 +1252,7 @@ async function handleInitialGreeting(ws, voiceServices) {
     }
     
     // 🚀 ENTERPRISE: Saludo corto, claro y conciso
-    const greetingText = 'Hola, buenas, soy Sandra, tu asistente de Guests Valencia, ¿en qué puedo ayudarte hoy?';
+    const greetingText = '¡Hola! ¿En qué puedo ayudarte?';
     
     logger.info(`🎙️ Generating greeting audio: "${greetingText}"`);
     
