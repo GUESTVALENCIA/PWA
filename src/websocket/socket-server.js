@@ -855,38 +855,60 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                 
                 // Handle incoming PCM audio chunks
                 ttsWs.on('message', (data) => {
-                  // Filter out metadata JSON messages (first message is always metadata)
-                  if (!(data instanceof Buffer)) {
-                    try {
-                      const message = JSON.parse(data.toString());
-                      if (message.type === 'Metadata') {
-                        logger.debug('[TTS] 📋 Received metadata:', message);
-                        return; // Skip metadata, wait for audio chunks
-                      } else if (message.type === 'Flushed') {
-                        logger.info('[TTS] ✅ TTS buffer flushed');
-                        return;
-                      } else if (message.type === 'Error') {
-                        logger.error('[TTS] ❌ TTS error:', message);
-                        // Fallback to REST API on error
-                        handleTTSFallback(aiResponse, ws);
-                        return;
-                      }
-                    } catch (e) {
-                      // Not JSON, might be text - ignore
-                      logger.debug('[TTS] Non-buffer, non-JSON message, ignoring');
-                      return;
-                    }
-                  }
+                  // Log message type for debugging
+                  const isBuffer = Buffer.isBuffer(data);
+                  const dataType = typeof data;
+                  const dataLength = isBuffer ? data.length : (data?.length || 0);
                   
-                  // Only send Buffer data (PCM audio)
-                  if (data instanceof Buffer && data.length > 0) {
+                  logger.debug('[TTS] 📥 Received message:', {
+                    isBuffer,
+                    dataType,
+                    length: dataLength,
+                    firstBytes: isBuffer ? Array.from(data.slice(0, 10)) : 'N/A'
+                  });
+                  
+                  // Deepgram TTS sends messages as Buffers (binary) for audio
+                  // Check if it's a Buffer (binary audio data)
+                  if (Buffer.isBuffer(data)) {
                     // Validate PCM data (must be even number of bytes for Int16)
-                    if (data.length % 2 !== 0) {
-                      logger.warn('[TTS] ⚠️ Invalid PCM chunk size (not multiple of 2), skipping');
+                    if (data.length === 0) {
+                      logger.debug('[TTS] Empty buffer, skipping');
                       return;
                     }
                     
+                    if (data.length % 2 !== 0) {
+                      // Try to fix: pad with zero if odd length (last sample incomplete)
+                      logger.warn('[TTS] ⚠️ Odd-length PCM chunk, padding with zero byte', {
+                        originalLength: data.length,
+                        firstBytes: Array.from(data.slice(0, 10))
+                      });
+                      // Pad with one zero byte to make it even
+                      const paddedData = Buffer.concat([data, Buffer.from([0])]);
+                      const pcmBase64 = paddedData.toString('base64');
+                      ws.send(JSON.stringify({
+                        route: 'audio',
+                        action: 'tts_chunk',
+                        payload: {
+                          audio: pcmBase64,
+                          format: 'pcm',
+                          encoding: 'linear16',
+                          sampleRate: 48000,
+                          channels: 1,
+                          isFirst: firstChunk,
+                          padded: true // Flag to indicate padding was applied
+                        }
+                      }));
+                      firstChunk = false;
+                      return;
+                    }
+                    
+                    // Valid PCM chunk - send to client
                     const pcmBase64 = data.toString('base64');
+                    logger.debug('[TTS] 📤 Sending valid PCM chunk', {
+                      length: data.length,
+                      base64Length: pcmBase64.length,
+                      isFirst: firstChunk
+                    });
                     ws.send(JSON.stringify({
                       route: 'audio',
                       action: 'tts_chunk',
@@ -900,6 +922,35 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                       }
                     }));
                     firstChunk = false;
+                  } else {
+                    // Not a Buffer - try to parse as JSON (metadata, status, etc.)
+                    try {
+                      const messageStr = data.toString();
+                      const message = JSON.parse(messageStr);
+                      logger.debug('[TTS] 📋 Received JSON message:', message);
+                      
+                      if (message.type === 'Metadata') {
+                        logger.info('[TTS] 📋 Received metadata:', message);
+                        return; // Skip metadata, wait for audio chunks
+                      } else if (message.type === 'Flushed') {
+                        logger.info('[TTS] ✅ TTS buffer flushed');
+                        return;
+                      } else if (message.type === 'Error') {
+                        logger.error('[TTS] ❌ TTS error:', message);
+                        // Fallback to REST API on error
+                        handleTTSFallback(aiResponse, ws);
+                        return;
+                      } else {
+                        logger.debug('[TTS] Unknown JSON message type:', message.type);
+                      }
+                    } catch (e) {
+                      // Not JSON, not Buffer - log for debugging
+                      logger.warn('[TTS] ⚠️ Unknown message format:', {
+                        type: dataType,
+                        length: dataLength,
+                        preview: typeof data === 'string' ? data.substring(0, 50) : 'N/A'
+                      });
+                    }
                   }
                 });
                 
@@ -1344,40 +1395,55 @@ async function handleInitialGreeting(ws, voiceServices) {
         
         // Handle incoming PCM audio chunks
         ttsWs.on('message', (data) => {
-          // Filter out metadata JSON messages (first message is always metadata)
-          if (!(data instanceof Buffer)) {
-            try {
-              const message = JSON.parse(data.toString());
-              if (message.type === 'Metadata') {
-                logger.debug('[TTS] 📋 Received greeting metadata:', message);
-                return; // Skip metadata, wait for audio chunks
-              } else if (message.type === 'Flushed') {
-                logger.info('[TTS] ✅ Greeting TTS buffer flushed');
-                return;
-              } else if (message.type === 'Error') {
-                logger.error('[TTS] ❌ Greeting TTS error:', message);
-                // Fallback to REST API on error
-                handleGreetingFallback(greetingText, ws, voiceServices).catch(err => {
-                  logger.error('[TTS] ❌ Greeting fallback failed:', err);
-                });
-                return;
-              }
-            } catch (e) {
-              // Not JSON, might be text - ignore
-              logger.debug('[TTS] Non-buffer, non-JSON greeting message, ignoring');
-              return;
-            }
-          }
+          // Log message type for debugging
+          const isBuffer = Buffer.isBuffer(data);
+          const dataType = typeof data;
+          const dataLength = isBuffer ? data.length : (data?.length || 0);
           
-          // Only send Buffer data (PCM audio)
-          if (data instanceof Buffer && data.length > 0) {
-            // Validate PCM data (must be even number of bytes for Int16)
-            if (data.length % 2 !== 0) {
-              logger.warn('[TTS] ⚠️ Invalid greeting PCM chunk size (not multiple of 2), skipping');
+          logger.debug('[TTS] 📥 Received greeting message:', {
+            isBuffer,
+            dataType,
+            length: dataLength
+          });
+          
+          // Deepgram TTS sends messages as Buffers (binary) for audio
+          if (Buffer.isBuffer(data)) {
+            if (data.length === 0) {
+              logger.debug('[TTS] Empty greeting buffer, skipping');
               return;
             }
             
+            if (data.length % 2 !== 0) {
+              // Try to fix: pad with zero if odd length
+              logger.warn('[TTS] ⚠️ Odd-length greeting PCM chunk, padding with zero byte', {
+                originalLength: data.length
+              });
+              const paddedData = Buffer.concat([data, Buffer.from([0])]);
+              const pcmBase64 = paddedData.toString('base64');
+              ws.send(JSON.stringify({
+                route: 'audio',
+                action: 'tts_chunk',
+                payload: {
+                  audio: pcmBase64,
+                  format: 'pcm',
+                  encoding: 'linear16',
+                  sampleRate: 48000,
+                  channels: 1,
+                  isFirst: firstChunk,
+                  isWelcome: true,
+                  padded: true
+                }
+              }));
+              firstChunk = false;
+              return;
+            }
+            
+            // Valid PCM chunk
             const pcmBase64 = data.toString('base64');
+            logger.debug('[TTS] 📤 Sending greeting PCM chunk', {
+              length: data.length,
+              isFirst: firstChunk
+            });
             ws.send(JSON.stringify({
               route: 'audio',
               action: 'tts_chunk',
@@ -1392,7 +1458,32 @@ async function handleInitialGreeting(ws, voiceServices) {
               }
             }));
             firstChunk = false;
-            logger.debug(`[TTS] 📤 Sent greeting PCM chunk to client (${pcmBase64.length} chars base64)`);
+          } else {
+            // Not a Buffer - try to parse as JSON
+            try {
+              const messageStr = data.toString();
+              const message = JSON.parse(messageStr);
+              logger.debug('[TTS] 📋 Received greeting JSON message:', message);
+              
+              if (message.type === 'Metadata') {
+                logger.info('[TTS] 📋 Received greeting metadata:', message);
+                return;
+              } else if (message.type === 'Flushed') {
+                logger.info('[TTS] ✅ Greeting TTS buffer flushed');
+                return;
+              } else if (message.type === 'Error') {
+                logger.error('[TTS] ❌ Greeting TTS error:', message);
+                handleGreetingFallback(greetingText, ws, voiceServices).catch(err => {
+                  logger.error('[TTS] ❌ Greeting fallback failed:', err);
+                });
+                return;
+              }
+            } catch (e) {
+              logger.warn('[TTS] ⚠️ Unknown greeting message format:', {
+                type: dataType,
+                length: dataLength
+              });
+            }
           }
         });
         
