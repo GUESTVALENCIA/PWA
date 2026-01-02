@@ -528,7 +528,7 @@ class VoiceServices {
    * @param {string} model - Deepgram voice model (aura-2-nestor-es, aura-2-carina-es, etc.)
    * @returns {Promise<WebSocket>} WebSocket connection for TTS streaming
    */
-  async createTTSStreamingConnection(model = 'aura-2-celeste-es') {
+  async createTTSStreamingConnection(model = 'aura-2-agustina-es') {
     if (!this.deepgramApiKey) {
       throw new Error('Deepgram API key not configured');
     }
@@ -683,7 +683,8 @@ class VoiceServices {
     // Deepgram TTS models for Spanish:
     // FEMENINAS: aura-2-carina-es, aura-2-diana-es, aura-2-agustina-es, aura-2-silvia-es
     // MASCULINAS: aura-2-nestor-es, aura-2-alvaro-es
-    // OTRAS: aura-2-celeste-es (Colombia) ⭐ DEFAULT, aura-2-estrella-es (México)
+    // PENINSULARES (España): aura-2-agustina-es ⭐ DEFAULT, aura-2-carina-es, aura-2-diana-es, aura-2-silvia-es
+    // OTRAS: aura-2-celeste-es (Colombia), aura-2-estrella-es (México)
     if (!this.deepgramApiKey) {
       throw new Error('Deepgram API key not configured');
     }
