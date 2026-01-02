@@ -730,12 +730,34 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
 
             logger.info(`💬 AI Response received (${aiResponse.length} chars): "${aiResponse.substring(0, 100)}${aiResponse.length > 100 ? '...' : ''}"`);
 
-            // 🚀 FASE 1: Generate TTS audio using Deepgram WebSocket streaming (preferred) or REST fallback
+            // 🚀 FASE 1: TEMPORALMENTE usar REST API hasta que streaming funcione
+            // TODO: Habilitar streaming cuando esté completamente funcional
             try {
-              const responseAudio = await voiceServices.generateVoice(aiResponse, { streaming: true, model: 'aura-2-nestor-es' });
+              // TEMPORAL: Usar REST API en lugar de streaming para evitar problemas
+              const responseAudio = await voiceServices.generateVoice(aiResponse, { streaming: false, model: 'aura-2-nestor-es' });
               
               // Handle different response types
-              if (responseAudio.type === 'streaming' && responseAudio.ws) {
+              // TEMPORAL: Solo manejar REST API (tts type) por ahora
+              if (responseAudio.type === 'tts' && responseAudio.data) {
+                // REST API fallback (MP3)
+                logger.info('[TTS] ✅ Using Deepgram REST API (MP3)');
+                ws.send(JSON.stringify({
+                  route: 'audio',
+                  action: 'tts',
+                  payload: {
+                    audio: responseAudio.data,
+                    format: 'mp3',
+                    text: aiResponse,
+                    language: 'es'
+                  }
+                }));
+                logger.info('✅ Audio TTS response sent to client (REST API)');
+                if (deepgramData) deepgramData.isProcessing = false;
+                return;
+              }
+              
+              // STREAMING CODE (DISABLED TEMPORARILY)
+              if (false && responseAudio.type === 'streaming' && responseAudio.ws) {
                 // TTS WebSocket streaming - send PCM chunks as they arrive
                 logger.info('[TTS] 🎙️ Using TTS WebSocket streaming (PCM)');
                 
@@ -1130,9 +1152,11 @@ async function handleInitialGreeting(ws, voiceServices) {
     
     logger.info(`🎙️ Generating greeting audio: "${greetingText}"`);
     
-    // 🚀 FASE 1: Try TTS WebSocket streaming first
+    // 🚀 FASE 1: TEMPORALMENTE usar REST API hasta que streaming funcione
+    // TODO: Habilitar streaming cuando esté completamente funcional
     try {
-      const greetingAudio = await voiceServices.generateVoice(greetingText, { streaming: true, model: 'aura-2-nestor-es' });
+      // TEMPORAL: Usar REST API en lugar de streaming para evitar problemas
+      const greetingAudio = await voiceServices.generateVoice(greetingText, { streaming: false, model: 'aura-2-nestor-es' });
       
       // ⚠️ CRITICAL: Never send WebSocket objects to client - handle streaming server-side
       if (greetingAudio.type === 'streaming' && greetingAudio.ws) {
