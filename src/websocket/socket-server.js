@@ -1090,6 +1090,32 @@ async function handleAudioTTS(payload, ws, voiceServices) {
  * Handle initial greeting - Generate greeting in real-time using Deepgram TTS
  * 🚀 ENTERPRISE: Saludo generado en tiempo real (no pregrabado) para experiencia natural
  */
+// Helper function for REST API fallback
+async function handleGreetingFallback(text, clientWs, voiceServices) {
+  try {
+    const fallbackAudio = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-nestor-es' });
+    if (fallbackAudio.type === 'tts') {
+      clientWs.send(JSON.stringify({
+        route: 'audio',
+        action: 'tts',
+        payload: {
+          audio: fallbackAudio.data,
+          format: 'mp3',
+          text: text,
+          isWelcome: true
+        }
+      }));
+      logger.info('✅ Initial greeting sent (REST API fallback)');
+    } else {
+      logger.error('[TTS] ❌ Fallback returned unexpected type:', fallbackAudio.type);
+      throw new Error('Fallback returned unexpected audio type');
+    }
+  } catch (error) {
+    logger.error('[TTS] ❌ Greeting fallback also failed:', error);
+    throw error;
+  }
+}
+
 async function handleInitialGreeting(ws, voiceServices) {
   try {
     logger.info('👋 Generating initial greeting in real-time (Deepgram TTS)...');
@@ -1108,6 +1134,7 @@ async function handleInitialGreeting(ws, voiceServices) {
     try {
       const greetingAudio = await voiceServices.generateVoice(greetingText, { streaming: true, model: 'aura-2-nestor-es' });
       
+      // ⚠️ CRITICAL: Never send WebSocket objects to client - handle streaming server-side
       if (greetingAudio.type === 'streaming' && greetingAudio.ws) {
         // TTS WebSocket streaming - send PCM chunks as they arrive
         logger.info('[TTS] 🎙️ Using TTS WebSocket streaming for greeting (PCM)');
@@ -1138,6 +1165,7 @@ async function handleInitialGreeting(ws, voiceServices) {
               }
             }));
             firstChunk = false;
+            logger.debug(`[TTS] 📤 Sent PCM chunk to client (${pcmBase64.length} chars base64)`);
           } else {
             // JSON message (status, etc.)
             try {
@@ -1166,14 +1194,17 @@ async function handleInitialGreeting(ws, voiceServices) {
         ttsWs.on('error', (error) => {
           logger.error('[TTS] ❌ Greeting TTS WebSocket error, falling back to REST:', error);
           // Fallback to REST API
-          handleGreetingFallback(greetingText, ws);
+          handleGreetingFallback(greetingText, ws, voiceServices).catch(err => {
+            logger.error('[TTS] ❌ Fallback failed:', err);
+          });
         });
         
+        // ⚠️ CRITICAL: Return immediately - do NOT send greetingAudio object to client
         return; // Exit early if streaming is set up
       }
       
       // Fallback to REST API if streaming is not available
-      if (greetingAudio.type === 'tts') {
+      if (greetingAudio.type === 'tts' && greetingAudio.data) {
         logger.info('[TTS] ✅ Using Deepgram REST API for greeting (MP3 fallback)');
         ws.send(JSON.stringify({
           route: 'audio',
@@ -1188,13 +1219,18 @@ async function handleInitialGreeting(ws, voiceServices) {
         logger.info('✅ Initial greeting sent (REST API)');
         return;
       }
+      
+      // ⚠️ If we get here, something unexpected happened
+      logger.error('[TTS] ❌ Unexpected greetingAudio type:', greetingAudio.type);
+      throw new Error(`Unexpected audio type: ${greetingAudio.type}`);
+      
     } catch (streamingError) {
       logger.warn('[TTS] Streaming failed, falling back to REST:', streamingError);
       // Fall through to REST fallback
     }
     
     // Fallback to REST API
-    await handleGreetingFallback(greetingText, ws);
+    await handleGreetingFallback(greetingText, ws, voiceServices);
     
   } catch (error) {
     logger.error('Error generating initial greeting:', error);
@@ -1206,28 +1242,5 @@ async function handleInitialGreeting(ws, voiceServices) {
         message: error.message
       }
     }));
-  }
-  
-  // Helper function for REST API fallback
-  async function handleGreetingFallback(text, clientWs) {
-    try {
-      const fallbackAudio = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-nestor-es' });
-      if (fallbackAudio.type === 'tts') {
-        clientWs.send(JSON.stringify({
-          route: 'audio',
-          action: 'tts',
-          payload: {
-            audio: fallbackAudio.data,
-            format: 'mp3',
-            text: text,
-            isWelcome: true
-          }
-        }));
-        logger.info('✅ Initial greeting sent (REST API fallback)');
-      }
-    } catch (error) {
-      logger.error('[TTS] ❌ Greeting fallback also failed:', error);
-      throw error;
-    }
   }
 }
