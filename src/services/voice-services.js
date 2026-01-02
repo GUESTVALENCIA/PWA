@@ -514,13 +514,14 @@ class VoiceServices {
       let configureAcknowledged = false;
       
       ws.on('open', () => {
-        // Configure connection for PCM streaming - WebRTC quality (48kHz)
+        // ⚠️ CRITICAL: Deepgram TTS WebSocket requires sample_rate: 24000 for streaming
+        // 48000 is for STT (input), but TTS (output) should be 24000 Hz (Deepgram default)
         // Send Configure IMMEDIATELY - no delay needed
         const configureMessage = {
           type: 'Configure',
-          model: model,
+          model: model, // ✅ Use 'model' not 'speak.model' or 'speakModel'
           encoding: 'linear16', // PCM 16-bit (uncompressed, best quality)
-          sample_rate: 48000 // 48kHz (WebRTC standard, mobile call quality)
+          sample_rate: 24000 // ✅ 24kHz is recommended and default for TTS streaming
         };
         
         logger.info(`[TTS] 📤 Sending Configure message:`, configureMessage);

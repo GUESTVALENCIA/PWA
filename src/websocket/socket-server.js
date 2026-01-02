@@ -918,7 +918,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                           audio: pcmBase64,
                           format: 'pcm',
                           encoding: 'linear16',
-                          sampleRate: 48000,
+                          sampleRate: 24000, // ✅ TTS output is 24kHz (Deepgram default for streaming)
                           channels: 1,
                           isFirst: firstChunk,
                           padded: true // Flag to indicate padding was applied
@@ -942,7 +942,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                         audio: pcmBase64,
                         format: 'pcm',
                         encoding: 'linear16',
-                        sampleRate: 48000, // WebRTC quality (48kHz)
+                        sampleRate: 24000, // ✅ TTS output is 24kHz (Deepgram default for streaming)
                         channels: 1,
                         isFirst: firstChunk
                       }
@@ -1529,7 +1529,7 @@ async function handleInitialGreeting(ws, voiceServices) {
                   audio: pcmBase64,
                   format: 'pcm',
                   encoding: 'linear16',
-                  sampleRate: 48000,
+                  sampleRate: 24000, // ✅ TTS output is 24kHz (Deepgram default for streaming)
                   channels: 1,
                   isFirst: firstChunk,
                   isWelcome: true,
@@ -1557,7 +1557,7 @@ async function handleInitialGreeting(ws, voiceServices) {
                 audio: pcmBase64,
                 format: 'pcm',
                 encoding: 'linear16',
-                sampleRate: 48000, // WebRTC quality (48kHz)
+                sampleRate: 24000, // ✅ TTS output is 24kHz (Deepgram default for streaming)
                 channels: 1,
                 isFirst: firstChunk,
                 isWelcome: true
