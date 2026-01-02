@@ -1,0 +1,62 @@
+{
+  "voiceLibrary": {
+    "default": {
+      "file": "/assets/audio/sandra-voice.mp3",
+      "name": "Sandra Native",
+      "language": "es",
+      "provider": "native",
+      "description": "Default Sandra voice for general responses"
+    },
+    "welcome": {
+      "file": "/assets/audio/welcome.mp3",
+      "name": "Sandra Welcome",
+      "language": "es",
+      "provider": "native",
+      "description": "Welcome greeting voice"
+    },
+    "cartesia-professional": {
+      "file": "/assets/audio/cartesia-professional.mp3",
+      "name": "Sandra Cartesia Professional",
+      "language": "es",
+      "provider": "cartesia",
+      "description": "Professional Cartesia-generated voice for formal interactions",
+      "generated": false
+    },
+    "cartesia-friendly": {
+      "file": "/assets/audio/cartesia-friendly.mp3",
+      "name": "Sandra Cartesia Friendly",
+      "language": "es",
+      "provider": "cartesia",
+      "description": "Friendly Cartesia-generated voice for casual interactions",
+      "generated": false
+    },
+    "cartesia-luxury": {
+      "file": "/assets/audio/cartesia-luxury.mp3",
+      "name": "Sandra Cartesia Luxury",
+      "language": "es",
+      "provider": "cartesia",
+      "description": "Luxury/premium Cartesia-generated voice for VIP interactions",
+      "generated": false
+    }
+  },
+  "responseTypeMapping": {
+    "greeting": "welcome",
+    "general": "default",
+    "hospitality": "cartesia-professional",
+    "luxury": "cartesia-luxury",
+    "support": "cartesia-friendly",
+    "error": "default",
+    "default": "default"
+  },
+  "voiceSettings": {
+    "volume": 1.0,
+    "playbackRate": 1.0,
+    "fadeInDuration": 200,
+    "fadeOutDuration": 200,
+    "maxConcurrentAudio": 1
+  },
+  "fallbackChain": [
+    "default",
+    "welcome"
+  ]
+}
