@@ -428,7 +428,7 @@ class VoiceServices {
   async generateVoice(text, options = {}) {
     // Handle legacy call signature (text, voiceId)
     if (typeof options === 'string' || options === null) {
-      options = { streaming: false, model: 'aura-2-celeste-es' }; // ✅ REST API por defecto
+      options = { streaming: false, model: 'aura-2-agustina-es' }; // ✅ REST API por defecto - PENINSULAR
     }
 
     const { 
@@ -676,7 +676,7 @@ class VoiceServices {
    * ✅ CORREGIDO: Usa formato text/plain como muestra el curl oficial
    * @private
    * @param {string} text - Text to synthesize
-   * @param {string} model - Deepgram voice model (default: aura-2-celeste-es)
+   * @param {string} model - Deepgram voice model (default: aura-2-agustina-es)
    * @returns {Promise<string>} Base64 encoded audio (MP3)
    */
   async _generateDeepgramTTS(text, model = 'aura-2-agustina-es') {
@@ -695,7 +695,7 @@ class VoiceServices {
 
     try {
       // ✅ FORMATO CORRECTO según curl oficial de Deepgram:
-      // POST https://api.deepgram.com/v1/speak?model=aura-2-celeste-es
+      // POST https://api.deepgram.com/v1/speak?model=aura-2-agustina-es
       // Headers: Authorization: Token ... , Content-Type: text/plain
       // Body: texto directamente (NO JSON)
       const url = `https://api.deepgram.com/v1/speak?model=${encodeURIComponent(model)}`;

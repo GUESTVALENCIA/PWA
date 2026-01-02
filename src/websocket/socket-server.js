@@ -757,14 +757,28 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
             deepgramData.processingTranscript = null;
           }
           
-          // Check 3: Same transcript as last finalized (within 2 seconds) - prevent duplicate events
+          // Check 3: Same transcript as last finalized (within 3 seconds) - prevent duplicate events
+          // Deepgram envía múltiples eventos (idle_timeout, Results, speech_final) para la misma transcripción
           if (deepgramData && 
               deepgramData.lastFinalizedTranscript === transcriptNormalized &&
-              (now - deepgramData.lastFinalizedTimestamp) < 2000) {
-            logger.warn('[DEEPGRAM] Duplicate finalized transcript detected, skipping', {
+              (now - deepgramData.lastFinalizedTimestamp) < 3000) {
+            logger.debug('[DEEPGRAM] Duplicate finalized transcript detected (multiple events), skipping', {
               agentId: agentId,
               transcript: transcriptNormalized.substring(0, 50),
-              timeSinceLast: now - deepgramData.lastFinalizedTimestamp
+              timeSinceLast: now - deepgramData.lastFinalizedTimestamp,
+              eventType: message?.type || 'unknown'
+            });
+            return;
+          }
+          
+          // Check 3.5: Si ya está procesando EXACTAMENTE esta transcripción, saltarla
+          if (deepgramData && 
+              deepgramData.isProcessing &&
+              deepgramData.processingTranscript === transcriptNormalized) {
+            logger.debug('[DEEPGRAM] Already processing this exact transcript, skipping duplicate event', {
+              agentId: agentId,
+              transcript: transcriptNormalized.substring(0, 50),
+              eventType: message?.type || 'unknown'
             });
             return;
           }
@@ -785,11 +799,13 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
           // ✅ VALID TRANSCRIPT - Process it
           logger.info(`[DEEPGRAM] ✅ Utterance finalized (${message?.type || 'unknown'}): "${transcriptNormalized}"`);
           
-          // Update tracking
+          // ⚠️ CRITICAL: Update tracking ANTES de procesar para evitar race conditions
+          // Esto previene que múltiples eventos de Deepgram procesen la misma transcripción
           if (deepgramData) {
             deepgramData.lastFinalizedTranscript = transcriptNormalized;
             deepgramData.lastFinalizedTimestamp = now;
             deepgramData.processingTranscript = transcriptNormalized;
+            deepgramData.isProcessing = true; // Marcar INMEDIATAMENTE
           }
 
           // Emit transcript to client (useful for debugging / UX feedback)
