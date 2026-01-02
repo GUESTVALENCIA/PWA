@@ -823,10 +823,8 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
             }
           } catch (_) {}
           
-          // Mark as processing to prevent duplicate processing
-          if (deepgramData) {
-            deepgramData.isProcessing = true;
-          }
+          // ⚠️ NOTA: isProcessing ya se marcó arriba (línea 808) para evitar race conditions
+          // No necesitamos marcarlo de nuevo aquí
 
           try {
             // Process with AI
