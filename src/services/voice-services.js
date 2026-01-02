@@ -512,15 +512,18 @@ class VoiceServices {
 
       ws.on('open', () => {
         // Configure connection for PCM streaming - WebRTC quality (48kHz)
-        ws.send(JSON.stringify({
-          type: 'Configure',
-          model: model,
-          encoding: 'linear16', // PCM 16-bit (uncompressed, best quality)
-          sample_rate: 48000 // 48kHz (WebRTC standard, mobile call quality)
-        }));
-        
-        logger.info(`[TTS] ✅ Deepgram TTS WebSocket connected and configured (model: ${model})`);
-        resolve(ws);
+        // Wait a tiny bit to ensure connection is fully ready
+        setTimeout(() => {
+          ws.send(JSON.stringify({
+            type: 'Configure',
+            model: model,
+            encoding: 'linear16', // PCM 16-bit (uncompressed, best quality)
+            sample_rate: 48000 // 48kHz (WebRTC standard, mobile call quality)
+          }));
+          
+          logger.info(`[TTS] ✅ Deepgram TTS WebSocket connected and configured (model: ${model})`);
+          resolve(ws);
+        }, 50); // Small delay to ensure WebSocket is fully ready
       });
 
       ws.on('error', (error) => {

@@ -847,11 +847,24 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                 const ttsWs = responseAudio.ws;
                 let firstChunk = true;
                 
-                // Send text to TTS
-                voiceServices.sendTextToTTS(ttsWs, aiResponse);
+                // Wait for WebSocket to be fully ready before sending
+                const sendTextAndFlush = () => {
+                  if (ttsWs.readyState === WebSocket.OPEN) {
+                    // Send text to TTS
+                    voiceServices.sendTextToTTS(ttsWs, aiResponse);
+                    
+                    // Small delay before flush to ensure text is sent
+                    setTimeout(() => {
+                      // Flush to start audio generation
+                      voiceServices.flushTTS(ttsWs);
+                    }, 10);
+                  } else {
+                    // Wait for connection to open
+                    ttsWs.once('open', sendTextAndFlush);
+                  }
+                };
                 
-                // Flush to start audio generation
-                voiceServices.flushTTS(ttsWs);
+                sendTextAndFlush();
                 
                 // Handle incoming PCM audio chunks
                 ttsWs.on('message', (data) => {
