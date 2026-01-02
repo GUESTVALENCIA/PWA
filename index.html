@@ -2099,6 +2099,98 @@
         }, (e) => console.error("Error decodificando audio stream:", e));
       }
 
+      // 🚀 FASE 1: Setup AudioWorklet para reproducción PCM
+      async setupAudioWorklet() {
+        try {
+          // Create AudioContext with 24kHz sample rate (match Deepgram TTS)
+          this.audioWorkletContext = new (window.AudioContext || window.webkitAudioContext)({
+            sampleRate: 24000
+          });
+          
+          // Load AudioWorklet processor
+          await this.audioWorkletContext.audioWorklet.addModule('assets/js/audio-worklet-processor.js');
+          
+          // Create AudioWorkletNode
+          this.audioWorkletNode = new AudioWorkletNode(this.audioWorkletContext, 'pcm-playback-processor');
+          this.audioWorkletNode.connect(this.audioWorkletContext.destination);
+          
+          this.audioWorkletReady = true;
+          console.log('[AUDIO] ✅ AudioWorklet initialized successfully');
+        } catch (error) {
+          console.error('[AUDIO] ❌ Error setting up AudioWorklet:', error);
+          this.audioWorkletReady = false;
+          // Fallback to <audio> element if AudioWorklet fails
+        }
+      }
+
+      // 🚀 FASE 1: Handle TTS WebSocket PCM chunks
+      handleTTSAudioChunk(pcmChunkBase64) {
+        if (!this.audioWorkletReady || !this.audioWorkletNode) {
+          console.warn('[AUDIO] ⚠️ AudioWorklet not ready, cannot play PCM chunk');
+          return;
+        }
+
+        try {
+          // Decode base64 to ArrayBuffer
+          const binaryString = atob(pcmChunkBase64);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+
+          // Convert Int16 PCM to Float32Array (-1.0 to 1.0)
+          const int16Array = new Int16Array(bytes.buffer);
+          const float32Array = new Float32Array(int16Array.length);
+          for (let i = 0; i < int16Array.length; i++) {
+            float32Array[i] = int16Array[i] / 32768.0;
+          }
+
+          // Send to AudioWorklet
+          this.audioWorkletNode.port.postMessage({
+            type: 'audio',
+            data: float32Array.buffer
+          });
+
+          this.isSpeaking = true;
+        } catch (error) {
+          console.error('[AUDIO] ❌ Error handling TTS PCM chunk:', error);
+        }
+      }
+
+      // 🚀 FASE 1: Play native audio file (WAV) using AudioWorklet
+      async playNativeAudio(audioBuffer) {
+        if (!this.audioWorkletReady || !this.audioWorkletNode) {
+          console.warn('[AUDIO] ⚠️ AudioWorklet not ready, falling back to <audio>');
+          return false;
+        }
+
+        try {
+          // Send native audio to AudioWorklet
+          this.audioWorkletNode.port.postMessage({
+            type: 'native',
+            data: audioBuffer
+          });
+
+          this.isSpeaking = true;
+          console.log('[AUDIO] ✅ Native audio sent to AudioWorklet');
+          return true;
+        } catch (error) {
+          console.error('[AUDIO] ❌ Error playing native audio:', error);
+          return false;
+        }
+      }
+
+      // 🚀 FASE 1: Clear audio (for barge-in)
+      clearAudio() {
+        if (this.audioWorkletNode) {
+          this.audioWorkletNode.port.postMessage({ type: 'clear' });
+        }
+        if (this.currentAudio && !this.currentAudio.paused) {
+          this.currentAudio.pause();
+        }
+        this.isSpeaking = false;
+      }
+
       // 🚀 ENTERPRISE: Barge-in avanzado - detectar voz del usuario para bajar volumen (no cortar)
       setupBargeInDetection(audioContext, stream) {
         if (!stream || !audioContext) {
@@ -2189,7 +2281,15 @@
 
       // AUDIO FIX: Improved playAudioResponse with 3s delay on revoke
       playAudioResponse(audioBase64, isWelcome = false) {
-        console.log('[AUDIO] playAudioResponse called with isWelcome:', isWelcome, 'audioBase64 length:', audioBase64?.length);
+        console.log('[AUDIO] playAudioResponse called with isWelcome:', isWelcome, 'audioBase64 type:', typeof audioBase64, 'length:', audioBase64?.length);
+
+        // 🚀 FASE 1: Detect and reject WebSocket objects (should never be sent to client)
+        if (audioBase64 && typeof audioBase64 === 'object' && audioBase64.type === 'streaming') {
+          console.error('[AUDIO] ❌ ERROR: Received WebSocket object instead of audio data. This should not happen - server bug.');
+          console.error('[AUDIO] Object received:', audioBase64);
+          this.isSpeaking = false;
+          return;
+        }
 
         if (!audioBase64 || typeof audioBase64 !== 'string') {
           console.error('[AUDIO] ❌ Audio base64 inválido:', typeof audioBase64, audioBase64);
