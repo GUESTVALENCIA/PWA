@@ -433,9 +433,9 @@ class VoiceServices {
 
     const { 
       useNative = false, 
-      model = 'aura-2-agustina-es', 
-      streaming = true,
-      provider = 'auto' // 'auto' = try Deepgram first, fallback to Cartesia
+      model = 'aura-2-celeste-es', // ✅ DEFAULT: aura-2-celeste-es (modelo encontrado en Playground)
+      streaming = false, // ✅ DEFAULT: false (usar REST API, más simple y confiable)
+      provider = 'deepgram' // ✅ DEFAULT: deepgram (gastar crédito de $200)
     } = options;
 
     // Option 1: Use native audio file (lowest latency)
@@ -534,7 +534,7 @@ class VoiceServices {
    * @param {string} model - Deepgram voice model (aura-2-nestor-es, aura-2-carina-es, etc.)
    * @returns {Promise<WebSocket>} WebSocket connection for TTS streaming
    */
-  async createTTSStreamingConnection(model = 'aura-2-agustina-es') {
+  async createTTSStreamingConnection(model = 'aura-2-celeste-es') {
     if (!this.deepgramApiKey) {
       throw new Error('Deepgram API key not configured');
     }
@@ -678,40 +678,59 @@ class VoiceServices {
   }
 
   /**
-   * Generate TTS audio using Deepgram REST API (fallback)
+   * Generate TTS audio using Deepgram REST API
+   * ✅ CORREGIDO: Usa formato text/plain como muestra el curl oficial
    * @private
+   * @param {string} text - Text to synthesize
+   * @param {string} model - Deepgram voice model (default: aura-2-celeste-es)
+   * @returns {Promise<string>} Base64 encoded audio (MP3)
    */
-  async _generateDeepgramTTS(text, model = 'aura-2-agustina-es') {
-    // Deepgram TTS models for Spanish (Peninsular):
+  async _generateDeepgramTTS(text, model = 'aura-2-celeste-es') {
+    // Deepgram TTS models for Spanish:
     // FEMENINAS: aura-2-carina-es, aura-2-diana-es, aura-2-agustina-es, aura-2-silvia-es
-    // MASCULINAS: aura-2-nestor-es
-    // OTRAS: aura-2-celeste-es (Colombia), aura-2-estrella-es (México)
+    // MASCULINAS: aura-2-nestor-es, aura-2-alvaro-es
+    // OTRAS: aura-2-celeste-es (Colombia) ⭐ DEFAULT, aura-2-estrella-es (México)
     if (!this.deepgramApiKey) {
       throw new Error('Deepgram API key not configured');
     }
 
+    if (!text || text.trim() === '') {
+      throw new Error('Text is required for TTS generation');
+    }
+
     try {
-      // Deepgram TTS REST endpoint - fallback when WebSocket streaming is not available
-      const response = await fetch(`https://api.deepgram.com/v1/speak?model=${model}&encoding=mp3`, {
+      // ✅ FORMATO CORRECTO según curl oficial de Deepgram:
+      // POST https://api.deepgram.com/v1/speak?model=aura-2-celeste-es
+      // Headers: Authorization: Token ... , Content-Type: text/plain
+      // Body: texto directamente (NO JSON)
+      const url = `https://api.deepgram.com/v1/speak?model=${encodeURIComponent(model)}`;
+      
+      logger.info(`[DEEPGRAM TTS] 🎙️ Requesting TTS: model=${model}, text_length=${text.length}`);
+      logger.debug(`[DEEPGRAM TTS] URL: ${url}`);
+      
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Authorization': `Token ${this.deepgramApiKey}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'text/plain' // ✅ Formato correcto según curl oficial
         },
-        body: JSON.stringify({ text })
+        body: text // ✅ Texto directamente, NO JSON
       });
 
       if (!response.ok) {
         const errorText = await response.text();
+        logger.error(`[DEEPGRAM TTS] ❌ API Error (${response.status}):`, errorText);
         throw new Error(`Deepgram TTS API Error: ${response.status} - ${errorText}`);
       }
 
+      // Deepgram devuelve audio MP3 directamente
       const audioBuffer = await response.arrayBuffer();
       const audioBase64 = Buffer.from(audioBuffer).toString('base64');
-      logger.info('[TTS] ✅ Audio generated successfully with Deepgram REST API (MP3)');
+      
+      logger.info(`[DEEPGRAM TTS] ✅ Audio generated successfully (${audioBuffer.byteLength} bytes, MP3)`);
       return audioBase64;
     } catch (error) {
-      logger.error('[TTS] Deepgram TTS REST API error:', error);
+      logger.error('[DEEPGRAM TTS] ❌ REST API error:', error);
       throw error;
     }
   }
