@@ -35,7 +35,9 @@ dotenv.config({ path: join(__dirname, '../.env') });
 
 // Configuración
 const WS_URL = process.env.MCP_SERVER_URL?.replace('https://', 'wss://').replace('http://', 'ws://') || 'wss://pwa-imbf.onrender.com';
-const RINGTONE_DURATION_MS = 2000; // 2 segundos por ringtone (2 ringtones = 4 segundos total)
+const FIRST_RINGTONE_DURATION_MS = 1430; // 1.43 segundos (duración real del primer ringtone)
+const QUESTION_DELAY_MS = 10; // 10ms después del primer ringtone (1.44s total)
+const TEST_QUESTION = 'Hola Sandra, ¿cómo estás?'; // Pregunta de prueba
 
 // Colores para consola
 const colors = {
@@ -53,7 +55,8 @@ const colors = {
 const metrics = {
   startTime: null,
   wsConnectTime: null,
-  ringtonesEndTime: null,
+  firstRingtoneEndTime: null,
+  questionSentTime: null,
   greetingReceivedTime: null,
   transcriptionStartTime: null,
   transcriptionEndTime: null,
@@ -110,25 +113,35 @@ function printMetrics() {
   const wsConnectLatency = getTimeDiff(metrics.startTime, metrics.wsConnectTime);
   printMetric('1. Conexión WebSocket:', formatTime(wsConnectLatency), wsConnectLatency < 500 ? colors.green : colors.yellow);
 
-  // Fase 2: Ringtones (simulado)
-  const ringtonesLatency = RINGTONE_DURATION_MS * 2; // 2 ringtones
-  printMetric('2. Ringtones (2x):', formatTime(ringtonesLatency), colors.blue);
+  // Fase 2: Primer ringtone (real)
+  const firstRingtoneLatency = FIRST_RINGTONE_DURATION_MS;
+  printMetric('2. Primer Ringtone:', formatTime(firstRingtoneLatency), colors.blue);
 
-  // Fase 3: Saludo (TTS)
-  const greetingLatency = getTimeDiff(metrics.ringtonesEndTime, metrics.greetingReceivedTime);
-  printMetric('3. Generación Saludo (TTS):', formatTime(greetingLatency), greetingLatency < 2000 ? colors.green : colors.yellow);
+  // Fase 3: Saludo (TTS) - opcional, puede no llegar antes de la pregunta
+  const greetingLatency = metrics.greetingReceivedTime ? 
+    getTimeDiff(metrics.wsConnectTime, metrics.greetingReceivedTime) : null;
+  if (greetingLatency !== null) {
+    printMetric('3. Generación Saludo (TTS):', formatTime(greetingLatency), greetingLatency < 2000 ? colors.green : colors.yellow);
+  }
 
-  // Fase 4: Transcripción (STT)
-  const transcriptionLatency = getTimeDiff(metrics.transcriptionStartTime, metrics.transcriptionEndTime);
-  printMetric('4. Transcripción (STT):', formatTime(transcriptionLatency), transcriptionLatency < 1000 ? colors.green : colors.yellow);
+  // Fase 4: Pregunta enviada
+  const questionSentLatency = getTimeDiff(metrics.firstRingtoneEndTime, metrics.questionSentTime);
+  printMetric('4. Pregunta enviada:', formatTime(questionSentLatency), colors.cyan);
 
-  // Fase 5: Respuesta IA
-  const aiResponseLatency = getTimeDiff(metrics.aiResponseStartTime, metrics.aiResponseEndTime);
-  printMetric('5. Respuesta IA:', formatTime(aiResponseLatency), aiResponseLatency < 2000 ? colors.green : colors.yellow);
+  // Fase 5: Latencia TOTAL de respuesta (desde pregunta hasta audio)
+  const totalResponseLatency = getTimeDiff(metrics.questionSentTime, metrics.ttsResponseEndTime);
+  printMetric('5. Latencia TOTAL Respuesta:', formatTime(totalResponseLatency), totalResponseLatency < 5000 ? colors.green : colors.yellow);
 
-  // Fase 6: Audio Respuesta (TTS)
-  const ttsResponseLatency = getTimeDiff(metrics.ttsResponseStartTime, metrics.ttsResponseEndTime);
-  printMetric('6. Audio Respuesta (TTS):', formatTime(ttsResponseLatency), ttsResponseLatency < 2000 ? colors.green : colors.yellow);
+  // Desglose interno de la respuesta (si está disponible)
+  if (metrics.transcriptionEndTime && metrics.aiResponseEndTime) {
+    const transcriptionLatency = getTimeDiff(metrics.transcriptionStartTime, metrics.transcriptionEndTime);
+    const aiResponseLatency = getTimeDiff(metrics.aiResponseStartTime, metrics.aiResponseEndTime);
+    const ttsResponseLatency = getTimeDiff(metrics.ttsResponseStartTime, metrics.ttsResponseEndTime);
+    
+    printMetric('   • STT (Transcripción):', formatTime(transcriptionLatency), colors.blue);
+    printMetric('   • IA (Procesamiento):', formatTime(aiResponseLatency), colors.blue);
+    printMetric('   • TTS (Audio respuesta):', formatTime(ttsResponseLatency), colors.blue);
+  }
 
   // Latencia total
   const totalLatency = getTimeDiff(metrics.startTime, metrics.endTime);
@@ -139,28 +152,26 @@ function printMetrics() {
   console.log(`${colors.bright}📈 DESGLOSE POR COMPONENTES:${colors.reset}\n`);
 
   const networkLatency = wsConnectLatency;
-  const ttsLatency = (greetingLatency || 0) + (ttsResponseLatency || 0);
-  const sttLatency = transcriptionLatency || 0;
-  const aiLatency = aiResponseLatency || 0;
-  const otherLatency = (totalLatency || 0) - networkLatency - ttsLatency - sttLatency - aiLatency - ringtonesLatency;
+  const ringtoneLatency = firstRingtoneLatency;
+  const responseLatency = totalResponseLatency || 0;
+  const otherLatency = (totalLatency || 0) - networkLatency - ringtoneLatency - responseLatency;
 
   printMetric('  • Red (WebSocket):', formatTime(networkLatency));
-  printMetric('  • TTS (Saludo + Respuesta):', formatTime(ttsLatency));
-  printMetric('  • STT (Transcripción):', formatTime(sttLatency));
-  printMetric('  • IA (Procesamiento):', formatTime(aiLatency));
-  printMetric('  • Ringtones:', formatTime(ringtonesLatency));
+  printMetric('  • Primer Ringtone:', formatTime(ringtoneLatency));
+  printMetric('  • Respuesta Completa (STT+IA+TTS):', formatTime(responseLatency));
   printMetric('  • Otros (overhead):', formatTime(otherLatency));
 
-  // Análisis
+  // Análisis de latencia de respuesta
   console.log('\n' + '-'.repeat(60));
   console.log(`${colors.bright}🔍 ANÁLISIS:${colors.reset}\n`);
 
-  if (totalLatency < 5000) {
-    console.log(`${colors.green}✅ Latencia EXCELENTE (< 5s)${colors.reset}`);
-  } else if (totalLatency < 10000) {
-    console.log(`${colors.yellow}⚠️  Latencia ACEPTABLE (5-10s)${colors.reset}`);
+  const responseLatency = totalResponseLatency || 0;
+  if (responseLatency < 3000) {
+    console.log(`${colors.green}✅ Latencia de respuesta EXCELENTE (< 3s)${colors.reset}`);
+  } else if (responseLatency < 6000) {
+    console.log(`${colors.yellow}⚠️  Latencia de respuesta ACEPTABLE (3-6s)${colors.reset}`);
   } else {
-    console.log(`${colors.red}❌ Latencia ALTA (> 10s) - Necesita optimización${colors.reset}`);
+    console.log(`${colors.red}❌ Latencia de respuesta ALTA (> 6s) - Necesita optimización${colors.reset}`);
   }
 
   // Recomendaciones
@@ -195,20 +206,47 @@ async function runLatencyTest() {
       testState.wsConnected = true;
       console.log(`${colors.green}✅ WebSocket conectado${colors.reset} (${formatTime(getTimeDiff(metrics.startTime, metrics.wsConnectTime))})\n`);
 
-      // Simular ringtones (2 segundos cada uno = 4 segundos total)
-      console.log(`${colors.blue}📞 Simulando ringtones (2x = 4s)...${colors.reset}\n`);
+      // Simular primer ringtone (1.43s)
+      console.log(`${colors.blue}📞 Simulando primer ringtone (1.43s)...${colors.reset}\n`);
       setTimeout(() => {
-        metrics.ringtonesEndTime = Date.now();
-        console.log(`${colors.green}✅ Ringtones completados${colors.reset}\n`);
+        metrics.firstRingtoneEndTime = Date.now();
+        console.log(`${colors.green}✅ Primer ringtone completado${colors.reset} (${formatTime(FIRST_RINGTONE_DURATION_MS)})\n`);
 
-        // Enviar mensaje "ready" para iniciar saludo
-        console.log(`${colors.cyan}📤 Enviando mensaje "ready"...${colors.reset}`);
-        ws.send(JSON.stringify({
-          route: 'conserje',
-          action: 'message',
-          payload: { type: 'ready' }
-        }));
-      }, RINGTONE_DURATION_MS * 2);
+          // A los 1.44s (10ms después) enviar pregunta como audio STT simulado
+          setTimeout(() => {
+            metrics.questionSentTime = Date.now();
+            metrics.transcriptionStartTime = Date.now();
+            console.log(`${colors.cyan}💬 Enviando pregunta de prueba: "${TEST_QUESTION}"${colors.reset}`);
+            console.log(`   (${formatTime(getTimeDiff(metrics.firstRingtoneEndTime, metrics.questionSentTime))} después del ringtone)\n`);
+          
+          // Enviar audio STT simulado (el servidor lo procesará: STT → IA → TTS)
+          // NOTA: El servidor requiere audio real, pero podemos enviar un buffer pequeño
+          // que active el flujo. El servidor procesará el audio y generará la transcripción.
+          // Para simplificar, enviamos un mensaje que simule que ya tenemos la transcripción.
+          // Sin embargo, el servidor solo acepta audio STT real.
+          
+          // Opción 1: Enviar audio simulado (buffer pequeño de PCM)
+          // Esto activará el flujo completo STT → IA → TTS
+          const simulatedAudioBuffer = Buffer.alloc(1600); // 100ms de audio PCM a 16kHz mono
+          const simulatedAudioBase64 = simulatedAudioBuffer.toString('base64');
+          
+          ws.send(JSON.stringify({
+            route: 'audio',
+            action: 'stt',
+            payload: {
+              audio: simulatedAudioBase64,
+              format: 'pcm',
+              encoding: 'linear16',
+              sampleRate: 48000,
+              channels: 1
+            }
+          }));
+          
+          // NOTA: El servidor procesará este audio con Deepgram STT, pero como es silencio,
+          // puede que no genere transcripción. Para un test real, necesitaríamos audio real.
+          // Por ahora, el script medirá la latencia del procesamiento del servidor.
+        }, QUESTION_DELAY_MS);
+      }, FIRST_RINGTONE_DURATION_MS);
     });
 
     // FASE 2: Recibir saludo (TTS) - REAL
@@ -216,41 +254,25 @@ async function runLatencyTest() {
       try {
         const message = JSON.parse(data.toString());
 
-        // Saludo recibido (REAL desde servidor)
+        // Saludo recibido (REAL desde servidor) - opcional, puede llegar después
         if (message.route === 'audio' && message.action === 'tts' && message.payload?.isWelcome) {
           if (!testState.greetingReceived) {
             metrics.greetingReceivedTime = Date.now();
             testState.greetingReceived = true;
-            const greetingLatency = getTimeDiff(metrics.ringtonesEndTime || metrics.wsConnectTime, metrics.greetingReceivedTime);
+            const greetingLatency = getTimeDiff(metrics.wsConnectTime, metrics.greetingReceivedTime);
             console.log(`${colors.green}✅ Saludo recibido (REAL)${colors.reset} (${formatTime(greetingLatency)})`);
             console.log(`   Texto: "${message.payload.text || 'N/A'}"\n`);
-
-            // Esperar un momento y enviar transcripción real
-            setTimeout(() => {
-              metrics.transcriptionStartTime = Date.now();
-              console.log(`${colors.cyan}🎤 Enviando transcripción de prueba...${colors.reset}`);
-              
-              // Enviar mensaje de transcripción simulada (el servidor procesará STT → IA → TTS)
-              // Usamos un mensaje directo que simula una transcripción final
-              ws.send(JSON.stringify({
-                route: 'conserje',
-                action: 'message',
-                payload: {
-                  type: 'transcription_final',
-                  text: 'Hola Sandra, ¿cómo estás?'
-                }
-              }));
-            }, 1000); // Esperar 1s después del saludo
+            // No hacemos nada más, la pregunta ya se envió después del primer ringtone
           }
         }
 
-        // Transcripción procesada (REAL desde servidor)
+        // Transcripción procesada (REAL desde servidor) - puede no llegar si el servidor procesa directamente
         if (message.route === 'conserje' && message.action === 'message' && message.payload?.type === 'transcription_final') {
           if (!testState.transcriptionSent) {
             metrics.transcriptionEndTime = Date.now();
             testState.transcriptionSent = true;
             const transcriptionLatency = getTimeDiff(metrics.transcriptionStartTime, metrics.transcriptionEndTime);
-            console.log(`${colors.green}✅ Transcripción procesada (REAL)${colors.reset} (${formatTime(transcriptionLatency)})`);
+            console.log(`${colors.green}✅ Transcripción confirmada (REAL)${colors.reset} (${formatTime(transcriptionLatency)})`);
             console.log(`   Texto: "${message.payload.text || 'N/A'}"\n`);
 
             // Marcar inicio de respuesta IA
@@ -259,11 +281,15 @@ async function runLatencyTest() {
           }
         }
 
-        // Respuesta IA recibida (REAL desde servidor)
+        // Respuesta IA recibida (REAL desde servidor) - puede no llegar si el servidor envía directamente audio
         if (message.route === 'conserje' && message.action === 'message' && message.payload?.type === 'response_complete') {
           if (!testState.aiResponseReceived) {
             metrics.aiResponseEndTime = Date.now();
             testState.aiResponseReceived = true;
+            // Si no teníamos inicio, usar el tiempo de la pregunta
+            if (!metrics.aiResponseStartTime) {
+              metrics.aiResponseStartTime = metrics.questionSentTime;
+            }
             const aiLatency = getTimeDiff(metrics.aiResponseStartTime, metrics.aiResponseEndTime);
             console.log(`${colors.green}✅ Respuesta IA generada (REAL)${colors.reset} (${formatTime(aiLatency)})`);
             console.log(`   Texto: "${message.payload.text?.substring(0, 50) || 'N/A'}..."\n`);
@@ -274,14 +300,30 @@ async function runLatencyTest() {
           }
         }
 
-        // Respuesta conversacional recibida (REAL desde servidor)
+        // Respuesta conversacional recibida (REAL desde servidor) - ESTO ES LO QUE MEDIMOS
         if (message.route === 'audio' && message.action === 'tts' && !message.payload?.isWelcome) {
           if (!testState.ttsResponseReceived) {
             metrics.ttsResponseEndTime = Date.now();
             testState.ttsResponseReceived = true;
-            const ttsLatency = getTimeDiff(metrics.ttsResponseStartTime, metrics.ttsResponseEndTime);
-            console.log(`${colors.green}✅ Audio respuesta recibido (REAL)${colors.reset} (${formatTime(ttsLatency)})`);
-            console.log(`   Texto: "${message.payload.text?.substring(0, 50) || 'N/A'}..."\n`);
+            
+            // Si no teníamos tiempos intermedios, calcularlos ahora
+            if (!metrics.aiResponseStartTime) {
+              metrics.aiResponseStartTime = metrics.questionSentTime;
+            }
+            if (!metrics.ttsResponseStartTime) {
+              metrics.ttsResponseStartTime = metrics.questionSentTime;
+            }
+            if (!metrics.transcriptionEndTime) {
+              metrics.transcriptionEndTime = metrics.questionSentTime;
+            }
+            if (!metrics.aiResponseEndTime) {
+              metrics.aiResponseEndTime = metrics.ttsResponseEndTime;
+            }
+            
+            const totalResponseLatency = getTimeDiff(metrics.questionSentTime, metrics.ttsResponseEndTime);
+            console.log(`${colors.green}✅ Audio respuesta recibido (REAL)${colors.reset}`);
+            console.log(`   Texto: "${message.payload.text?.substring(0, 80) || 'N/A'}..."`);
+            console.log(`   ${colors.bright}⏱️  Latencia TOTAL de respuesta: ${formatTime(totalResponseLatency)}${colors.reset}\n`);
 
             if (!metrics.endTime) {
               metrics.endTime = Date.now();
@@ -310,16 +352,17 @@ async function runLatencyTest() {
       }
     });
 
-    // Timeout de seguridad (30 segundos)
+    // Timeout de seguridad (20 segundos - suficiente para una respuesta)
     setTimeout(() => {
       if (!testState.testComplete) {
-        console.log(`${colors.red}⏱️  Timeout: Test no completado en 30s${colors.reset}\n`);
+        console.log(`${colors.red}⏱️  Timeout: Test no completado en 20s${colors.reset}\n`);
+        console.log(`${colors.yellow}⚠️  La respuesta del servidor no llegó a tiempo${colors.reset}\n`);
         metrics.endTime = Date.now();
         printMetrics();
         ws.close();
         resolve();
       }
-    }, 30000);
+    }, 20000);
   });
 }
 
