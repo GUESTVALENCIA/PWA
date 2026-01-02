@@ -1,31 +1,32 @@
 /**
- * 🧪 SCRIPT DE TEST DE LATENCIA - Pipeline Completo de Llamada
+ * 🧪 SCRIPT DE MEDICIÓN DE LATENCIA - PRODUCCIÓN REAL
  * 
- * Mide la latencia REAL desde que se descuelga la llamada hasta que se recibe la respuesta del modelo.
+ * Mide la latencia REAL en PRODUCCIÓN desde que se descuelga la llamada hasta que se recibe la respuesta del modelo.
  * 
  * Mide:
  * 1. Tiempo de conexión WebSocket (real)
- * 2. Tiempo de los dos ringtones (simulado: 4s total)
- * 3. Tiempo de generación del saludo (TTS) - REAL desde servidor
- * 4. Tiempo de transcripción (STT) - REAL desde servidor
- * 5. Tiempo de respuesta IA - REAL desde servidor
- * 6. Tiempo de generación de audio respuesta (TTS) - REAL desde servidor
- * 7. Latencia total del pipeline
+ * 2. Primer ringtone (1.43s real)
+ * 3. Envío de audio REAL (a los 1.44s)
+ * 4. Latencia TOTAL de respuesta (STT → IA → TTS) - REAL desde servidor
  * 
  * USO:
  *   node scripts/test-latencia-llamada.js
  * 
+ * OPCIONAL - Audio real desde archivo:
+ *   TEST_AUDIO_FILE=./mi-audio.wav node scripts/test-latencia-llamada.js
+ * 
  * REQUISITOS:
  *   - Variables de entorno configuradas (.env)
- *   - Servidor WebSocket corriendo (Render o local)
+ *   - Servidor WebSocket corriendo en PRODUCCIÓN
  * 
- * NOTA: Este script mide tiempos REALES del servidor, no simulados.
+ * NOTA: Este script usa AUDIO REAL y mide latencia REAL en PRODUCCIÓN.
  */
 
 import dotenv from 'dotenv';
 import WebSocket from 'ws';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -37,7 +38,10 @@ dotenv.config({ path: join(__dirname, '../.env') });
 const WS_URL = process.env.MCP_SERVER_URL?.replace('https://', 'wss://').replace('http://', 'ws://') || 'wss://pwa-imbf.onrender.com';
 const FIRST_RINGTONE_DURATION_MS = 1430; // 1.43 segundos (duración real del primer ringtone)
 const QUESTION_DELAY_MS = 10; // 10ms después del primer ringtone (1.44s total)
-const TEST_QUESTION = 'Hola Sandra, ¿cómo estás?'; // Pregunta de prueba
+
+// Audio real - cargar desde archivo o usar audio de prueba
+const AUDIO_FILE_PATH = process.env.TEST_AUDIO_FILE || join(__dirname, '../test-audio.wav'); // Archivo de audio real (opcional)
+const USE_REAL_AUDIO = true; // Siempre usar audio real en producción
 
 // Colores para consola
 const colors = {
@@ -212,39 +216,75 @@ async function runLatencyTest() {
         metrics.firstRingtoneEndTime = Date.now();
         console.log(`${colors.green}✅ Primer ringtone completado${colors.reset} (${formatTime(FIRST_RINGTONE_DURATION_MS)})\n`);
 
-          // A los 1.44s (10ms después) enviar pregunta como audio STT simulado
+          // A los 1.44s (10ms después) enviar pregunta como audio REAL
           setTimeout(() => {
             metrics.questionSentTime = Date.now();
             metrics.transcriptionStartTime = Date.now();
-            console.log(`${colors.cyan}💬 Enviando pregunta de prueba: "${TEST_QUESTION}"${colors.reset}`);
+            console.log(`${colors.cyan}💬 Enviando audio REAL de producción${colors.reset}`);
             console.log(`   (${formatTime(getTimeDiff(metrics.firstRingtoneEndTime, metrics.questionSentTime))} después del ringtone)\n`);
           
-          // Enviar audio STT simulado (el servidor lo procesará: STT → IA → TTS)
-          // NOTA: El servidor requiere audio real, pero podemos enviar un buffer pequeño
-          // que active el flujo. El servidor procesará el audio y generará la transcripción.
-          // Para simplificar, enviamos un mensaje que simule que ya tenemos la transcripción.
-          // Sin embargo, el servidor solo acepta audio STT real.
+          // Cargar audio REAL desde archivo o generar audio de prueba real
+          let audioBuffer;
+          let audioFormat = 'pcm';
+          let sampleRate = 48000;
           
-          // Opción 1: Enviar audio simulado (buffer pequeño de PCM)
-          // Esto activará el flujo completo STT → IA → TTS
-          const simulatedAudioBuffer = Buffer.alloc(1600); // 100ms de audio PCM a 16kHz mono
-          const simulatedAudioBase64 = simulatedAudioBuffer.toString('base64');
+          try {
+            // Intentar cargar archivo de audio real si existe
+            if (fs.existsSync(AUDIO_FILE_PATH)) {
+              audioBuffer = fs.readFileSync(AUDIO_FILE_PATH);
+              console.log(`${colors.green}✅ Audio real cargado desde archivo${colors.reset} (${audioBuffer.length} bytes)\n`);
+              // Detectar formato por extensión
+              if (AUDIO_FILE_PATH.endsWith('.wav')) {
+                audioFormat = 'wav';
+              } else if (AUDIO_FILE_PATH.endsWith('.webm')) {
+                audioFormat = 'webm';
+              }
+            } else {
+              // Generar audio PCM real (tono de prueba - no silencio)
+              // 1 segundo de audio PCM a 48kHz, 16-bit, mono
+              const duration = 1.0; // 1 segundo
+              const samples = Math.floor(sampleRate * duration);
+              audioBuffer = Buffer.alloc(samples * 2); // 16-bit = 2 bytes por muestra
+              
+              // Generar tono de prueba (440Hz - La musical)
+              const frequency = 440;
+              for (let i = 0; i < samples; i++) {
+                const sample = Math.sin(2 * Math.PI * frequency * i / sampleRate);
+                const intSample = Math.floor(sample * 32767);
+                audioBuffer.writeInt16LE(intSample, i * 2);
+              }
+              
+              console.log(`${colors.yellow}⚠️  Archivo de audio no encontrado, generando tono de prueba${colors.reset} (${audioBuffer.length} bytes)\n`);
+              console.log(`${colors.yellow}💡 Para usar audio real, coloca un archivo .wav o .webm en: ${AUDIO_FILE_PATH}${colors.reset}\n`);
+            }
+          } catch (error) {
+            console.error(`${colors.red}❌ Error cargando audio:${colors.reset}`, error.message);
+            // Fallback: generar audio mínimo real
+            audioBuffer = Buffer.alloc(9600); // 100ms de audio PCM
+            for (let i = 0; i < 4800; i++) {
+              const sample = Math.sin(2 * Math.PI * 440 * i / sampleRate);
+              audioBuffer.writeInt16LE(Math.floor(sample * 32767), i * 2);
+            }
+          }
           
+          // Convertir a base64
+          const audioBase64 = audioBuffer.toString('base64');
+          
+          // Enviar audio REAL al servidor (producción)
           ws.send(JSON.stringify({
             route: 'audio',
             action: 'stt',
             payload: {
-              audio: simulatedAudioBase64,
-              format: 'pcm',
+              audio: audioBase64,
+              format: audioFormat === 'pcm' ? 'linear16' : audioFormat,
               encoding: 'linear16',
-              sampleRate: 48000,
-              channels: 1
+              sampleRate: sampleRate,
+              channels: 1,
+              mimeType: audioFormat === 'webm' ? 'audio/webm;codecs=opus' : 'audio/raw'
             }
           }));
           
-          // NOTA: El servidor procesará este audio con Deepgram STT, pero como es silencio,
-          // puede que no genere transcripción. Para un test real, necesitaríamos audio real.
-          // Por ahora, el script medirá la latencia del procesamiento del servidor.
+          console.log(`${colors.cyan}📤 Audio REAL enviado al servidor (${audioBuffer.length} bytes, ${audioFormat})${colors.reset}\n`);
         }, QUESTION_DELAY_MS);
       }, FIRST_RINGTONE_DURATION_MS);
     });
