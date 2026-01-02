@@ -1586,16 +1586,28 @@ async function handleInitialGreeting(ws, voiceServices) {
         });
         
         // Send completion when WebSocket closes
-        ttsWs.on('close', () => {
+        ttsWs.on('close', (code, reason) => {
           logger.info('[TTS] ✅ Greeting TTS WebSocket streaming completed', {
             totalChunks: chunksReceived,
-            totalBytes: totalBytesReceived
+            totalBytes: totalBytesReceived,
+            closeCode: code,
+            closeReason: reason?.toString()
           });
-          ws.send(JSON.stringify({
-            route: 'audio',
-            action: 'tts_complete',
-            payload: {}
-          }));
+          
+          // Only send completion if we received at least one chunk
+          if (chunksReceived > 0) {
+            ws.send(JSON.stringify({
+              route: 'audio',
+              action: 'tts_complete',
+              payload: {}
+            }));
+          } else {
+            // No chunks received - fallback to REST API
+            logger.warn('[TTS] ⚠️ No greeting audio chunks received, falling back to REST API');
+            handleGreetingFallback(greetingText, ws, voiceServices).catch(err => {
+              logger.error('[TTS] ❌ Greeting fallback failed:', err);
+            });
+          }
         });
         
         ttsWs.on('error', (error) => {
