@@ -39,11 +39,11 @@ const __dirname = path.dirname(__filename);
 class VoiceServices {
   constructor() {
     this.deepgramApiKey = process.env.DEEPGRAM_API_KEY;
-    // 🚫 CARTESIA DESHABILITADO: No usar API de Cartesia - solo voz nativa
-    // this.cartesiaApiKey = process.env.CARTESIA_API_KEY; // NO USAR
-    // this.cartesiaVoiceId = process.env.CARTESIA_VOICE_ID || 'sandra'; // NO USAR
-    this.cartesiaApiKey = null; // Forzado a null para asegurar que NO se use
-    this.cartesiaVoiceId = null; // Forzado a null
+    // ✅ CARTESIA REACTIVADO: Puede usarse independientemente de Deepgram
+    // Deepgram → Solo STT (transcripción)
+    // Cartesia → Solo TTS (texto a voz)
+    this.cartesiaApiKey = process.env.CARTESIA_API_KEY;
+    this.cartesiaVoiceId = process.env.CARTESIA_VOICE_ID || 'sandra';
     this.openaiApiKey = process.env.OPENAI_API_KEY;
     this.groqApiKey = process.env.GROQ_API_KEY;
     this.geminiApiKey = process.env.GEMINI_API_KEY;
@@ -472,23 +472,55 @@ class VoiceServices {
       }
     }
 
-    // Option 3: Deepgram TTS REST API (fallback, MP3 + base64)
+    // Option 3: TTS REST API (Deepgram or Cartesia)
     if (!text || text.trim() === '') {
       throw new Error('Text is required for TTS generation');
     }
 
-    logger.info(`[TTS] 🎙️ Generating audio with Deepgram TTS REST API for text: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
-    
-    // Use Deepgram TTS REST API with Spanish voice model
-    // Note: aura-2-thalia-es doesn't exist, using nestor-es or carina-es
-    const audioBase64 = await this._generateDeepgramTTS(text, model);
-    
-    logger.info('[TTS] ✅ Audio generated successfully with Deepgram TTS REST API');
-    return {
-      type: 'tts',
-      data: audioBase64,
-      format: 'mp3'
-    };
+    // Choose provider: 'auto' tries Deepgram first, then Cartesia
+    const useCartesia = provider === 'cartesia' || 
+                       (provider === 'auto' && !this.deepgramApiKey && this.cartesiaApiKey) ||
+                       (provider === 'auto' && this.deepgramApiKey && this.cartesiaApiKey && !streaming);
+
+    if (useCartesia && this.cartesiaApiKey) {
+      // Use Cartesia TTS (independent of Deepgram)
+      logger.info(`[TTS] 🎙️ Generating audio with Cartesia TTS for text: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
+      
+      try {
+        const audioBase64 = await this._generateCartesiaTTS(text, this.cartesiaVoiceId);
+        logger.info('[TTS] ✅ Audio generated successfully with Cartesia TTS');
+        return {
+          type: 'tts',
+          data: audioBase64,
+          format: 'mp3',
+          provider: 'cartesia'
+        };
+      } catch (error) {
+        logger.error('[TTS] ❌ Cartesia TTS failed, falling back to Deepgram:', error);
+        // Fall through to Deepgram if Cartesia fails
+      }
+    }
+
+    // Use Deepgram TTS REST API (default or fallback)
+    if (this.deepgramApiKey) {
+      logger.info(`[TTS] 🎙️ Generating audio with Deepgram TTS REST API for text: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
+      
+      try {
+        const audioBase64 = await this._generateDeepgramTTS(text, model);
+        logger.info('[TTS] ✅ Audio generated successfully with Deepgram TTS REST API');
+        return {
+          type: 'tts',
+          data: audioBase64,
+          format: 'mp3',
+          provider: 'deepgram'
+        };
+      } catch (error) {
+        logger.error('[TTS] ❌ Deepgram TTS failed:', error);
+        throw error;
+      }
+    }
+
+    throw new Error('No TTS provider available. Configure DEEPGRAM_API_KEY or CARTESIA_API_KEY');
   }
 
   /**
@@ -682,14 +714,59 @@ class VoiceServices {
   /**
    * Generate TTS audio using Cartesia API
    * @private
-   * ⚠️ DESHABILITADO: No se usa Cartesia - solo voz nativa (archivo WAV)
-   * Este método existe pero NO debe ser llamado
+   * ✅ REACTIVADO: Cartesia puede usarse independientemente de Deepgram
+   * @param {string} text - Text to synthesize
+   * @param {string} voiceId - Cartesia voice ID (default: 'sandra' or CARTESIA_VOICE_ID)
+   * @returns {Promise<string>} Base64 encoded audio (MP3)
    */
   async _generateCartesiaTTS(text, voiceId) {
-    // 🚫 BLOQUEADO: Cartesia deshabilitado - usar solo voz nativa
-    logger.error('[CARTESIA] ❌ ERROR: Intento de usar Cartesia TTS - está DESHABILITADO');
-    logger.error('[CARTESIA] ❌ Solo se debe usar voz nativa (sandra-conversational.wav)');
-    throw new Error('Cartesia TTS está DESHABILITADO. Usar solo voz nativa (sandra-conversational.wav).');
+    if (!this.cartesiaApiKey) {
+      throw new Error('Cartesia API key not configured. Set CARTESIA_API_KEY environment variable.');
+    }
+
+    if (!text || text.trim() === '') {
+      throw new Error('Text is required for Cartesia TTS');
+    }
+
+    const finalVoiceId = voiceId || this.cartesiaVoiceId || 'sandra';
+    
+    logger.info(`[CARTESIA] 🎙️ Generating TTS audio for text: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
+    logger.info(`[CARTESIA] Using voice ID: ${finalVoiceId}`);
+
+    try {
+      // Cartesia API endpoint: https://api.cartesia.ai/tts/tts
+      const response = await fetch('https://api.cartesia.ai/tts/tts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': this.cartesiaApiKey
+        },
+        body: JSON.stringify({
+          text: text,
+          voice_id: finalVoiceId,
+          model_id: 'sonic-english', // Default model, supports Spanish
+          output_format: 'mp3', // MP3 format for compatibility
+          sample_rate: 24000, // 24kHz for streaming compatibility
+          language: 'es' // Spanish
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error(`[CARTESIA] ❌ API error (${response.status}):`, errorText);
+        throw new Error(`Cartesia TTS API error: ${response.status} - ${errorText}`);
+      }
+
+      // Cartesia returns audio as binary (MP3)
+      const audioBuffer = await response.arrayBuffer();
+      const audioBase64 = Buffer.from(audioBuffer).toString('base64');
+      
+      logger.info(`[CARTESIA] ✅ Audio generated successfully (${audioBuffer.byteLength} bytes)`);
+      return audioBase64;
+    } catch (error) {
+      logger.error('[CARTESIA] ❌ Error generating TTS:', error);
+      throw error;
+    }
   }
 
   /**
