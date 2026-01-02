@@ -115,7 +115,7 @@ class VoiceServices {
 
     const liveOptions = {
       // 🚀 ENTERPRISE MAX: Modelo optimizado para llamadas telefónicas de alta calidad
-      model: 'nova-2', // 🔧 FIX: Cambiado de nova-2-phonecall a nova-2 (nova-2-phonecall causa error 400 en algunos planes)
+      model: 'nova-3', // 🔧 ACTUALIZADO: Usando nova-3 (según configuración Voice Agent de Deepgram Playground)
       
       // 🚀 ENTERPRISE MAX: Configuración de idioma
       language: language,
