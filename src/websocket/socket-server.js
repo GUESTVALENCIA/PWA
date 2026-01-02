@@ -799,8 +799,8 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                 return;
               }
               
-              // STREAMING CODE (DISABLED TEMPORARILY)
-              if (false && responseAudio.type === 'streaming' && responseAudio.ws) {
+              // TTS WebSocket streaming (ENABLED for low latency)
+              if (responseAudio.type === 'streaming' && responseAudio.ws) {
                 // TTS WebSocket streaming - send PCM chunks as they arrive
                 logger.info('[TTS] 🎙️ Using TTS WebSocket streaming (PCM)');
                 
