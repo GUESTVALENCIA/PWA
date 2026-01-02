@@ -1344,36 +1344,55 @@ async function handleInitialGreeting(ws, voiceServices) {
         
         // Handle incoming PCM audio chunks
         ttsWs.on('message', (data) => {
-          if (data instanceof Buffer) {
-            // PCM audio data - send to client as base64
+          // Filter out metadata JSON messages (first message is always metadata)
+          if (!(data instanceof Buffer)) {
+            try {
+              const message = JSON.parse(data.toString());
+              if (message.type === 'Metadata') {
+                logger.debug('[TTS] 📋 Received greeting metadata:', message);
+                return; // Skip metadata, wait for audio chunks
+              } else if (message.type === 'Flushed') {
+                logger.info('[TTS] ✅ Greeting TTS buffer flushed');
+                return;
+              } else if (message.type === 'Error') {
+                logger.error('[TTS] ❌ Greeting TTS error:', message);
+                // Fallback to REST API on error
+                handleGreetingFallback(greetingText, ws, voiceServices).catch(err => {
+                  logger.error('[TTS] ❌ Greeting fallback failed:', err);
+                });
+                return;
+              }
+            } catch (e) {
+              // Not JSON, might be text - ignore
+              logger.debug('[TTS] Non-buffer, non-JSON greeting message, ignoring');
+              return;
+            }
+          }
+          
+          // Only send Buffer data (PCM audio)
+          if (data instanceof Buffer && data.length > 0) {
+            // Validate PCM data (must be even number of bytes for Int16)
+            if (data.length % 2 !== 0) {
+              logger.warn('[TTS] ⚠️ Invalid greeting PCM chunk size (not multiple of 2), skipping');
+              return;
+            }
+            
             const pcmBase64 = data.toString('base64');
             ws.send(JSON.stringify({
               route: 'audio',
               action: 'tts_chunk',
-                      payload: {
-                        audio: pcmBase64,
-                        format: 'pcm',
-                        encoding: 'linear16',
-                        sampleRate: 48000, // WebRTC quality (48kHz)
-                        channels: 1,
-                        isFirst: firstChunk,
-                        isWelcome: true
-                      }
+              payload: {
+                audio: pcmBase64,
+                format: 'pcm',
+                encoding: 'linear16',
+                sampleRate: 48000, // WebRTC quality (48kHz)
+                channels: 1,
+                isFirst: firstChunk,
+                isWelcome: true
+              }
             }));
             firstChunk = false;
-            logger.debug(`[TTS] 📤 Sent PCM chunk to client (${pcmBase64.length} chars base64)`);
-          } else {
-            // JSON message (status, etc.)
-            try {
-              const message = JSON.parse(data.toString());
-              if (message.type === 'Flushed') {
-                logger.info('[TTS] ✅ Greeting TTS buffer flushed');
-              } else if (message.type === 'Error') {
-                logger.error('[TTS] ❌ Greeting TTS error:', message);
-              }
-            } catch (e) {
-              // Not JSON, ignore
-            }
+            logger.debug(`[TTS] 📤 Sent greeting PCM chunk to client (${pcmBase64.length} chars base64)`);
           }
         });
         
