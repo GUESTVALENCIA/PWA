@@ -1083,16 +1083,33 @@ async function handleAudioTTS(payload, ws, voiceServices) {
     logger.info(`🔊 Loading native voice audio for: "${text.substring(0, 50)}..."`);
     // Send text to client for native voice playback (client handles audio locally)
     // Note: We no longer generate audio on server - client uses native voice file
-    const audio = await voiceServices.generateVoice(text);
+    // ⚠️ CRITICAL: Always use REST API and extract data property
+    const audioResult = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-nestor-es' });
+    
+    // Extract audio data based on type
+    let audioData;
+    let audioFormat = 'mp3';
+    
+    if (audioResult.type === 'tts' && audioResult.data) {
+      audioData = audioResult.data;
+      audioFormat = 'mp3';
+    } else if (audioResult.type === 'native' && audioResult.data) {
+      audioData = audioResult.data.toString('base64');
+      audioFormat = 'wav';
+    } else {
+      logger.error('[TTS] ❌ Unexpected audio result type:', audioResult.type);
+      throw new Error(`Unexpected audio type: ${audioResult.type}`);
+    }
 
     ws.send(JSON.stringify({
       route: 'audio',
       action: 'tts',
       payload: {
-        audio,
-        format: 'mp3',
+        audio: audioData,
+        format: audioFormat,
         text,
-        isWelcome: payload.isWelcome || false
+        isWelcome: payload.isWelcome || false,
+        isNative: audioResult.type === 'native'
       }
     }));
   } catch (error) {
