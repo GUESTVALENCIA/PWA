@@ -656,20 +656,14 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
       }
     }
     
-    // If we're in error state but enough time has passed, allow recovery
+    // Prevent creating new connections if we're in error state (avoid spam of failed connections)
     if (sttErrorAgents.has(agentId) && (!deepgramData || !deepgramData.connection)) {
-      logger.info(`[DEEPGRAM] Agent ${agentId} in error state, attempting recovery...`);
-      sttErrorAgents.delete(agentId); // Clear error state to allow new connection
+      logger.debug(`[DEEPGRAM] Agent ${agentId} in error state, skipping connection creation (will retry after timeout)`);
+      return; // Skip processing this chunk - wait for error state to clear
     }
     
     if (!deepgramData || !deepgramData.connection) {
       logger.info(`[DEEPGRAM] 🔌 Creating new streaming connection for ${agentId}`);
-
-      // Clear error status when creating new connection (allows recovery)
-      if (sttErrorAgents.has(agentId)) {
-        logger.info(`[DEEPGRAM] Clearing error state for ${agentId} to allow new connection`);
-        sttErrorAgents.delete(agentId);
-      }
 
       const resolvedEncoding = (typeof encoding === 'string' && encoding.trim()) ? encoding.trim() : null;
       const resolvedSampleRate = Number.isFinite(Number(sampleRate)) ? Number(sampleRate) : null;
@@ -997,12 +991,12 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
 
           // Delete connection to allow recreation on next audio chunk
           deepgramConnections.delete(agentId);
-          // IMPORTANT: Allow recovery by removing from error agents after a short delay
-          // This allows the next audio chunk to create a new connection
+          // IMPORTANT: Allow recovery by removing from error agents after a delay
+          // Use longer delay (5 seconds) to prevent spam of failed connection attempts
           setTimeout(() => {
             sttErrorAgents.delete(agentId);
-            logger.info(`[DEEPGRAM] Error agent ${agentId} cleared, ready for recovery`);
-          }, 1000); // Clear after 1 second to allow new connection
+            logger.info(`[DEEPGRAM] Error agent ${agentId} cleared after timeout, ready for recovery`);
+          }, 5000); // Clear after 5 seconds to allow new connection (prevents spam)
         },
         onClose: () => {
           logger.info(`[DEEPGRAM] Streaming connection closed for ${agentId}`);
