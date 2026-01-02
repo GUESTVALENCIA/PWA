@@ -7,7 +7,6 @@ import logger from '../utils/logger.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import VoiceAgentService from '../services/voice-agent-service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -42,28 +41,13 @@ const sttErrorAgents = new Set();
  * @param {Object} voiceServices - Legacy voice services (deprecated - using VoiceAgentService)
  */
 export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonService, voiceServices = null) {
-  // 🚀 VOICE AGENT API: Initialize Voice Agent Service
-  let voiceAgentService = null;
-  try {
-    voiceAgentService = new VoiceAgentService();
-    if (voiceAgentService.isConfigured()) {
-      logger.info('[VOICE-AGENT] ✅ Voice Agent API service initialized and configured');
-    } else {
-      logger.warn('[VOICE-AGENT] ⚠️ Voice Agent API not configured (missing DEEPGRAM_API_KEY or OPENAI_API_KEY)');
-      voiceAgentService = null;
-    }
-  } catch (error) {
-    logger.error('[VOICE-AGENT] ❌ Failed to initialize Voice Agent service:', error);
-    voiceAgentService = null;
-  }
   // #region agent log
   debugLog('socket-server.js:18', 'initWebSocketServer called', {voiceServicesIsNull:voiceServices===null,hasVoiceServices:!!voiceServices,hasDeepgram:!!voiceServices?.deepgram,hasAI:!!voiceServices?.ai,hasWelcomeAudio:!!voiceServices?.getWelcomeAudio}, 'E');
   // #endregion
 	  wss.on('connection', (ws, req) => {
 	    const agentId = req.headers['x-agent-id'] || `agent_${Math.random().toString(36).substring(7)}`;
 	    const connectionTime = new Date().toISOString();
-		    // 🚀 VOICE AGENT API: Check if Voice Agent is available, otherwise fallback to legacy STT
-		    const sttAvailable = voiceAgentService?.isConfigured() || voiceServices?.deepgram?.isConfigured === true;
+		    const sttAvailable = voiceServices?.deepgram?.isConfigured === true;
 
     logger.info(`✅ WebSocket connected: ${agentId}`);
 
@@ -94,7 +78,7 @@ export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonS
     ws.on('message', (message) => {
       try {
         const data = JSON.parse(message);
-        handleMessage(data, agentId, ws, wss, neonService, systemEventEmitter, voiceServices, voiceAgentService);
+        handleMessage(data, agentId, ws, wss, neonService, systemEventEmitter, voiceServices);
       } catch (error) {
         logger.error('WebSocket message parsing error:', error);
         ws.send(JSON.stringify({
@@ -120,19 +104,6 @@ export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonS
         }
 	        deepgramConnections.delete(agentId);
 	      }
-	      
-      // 🚀 VOICE AGENT API: Close Voice Agent connection if exists
-      const voiceAgentData = voiceAgentConnections.get(agentId);
-      if (voiceAgentData && voiceAgentData.agent) {
-        logger.info(`[VOICE-AGENT] Closing Voice Agent connection for ${agentId}`);
-        try {
-          // Voice Agent connections are closed automatically when WebSocket closes
-          // But we can explicitly remove from our tracking
-        } catch (error) {
-          logger.error(`[VOICE-AGENT] Error closing connection:`, error);
-        }
-        voiceAgentConnections.delete(agentId);
-      }
 	      
 	      sttUnavailableAgents.delete(agentId);
 	      sttErrorAgents.delete(agentId);
@@ -240,10 +211,10 @@ export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonS
 /**
  * Handle incoming WebSocket message
  */
-function handleMessage(data, agentId, ws, wss, neonService, systemEventEmitter, voiceServices, voiceAgentService = null) {
+function handleMessage(data, agentId, ws, wss, neonService, systemEventEmitter, voiceServices) {
   // Soporte para formato route/action (sistema de voz)
   if (data.route && data.action) {
-    handleVoiceMessage(data, agentId, ws, voiceServices, voiceAgentService).catch(error => {
+    handleVoiceMessage(data, agentId, ws, voiceServices).catch(error => {
       logger.error('Error in handleVoiceMessage:', error);
     });
     return;
@@ -497,7 +468,7 @@ function broadcastToProjectSubscribers(wss, projectId, message) {
 /**
  * Handle voice system messages (route/action format)
  */
-async function handleVoiceMessage(data, agentId, ws, voiceServices, voiceAgentService = null) {
+async function handleVoiceMessage(data, agentId, ws, voiceServices) {
   const { route, action, payload } = data;
 
   // #region agent log
@@ -552,13 +523,8 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices, voiceAgentSe
     switch (route) {
       case 'audio':
         if (action === 'stt') {
-          // 🚀 VOICE AGENT API: Use Voice Agent if available, otherwise fallback to legacy STT
-          if (voiceAgentService && voiceAgentService.isConfigured()) {
-            await handleVoiceAgentAudio(payload, ws, voiceAgentService, agentId);
-          } else {
-            // Legacy fallback (will be removed after migration)
-            await handleAudioSTT(payload, ws, voiceServices, agentId);
-          }
+          // 🚫 VOICE AGENT API DESHABILITADO - Usar sistema legacy que funciona
+          await handleAudioSTT(payload, ws, voiceServices, agentId);
         } else if (action === 'tts') {
           await handleAudioTTS(payload, ws, voiceServices);
         } else {
@@ -611,144 +577,7 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices, voiceAgentSe
 }
 
 /**
- * 🚀 VOICE AGENT API: Handle audio using Deepgram Voice Agent API
- * Integrated STT + LLM (GPT-4o-mini) + TTS pipeline
- */
-async function handleVoiceAgentAudio(payload, ws, voiceAgentService, agentId) {
-  const { audio, format, mimeType, encoding, sampleRate, channels } = payload;
-
-  if (!audio) {
-    ws.send(JSON.stringify({
-      route: 'error',
-      action: 'message',
-      payload: { error: 'Audio data is required' }
-    }));
-    return;
-  }
-
-  if (!voiceAgentService || !voiceAgentService.isConfigured()) {
-    ws.send(JSON.stringify({
-      route: 'error',
-      action: 'message',
-      payload: {
-        error: 'Voice Agent API not configured',
-        code: 'VOICE_AGENT_NOT_CONFIGURED',
-        message: 'Voice Agent API requires DEEPGRAM_API_KEY and OPENAI_API_KEY'
-      }
-    }));
-    return;
-  }
-
-  try {
-    // Get or create Voice Agent connection for this client
-    let voiceAgentData = voiceAgentConnections.get(agentId);
-    
-    if (!voiceAgentData || !voiceAgentData.agent) {
-      logger.info(`[VOICE-AGENT] Creating new Voice Agent connection for ${agentId}`);
-      
-      // Create Voice Agent connection with event handlers
-      const agent = voiceAgentService.createAgentConnection({
-        onUserStartedSpeaking: (data) => {
-          logger.debug(`[VOICE-AGENT] 👤 User started speaking (${agentId})`);
-        },
-        
-        onAgentThinking: (data) => {
-          logger.debug(`[VOICE-AGENT] 🤔 Agent thinking (${agentId})`);
-        },
-        
-        onAgentStartedSpeaking: (data) => {
-          logger.info(`[VOICE-AGENT] 🗣️ Agent started speaking (${agentId})`);
-        },
-        
-        onConversationText: (data) => {
-          const text = data?.text || '';
-          if (text) {
-            logger.debug(`[VOICE-AGENT] 💬 Conversation text (${agentId}): "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
-          }
-        },
-        
-        onAudio: (audioBuffer) => {
-          try {
-            const audioBase64 = Buffer.from(audioBuffer).toString('base64');
-            ws.send(JSON.stringify({
-              route: 'audio',
-              action: 'tts',
-              payload: {
-                audio: audioBase64,
-                format: 'pcm',
-                sampleRate: 24000,
-                encoding: 'linear16'
-              }
-            }));
-            logger.debug(`[VOICE-AGENT] 🔊 Audio chunk sent to client (${agentId})`);
-          } catch (error) {
-            logger.error(`[VOICE-AGENT] Error processing audio chunk:`, error);
-          }
-        },
-        
-        onError: (error) => {
-          logger.error(`[VOICE-AGENT] Error for ${agentId}:`, error);
-          ws.send(JSON.stringify({
-            route: 'error',
-            action: 'message',
-            payload: {
-              error: 'Voice Agent API error',
-              code: 'VOICE_AGENT_ERROR',
-              message: error.message || 'Unknown error'
-            }
-          }));
-        },
-        
-        onClose: () => {
-          logger.info(`[VOICE-AGENT] Connection closed for ${agentId}`);
-          voiceAgentConnections.delete(agentId);
-        }
-      });
-      
-      voiceAgentData = { agent, isProcessing: false };
-      voiceAgentConnections.set(agentId, voiceAgentData);
-    }
-    
-    // Decode base64 audio to Buffer and send to Voice Agent
-    try {
-      const audioBuffer = Buffer.from(audio, 'base64');
-      if (audioBuffer.length === 0) {
-        logger.warn('[VOICE-AGENT] Empty audio buffer, skipping');
-        return;
-      }
-      
-      // Send audio to Voice Agent
-      // Note: Voice Agent SDK handles audio sending internally via the connection
-      // We may need to use agent.send() or a specific method depending on SDK implementation
-      if (voiceAgentData.agent) {
-        // The exact method depends on SDK - may need adjustment
-        if (typeof voiceAgentData.agent.send === 'function') {
-          voiceAgentData.agent.send(audioBuffer);
-        } else {
-          logger.warn('[VOICE-AGENT] Agent.send not available, audio may need different handling');
-        }
-      }
-      
-    } catch (error) {
-      logger.error('[VOICE-AGENT] Error decoding/sending audio:', error);
-    }
-    
-  } catch (error) {
-    logger.error(`[VOICE-AGENT] Error in handleVoiceAgentAudio for ${agentId}:`, error);
-    ws.send(JSON.stringify({
-      route: 'error',
-      action: 'message',
-      payload: {
-        error: 'Voice Agent processing failed',
-        code: 'VOICE_AGENT_PROCESSING_ERROR',
-        message: error.message
-      }
-    }));
-  }
-}
-
-/**
- * Handle audio STT (Speech-to-Text) using Deepgram Streaming API (LEGACY - will be removed)
+ * Handle audio STT (Speech-to-Text) using Deepgram Streaming API
  * Maintains persistent connection per client for real-time transcription
  */
 async function handleAudioSTT(payload, ws, voiceServices, agentId) {
