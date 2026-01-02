@@ -1487,12 +1487,15 @@ async function handleInitialGreeting(ws, voiceServices) {
         
         // Send completion when WebSocket closes
         ttsWs.on('close', () => {
+          logger.info('[TTS] ✅ Greeting TTS WebSocket streaming completed', {
+            totalChunks: chunksReceived,
+            totalBytes: totalBytesReceived
+          });
           ws.send(JSON.stringify({
             route: 'audio',
             action: 'tts_complete',
             payload: {}
           }));
-          logger.info('[TTS] ✅ Greeting TTS WebSocket streaming completed');
         });
         
         ttsWs.on('error', (error) => {
@@ -1502,6 +1505,29 @@ async function handleInitialGreeting(ws, voiceServices) {
             logger.error('[TTS] ❌ Fallback failed:', err);
           });
         });
+        
+        // ⚠️ CRITICAL: Wait for WebSocket to be fully ready AND wait for Configure confirmation
+        const sendTextAndFlush = () => {
+          if (ttsWs.readyState === WebSocket.OPEN) {
+            // Wait a bit more to ensure Configure was processed
+            setTimeout(() => {
+              // Send text to TTS
+              voiceServices.sendTextToTTS(ttsWs, greetingText);
+              
+              // Wait before flush to ensure text is sent
+              setTimeout(() => {
+                // Flush to start audio generation
+                voiceServices.flushTTS(ttsWs);
+                logger.info('[TTS] ✅ Greeting text sent and flushed, waiting for audio chunks...');
+              }, 50); // Increased delay to ensure Speak is processed
+            }, 100); // Wait for Configure to be fully processed
+          } else {
+            // Wait for connection to open
+            ttsWs.once('open', sendTextAndFlush);
+          }
+        };
+        
+        sendTextAndFlush();
         
         // ⚠️ CRITICAL: Return immediately - do NOT send greetingAudio object to client
         return; // Exit early if streaming is set up
