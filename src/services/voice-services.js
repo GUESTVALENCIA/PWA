@@ -47,33 +47,33 @@ class VoiceServices {
     this.openaiApiKey = process.env.OPENAI_API_KEY;
     this.groqApiKey = process.env.GROQ_API_KEY;
     this.geminiApiKey = process.env.GEMINI_API_KEY;
-    
+
     // 🚀 LÓGICA DE ENTORNO: Detectar automáticamente desarrollo vs producción
-    const isDevelopment = process.env.NODE_ENV === 'development' || 
-                          process.env.NODE_ENV === 'dev' || 
-                          !process.env.NODE_ENV || 
-                          process.env.NODE_ENV === '';
+    const isDevelopment = process.env.NODE_ENV === 'development' ||
+      process.env.NODE_ENV === 'dev' ||
+      !process.env.NODE_ENV ||
+      process.env.NODE_ENV === '';
     const isProduction = !isDevelopment;
-    
+
     // 🎯 PRODUCCIÓN FIJO: OpenAI GPT-4o-mini (ÚNICO modelo en producción)
     // ✅ SIMPLIFICADO: Solo OpenAI, sin fallbacks, sin cambios
     this.preferredProvider = 'openai';
     logger.info(`[VOICE-SERVICES] 🎯 Modelo FIJO: OpenAI GPT-4o-mini (producción)`);
-    
+
     // Log configured providers for debugging
     const configuredProviders = [];
     if (this.groqApiKey) configuredProviders.push('Groq');
     if (this.openaiApiKey) configuredProviders.push('OpenAI');
     if (this.geminiApiKey) configuredProviders.push('Gemini');
-    
+
     // Detectar entorno para logging (mismo cálculo que arriba)
-    const isDevelopmentForLog = process.env.NODE_ENV === 'development' || 
-                                 process.env.NODE_ENV === 'dev' || 
-                                 !process.env.NODE_ENV || 
-                                 process.env.NODE_ENV === '';
+    const isDevelopmentForLog = process.env.NODE_ENV === 'development' ||
+      process.env.NODE_ENV === 'dev' ||
+      !process.env.NODE_ENV ||
+      process.env.NODE_ENV === '';
     const isProductionForLog = !isDevelopmentForLog;
     const entorno = isProductionForLog ? 'PRODUCCIÓN' : 'DESARROLLO';
-    
+
     logger.info('[VOICE-SERVICES] AI Providers status:', {
       entorno: entorno,
       configured: configuredProviders.length > 0 ? configuredProviders.join(', ') : 'NONE',
@@ -83,12 +83,12 @@ class VoiceServices {
       preferred: this.preferredProvider.toUpperCase(),
       modelo: this.preferredProvider === 'openai' ? 'gpt-4o-mini' : (this.preferredProvider === 'groq' ? 'gpt-oss-20b' : 'N/A')
     });
-    
+
     if (configuredProviders.length === 0) {
       logger.error('[VOICE-SERVICES] ⚠️ WARNING: No AI providers configured!');
       logger.error('[VOICE-SERVICES] Configure at least one: GROQ_API_KEY, OPENAI_API_KEY, or GEMINI_API_KEY');
     }
-    
+
     // Initialize Deepgram SDK instance (v3 format)
     if (this.deepgramApiKey) {
       try {
@@ -139,25 +139,25 @@ class VoiceServices {
       smart_format: true,
       interim_results: true
       // NO incluir ningún otro parámetro opcional para evitar problemas de compatibilidad
-      
+
       // 🚀 ENTERPRISE MAX: Detección de múltiples hablantes (diarización)
       // diarize: false, // Desactivado por defecto (solo un hablante: usuario)
-      
+
       // 🚀 ENTERPRISE MAX: Corrección automática de transcripciones comunes
       // replace: [], // Array opcional de reemplazos personalizados
-      
+
       // 🚀 ENTERPRISE MAX: Keywords para mejor reconocimiento de términos específicos
       // keywords: [], // Array opcional de palabras clave para mejorar precisión
-      
+
       // 🚀 ENTERPRISE MAX: Búsqueda en transcripciones (útil para análisis)
       // search: [], // Array opcional de términos para buscar
-      
+
       // 🚀 ENTERPRISE MAX: Redacción de información sensible (privacidad)
       // redact: false, // Desactivado por defecto (activar si se requiere privacidad extrema)
-      
+
       // 🚀 ENTERPRISE MAX: Tier de calidad (mejora precisión a costa de latencia)
       // tier: 'nova', // Opciones: 'base', 'enhanced', 'nova' (mejor calidad)
-      
+
       // 🚀 ENTERPRISE MAX: Profundidad de contexto para mejor precisión
       // tier: 'nova' ya está incluido en 'nova-2-phonecall'
     };
@@ -168,7 +168,7 @@ class VoiceServices {
     if (channels) liveOptions.channels = channels;
 
     // #region agent log
-    debugLog('voice-services.js:174', 'Deepgram connection params before create', {encoding:liveOptions.encoding,sample_rate:liveOptions.sample_rate,channels:liveOptions.channels,model:liveOptions.model}, 'A');
+    debugLog('voice-services.js:174', 'Deepgram connection params before create', { encoding: liveOptions.encoding, sample_rate: liveOptions.sample_rate, channels: liveOptions.channels, model: liveOptions.model }, 'A');
     // #endregion
 
     // #region agent log
@@ -182,7 +182,7 @@ class VoiceServices {
       apiKeyLength: this.deepgramApiKey?.length || 0
     }, 'B');
     // #endregion
-    
+
     let connection;
     try {
       connection = this.deepgram.listen.live(liveOptions);
@@ -196,7 +196,7 @@ class VoiceServices {
       // #endregion
       throw createError;
     }
-    
+
     // #region agent log
     const connectTime = Date.now();
     const initialReadyState = connection.getReadyState?.();
@@ -216,7 +216,7 @@ class VoiceServices {
     let idleTimer = null;
     let keepAliveTimer = null; // 🔄 KEEPALIVE: Timer para mantener conexión activa
     const connectionStartTime = connectTime; // Store for error handler
-    
+
     // CRÍTICO: Registrar eventos ANTES de que ocurra el error
     // El evento 'Open' debe registrarse inmediatamente después de crear la conexión
     // #region agent log
@@ -227,7 +227,7 @@ class VoiceServices {
         protocol: connection?.getProtocol?.() || 'N/A'
       }, 'C');
       logger.info('[DEEPGRAM] ✅ Connection opened successfully');
-      
+
       // 🔄 KEEPALIVE: Iniciar keepalive si está habilitado
       if (keepAlive && keepAliveInterval > 0) {
         clearKeepAliveTimer();
@@ -244,14 +244,14 @@ class VoiceServices {
       clearTimeout(idleTimer);
       idleTimer = null;
     };
-    
+
     // 🔄 KEEPALIVE: Limpiar timer de keepalive
     const clearKeepAliveTimer = () => {
       if (!keepAliveTimer) return;
       clearInterval(keepAliveTimer);
       keepAliveTimer = null;
     };
-    
+
     // 🔄 KEEPALIVE: Enviar chunk de silencio para mantener conexión activa
     const sendKeepAlive = () => {
       try {
@@ -259,13 +259,13 @@ class VoiceServices {
           // Conexión no está abierta, no enviar keepalive
           return;
         }
-        
+
         // Generar 100ms de silencio (PCM 16-bit, mono)
         // Para 48kHz: 100ms = 4800 muestras = 9600 bytes (2 bytes por muestra)
         const silenceDuration = 0.1; // 100ms
         const samples = Math.floor((sampleRate || 48000) * silenceDuration);
         const silenceBuffer = Buffer.alloc(samples * 2); // 16-bit = 2 bytes por muestra
-        
+
         // Buffer ya está lleno de ceros (silencio)
         // Enviar a Deepgram para mantener conexión activa
         connection.send(silenceBuffer);
@@ -337,7 +337,7 @@ class VoiceServices {
     connection.on(LiveTranscriptionEvents.Error, (error) => {
       clearIdleTimer();
       const errorTime = Date.now();
-      
+
       // #region agent log
       // Capturar TODA la información posible del error
       const errorDetails = {
@@ -378,7 +378,7 @@ class VoiceServices {
       // #endregion
       logger.error('[DEEPGRAM] ❌ Connection error:', error);
       logger.error('[DEEPGRAM] Error details:', errorDetails);
-      
+
       // Log API key status (first 10 chars for security)
       if (this.deepgramApiKey) {
         logger.error('[DEEPGRAM] API Key status:', {
@@ -403,7 +403,7 @@ class VoiceServices {
       }, 'C');
     });
     // #endregion
-    
+
     if (onClose) {
       connection.on(LiveTranscriptionEvents.Close, () => {
         clearIdleTimer();
@@ -427,19 +427,19 @@ class VoiceServices {
     };
 
     logger.info('[DEEPGRAM] ✅ Streaming connection created', connectionSummary);
-    
+
     // Log connection state for debugging
     if (connection.getReadyState) {
       const initialState = connection.getReadyState();
       logger.info(`[DEEPGRAM] Connection ready state: ${initialState} (0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED)`);
-      
+
       // 🔧 FIX: Si la conexión está en estado CONNECTING (0), esperar un momento
       // para que se establezca antes de considerarla lista
       if (initialState === 0) {
         logger.info('[DEEPGRAM] ⏳ Connection is CONNECTING, will be ready shortly...');
       }
     }
-    
+
     return connection;
   }
 
@@ -467,8 +467,8 @@ class VoiceServices {
       options = { streaming: false, model: 'aura-2-agustina-es' }; // ✅ REST API por defecto - PENINSULAR
     }
 
-    const { 
-      useNative = false, 
+    const {
+      useNative = false,
       model = 'aura-2-agustina-es', // ✅ DEFAULT: aura-2-agustina-es (PENINSULAR - España)
       streaming = false, // ✅ DEFAULT: false (usar REST API, más simple y confiable)
       provider = 'deepgram' // ✅ DEFAULT: deepgram (gastar crédito de $200)
@@ -502,9 +502,23 @@ class VoiceServices {
     // - Modelo incorrecto (aura-asteria-en en lugar del solicitado)
     // - Timeouts constantes
     // SOLUCIÓN: Usar SOLO REST API que funciona perfectamente
-    if (false && streaming && text && text.trim() !== '') {
-      // DESHABILITADO - no usar WebSocket
-      logger.warn('[TTS] ⚠️ WebSocket streaming deshabilitado - usando REST API');
+    // OPTION 2: Deepgram TTS WebSocket streaming (Re-enabled for Low Latency)
+    // Usar con precaución: Requiere sample_rate 24000
+    if (streaming && text && text.trim() !== '') {
+      try {
+        const ttsWs = await this.createTTSStreamingConnection(model);
+        this.sendTextToTTS(ttsWs, text);
+        this.flushTTS(ttsWs);
+        return {
+          type: 'streaming',
+          data: ttsWs,
+          format: 'mp3',
+          provider: 'deepgram'
+        };
+      } catch (wsError) {
+        logger.warn('[TTS] ⚠️ WebSocket streaming failed, falling back to REST API:', wsError);
+        // Fallback to REST API below
+      }
     }
 
     // Option 3: TTS REST API (Deepgram or Cartesia)
@@ -513,14 +527,14 @@ class VoiceServices {
     }
 
     // Choose provider: 'auto' tries Deepgram first, then Cartesia
-    const useCartesia = provider === 'cartesia' || 
-                       (provider === 'auto' && !this.deepgramApiKey && this.cartesiaApiKey) ||
-                       (provider === 'auto' && this.deepgramApiKey && this.cartesiaApiKey && !streaming);
+    const useCartesia = provider === 'cartesia' ||
+      (provider === 'auto' && !this.deepgramApiKey && this.cartesiaApiKey) ||
+      (provider === 'auto' && this.deepgramApiKey && this.cartesiaApiKey && !streaming);
 
     if (useCartesia && this.cartesiaApiKey) {
       // Use Cartesia TTS (independent of Deepgram)
       logger.info(`[TTS] 🎙️ Generating audio with Cartesia TTS for text: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
-      
+
       try {
         const audioBase64 = await this._generateCartesiaTTS(text, this.cartesiaVoiceId);
         logger.info('[TTS] ✅ Audio generated successfully with Cartesia TTS');
@@ -539,7 +553,7 @@ class VoiceServices {
     // Use Deepgram TTS REST API (default or fallback)
     if (this.deepgramApiKey) {
       logger.info(`[TTS] 🎙️ Generating audio with Deepgram TTS REST API for text: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
-      
+
       try {
         const audioBase64 = await this._generateDeepgramTTS(text, model);
         logger.info('[TTS] ✅ Audio generated successfully with Deepgram TTS REST API');
@@ -579,7 +593,7 @@ class VoiceServices {
 
       let configureSent = false;
       let configureAcknowledged = false;
-      
+
       ws.on('open', () => {
         // ⚠️ CRITICAL: Deepgram TTS WebSocket requires sample_rate: 24000 for streaming
         // 48000 is for STT (input), but TTS (output) should be 24000 Hz (Deepgram default)
@@ -590,16 +604,16 @@ class VoiceServices {
           encoding: 'linear16', // PCM 16-bit (uncompressed, best quality)
           sample_rate: 24000 // ✅ 24kHz is recommended and default for TTS streaming
         };
-        
+
         logger.info(`[TTS] 📤 Sending Configure message:`, configureMessage);
-        
+
         try {
           const messageStr = JSON.stringify(configureMessage);
           logger.debug(`[TTS] 📤 Configure message JSON:`, messageStr);
           ws.send(messageStr);
           configureSent = true;
           logger.info(`[TTS] ✅ Configure message sent (model: ${model})`);
-          
+
           // Resolve after a small delay to allow Configure to be processed
           // Don't wait for acknowledgment - Deepgram processes Configure asynchronously
           setTimeout(() => {
@@ -613,7 +627,7 @@ class VoiceServices {
           reject(error);
         }
       });
-      
+
       // Listen for any response messages (including metadata/errors)
       ws.on('message', (data) => {
         try {
@@ -621,14 +635,14 @@ class VoiceServices {
           if (!Buffer.isBuffer(data) || (data.length > 0 && data[0] === 123)) {
             const messageStr = Buffer.isBuffer(data) ? data.toString('utf8') : data.toString();
             const message = JSON.parse(messageStr);
-            
+
             if (message.type === 'Metadata') {
               configureAcknowledged = true;
               logger.info(`[TTS] ✅ Configure acknowledged via Metadata:`, {
                 model_name: message.model_name,
                 request_id: message.request_id
               });
-              
+
               // If model doesn't match, log warning
               if (message.model_name && !message.model_name.includes('agustina')) {
                 logger.warn(`[TTS] ⚠️ Model mismatch! Requested: ${model}, Got: ${message.model_name}`);
@@ -641,7 +655,7 @@ class VoiceServices {
           // Not a JSON message, ignore
         }
       });
-      
+
       // Handle WebSocket close with error codes
       ws.on('close', (code, reason) => {
         if (code === 1008) {
@@ -735,10 +749,10 @@ class VoiceServices {
       // Headers: Authorization: Token ... , Content-Type: text/plain
       // Body: texto directamente (NO JSON)
       const url = `https://api.deepgram.com/v1/speak?model=${encodeURIComponent(model)}`;
-      
+
       logger.info(`[DEEPGRAM TTS] 🎙️ Requesting TTS: model=${model}, text_length=${text.length}`);
       logger.debug(`[DEEPGRAM TTS] URL: ${url}`);
-      
+
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -757,7 +771,7 @@ class VoiceServices {
       // Deepgram devuelve audio MP3 directamente
       const audioBuffer = await response.arrayBuffer();
       const audioBase64 = Buffer.from(audioBuffer).toString('base64');
-      
+
       logger.info(`[DEEPGRAM TTS] ✅ Audio generated successfully (${audioBuffer.byteLength} bytes, MP3)`);
       return audioBase64;
     } catch (error) {
@@ -784,7 +798,7 @@ class VoiceServices {
     }
 
     const finalVoiceId = voiceId || this.cartesiaVoiceId || 'sandra';
-    
+
     logger.info(`[CARTESIA] 🎙️ Generating TTS audio for text: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
     logger.info(`[CARTESIA] Using voice ID: ${finalVoiceId}`);
 
@@ -815,7 +829,7 @@ class VoiceServices {
       // Cartesia returns audio as binary (MP3)
       const audioBuffer = await response.arrayBuffer();
       const audioBase64 = Buffer.from(audioBuffer).toString('base64');
-      
+
       logger.info(`[CARTESIA] ✅ Audio generated successfully (${audioBuffer.byteLength} bytes)`);
       return audioBase64;
     } catch (error) {
@@ -859,18 +873,18 @@ Sé amable, profesional y útil.`;
     const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
     try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.openaiApiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini', // 🎯 PRODUCCIÓN: GPT-4o-mini (modelo principal para producción)
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage }
-        ],
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.openaiApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini', // 🎯 PRODUCCIÓN: GPT-4o-mini (modelo principal para producción)
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userMessage }
+          ],
           temperature: 0.7,
           max_tokens: 200
         }),
@@ -879,17 +893,17 @@ Sé amable, profesional y útil.`;
 
       clearTimeout(timeout);
 
-    if (!response.ok) {
-      const errorText = await response.text();
+      if (!response.ok) {
+        const errorText = await response.text();
         const errorMsg = errorText.length > 200 ? errorText.substring(0, 200) : errorText;
         throw new Error(`OpenAI Error ${response.status}: ${errorMsg}`);
-    }
+      }
 
-    const data = await response.json();
+      const data = await response.json();
       if (!data.choices || !data.choices[0] || !data.choices[0].message) {
         throw new Error('OpenAI: Invalid response format');
       }
-    return data.choices[0].message.content;
+      return data.choices[0].message.content;
     } catch (error) {
       clearTimeout(timeout);
       if (error.name === 'AbortError') {
@@ -908,18 +922,18 @@ Sé amable, profesional y útil.`;
     const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
     try {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.groqApiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'gpt-oss-20b', // Modelo GPT OSS 20B de Groq (según imagen Deepgram)
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage }
-        ],
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.groqApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'gpt-oss-20b', // Modelo GPT OSS 20B de Groq (según imagen Deepgram)
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userMessage }
+          ],
           temperature: 0.7,
           max_tokens: 200
         }),
@@ -928,17 +942,17 @@ Sé amable, profesional y útil.`;
 
       clearTimeout(timeout);
 
-    if (!response.ok) {
-      const errorText = await response.text();
+      if (!response.ok) {
+        const errorText = await response.text();
         const errorMsg = errorText.length > 200 ? errorText.substring(0, 200) : errorText;
         throw new Error(`Groq Error ${response.status}: ${errorMsg}`);
-    }
+      }
 
-    const data = await response.json();
+      const data = await response.json();
       if (!data.choices || !data.choices[0] || !data.choices[0].message) {
         throw new Error('Groq: Invalid response format');
       }
-    return data.choices[0].message.content;
+      return data.choices[0].message.content;
     } catch (error) {
       clearTimeout(timeout);
       if (error.name === 'AbortError') {
@@ -954,7 +968,7 @@ Sé amable, profesional y útil.`;
     }
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${this.geminiApiKey}`;
-    
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
@@ -990,12 +1004,12 @@ Sé amable, profesional y útil.`;
       if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
         throw new Error('Gemini: Invalid response format');
       }
-      
+
       const text = data.candidates[0].content.parts[0]?.text;
       if (!text) {
         throw new Error('Gemini: No text in response');
       }
-      
+
       return text.trim();
     } catch (error) {
       clearTimeout(timeout);
