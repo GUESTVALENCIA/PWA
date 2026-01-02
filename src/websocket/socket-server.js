@@ -61,6 +61,12 @@ export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonS
 	      }
 	    }));
 
+    // 🚀 ENTERPRISE: Enviar saludo automáticamente al establecer conexión (sin esperar mensaje "ready")
+    // El saludo debe ser automático cuando se descuelga la llamada
+    handleInitialGreeting(ws, voiceServices).catch((error) => {
+      logger.error(`[WEBSOCKET] Error enviando saludo automático para ${agentId}:`, error);
+    });
+
     // Handle incoming messages
     ws.on('message', (message) => {
       try {
@@ -523,8 +529,15 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices) {
 
       case 'conserje':
         if (action === 'message' && payload?.type === 'ready') {
-          // 🚀 ENTERPRISE: Saludo inicial generado en tiempo real (Deepgram TTS)
-          await handleInitialGreeting(ws, voiceServices);
+          // ✅ El saludo ya se envía automáticamente al establecer la conexión WebSocket
+          // No es necesario enviarlo de nuevo aquí, solo confirmamos que el cliente está listo
+          logger.info(`[WEBSOCKET] Cliente ${agentId} envió mensaje "ready" (saludo ya enviado automáticamente)`);
+          // Enviamos confirmación de que el servidor está listo para recibir audio
+          ws.send(JSON.stringify({
+            route: 'conserje',
+            action: 'message',
+            payload: { type: 'ready_ack', message: 'Servidor listo para recibir audio' }
+          }));
         } else {
           ws.send(JSON.stringify({
             route: 'error',
@@ -977,13 +990,26 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
           // Send error to client only once, but allow recovery by NOT blocking future connections
           if (!sttErrorAgents.has(agentId)) {
             sttErrorAgents.add(agentId);
+            
+            // Log detailed error information for debugging
+            const errorDetails = {
+              message: error?.message || 'Unknown error',
+              code: error?.code,
+              name: error?.name,
+              stack: error?.stack?.substring(0, 200), // First 200 chars of stack
+              type: typeof error,
+              stringified: String(error)
+            };
+            logger.error(`[DEEPGRAM] STT streaming error for ${agentId}:`, errorDetails);
+            
             ws.send(JSON.stringify({
               route: 'error',
               action: 'message',
               payload: {
                 error: 'STT streaming error',
                 code: 'DEEPGRAM_STREAM_ERROR',
-                message: error?.message || 'Unknown Deepgram streaming error'
+                message: error?.message || errorDetails.stringified || 'Unknown Deepgram streaming error',
+                details: errorDetails.message // Include more details for debugging
               }
             }));
             logger.warn(`[DEEPGRAM] STT error reported for ${agentId}, but recovery allowed`);
