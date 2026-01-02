@@ -1324,9 +1324,9 @@ async function handleInitialGreeting(ws, voiceServices) {
     
     logger.info(`🎙️ Generating greeting audio: "${greetingText}"`);
     
-    // Usar Deepgram TTS para el saludo (temporalmente para probar voces)
+    // Usar Deepgram TTS WebSocket streaming para el saludo (baja latencia)
     try {
-      const greetingAudio = await voiceServices.generateVoice(greetingText, { useNative: false, model: 'aura-2-agustina-es' });
+      const greetingAudio = await voiceServices.generateVoice(greetingText, { streaming: true, model: 'aura-2-agustina-es' });
       
       // ⚠️ CRITICAL: Never send WebSocket objects to client - handle streaming server-side
       if (greetingAudio.type === 'streaming' && greetingAudio.ws) {
