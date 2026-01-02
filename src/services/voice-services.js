@@ -428,7 +428,7 @@ class VoiceServices {
   async generateVoice(text, options = {}) {
     // Handle legacy call signature (text, voiceId)
     if (typeof options === 'string' || options === null) {
-      options = { streaming: true, model: 'aura-2-agustina-es' };
+      options = { streaming: false, model: 'aura-2-celeste-es' }; // ✅ REST API por defecto
     }
 
     const { 
