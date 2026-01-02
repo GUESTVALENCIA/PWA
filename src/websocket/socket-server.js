@@ -818,7 +818,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
 
             // Generar audio de respuesta usando Deepgram TTS (WebSocket streaming para latencia mínima)
             try {
-              const responseAudio = await voiceServices.generateVoice(aiResponse, { streaming: true, model: 'aura-2-agustina-es' });
+              const responseAudio = await voiceServices.generateVoice(aiResponse, { streaming: true, model: 'aura-2-celeste-es' });
               
               // Handle different response types
               if (responseAudio.type === 'tts' && responseAudio.data) {
@@ -992,7 +992,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                   // Handle error codes
                   if (code === 1008) {
                     logger.error(`[TTS] ❌ WebSocket closed with Policy Violation (1008): ${reason?.toString() || 'DATA-0000'}`);
-                    logger.error(`[TTS] ⚠️ Model 'aura-2-agustina-es' may not be available. Falling back to REST API.`);
+                    logger.error(`[TTS] ⚠️ Model 'aura-2-celeste-es' may not be available. Falling back to REST API.`);
                     handleTTSFallback(aiResponse, ws);
                     return; // Don't send completion, fallback handles it
                   }
@@ -1082,7 +1082,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
             // Helper function for REST API fallback
             async function handleTTSFallback(text, clientWs) {
               try {
-                const fallbackAudio = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-agustina-es' });
+                const fallbackAudio = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-celeste-es' });
                 if (fallbackAudio.type === 'tts') {
                   clientWs.send(JSON.stringify({
                     route: 'audio',
@@ -1363,7 +1363,7 @@ async function handleAudioTTS(payload, ws, voiceServices) {
     // Send text to client for native voice playback (client handles audio locally)
     // Note: We no longer generate audio on server - client uses native voice file
     // ⚠️ CRITICAL: Always use REST API and extract data property
-    const audioResult = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-agustina-es' });
+    const audioResult = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-celeste-es' });
     
     // Extract audio data based on type
     let audioData;
@@ -1411,7 +1411,7 @@ async function handleAudioTTS(payload, ws, voiceServices) {
 // Helper function for REST API fallback
 async function handleGreetingFallback(text, clientWs, voiceServices) {
   try {
-    const fallbackAudio = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-agustina-es' });
+    const fallbackAudio = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-celeste-es' });
     if (fallbackAudio.type === 'tts') {
       clientWs.send(JSON.stringify({
         route: 'audio',
@@ -1450,7 +1450,7 @@ async function handleInitialGreeting(ws, voiceServices) {
     
     // Usar Deepgram TTS WebSocket streaming para el saludo (baja latencia)
     try {
-      const greetingAudio = await voiceServices.generateVoice(greetingText, { streaming: true, model: 'aura-2-agustina-es' });
+      const greetingAudio = await voiceServices.generateVoice(greetingText, { streaming: true, model: 'aura-2-celeste-es' });
       
       // ⚠️ CRITICAL: Never send WebSocket objects to client - handle streaming server-side
       if (greetingAudio.type === 'streaming' && greetingAudio.ws) {
@@ -1605,7 +1605,7 @@ async function handleInitialGreeting(ws, voiceServices) {
           // Handle error codes
           if (code === 1008) {
             logger.error(`[TTS] ❌ Greeting WebSocket closed with Policy Violation (1008): ${reason?.toString() || 'DATA-0000'}`);
-            logger.error(`[TTS] ⚠️ Model 'aura-2-agustina-es' may not be available. Falling back to REST API.`);
+            logger.error(`[TTS] ⚠️ Model 'aura-2-celeste-es' may not be available. Falling back to REST API.`);
             handleGreetingFallback(greetingText, ws, voiceServices).catch(err => {
               logger.error('[TTS] ❌ Greeting fallback failed:', err);
             });
