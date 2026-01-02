@@ -469,10 +469,16 @@ class VoiceServices {
 
     const {
       useNative = false,
-      model = 'aura-2-agustina-es', // ✅ DEFAULT: aura-2-agustina-es (PENINSULAR - España)
-      streaming = false, // ✅ DEFAULT: false (usar REST API, más simple y confiable)
-      provider = 'deepgram' // ✅ DEFAULT: deepgram (gastar crédito de $200)
+      model = 'aura-2-agustina-es',
+      streaming = false,
+      provider = 'cartesia' // ✅ DEFAULT: cartesia (Calidad superior, acento perfecto)
     } = options;
+
+    // Force Cartesia voice ID from env or hardcoded specific ID for Sandra
+    const cartesiaId = 'a34aec03-0f17-4fff-903f-d9458a8a92a6';
+    if (provider === 'cartesia') {
+      this.cartesiaVoiceId = cartesiaId;
+    }
 
     // Option 1: Use native audio file (lowest latency)
     if (useNative) {
@@ -1024,10 +1030,14 @@ Sé amable, profesional y útil.`;
    * Get welcome audio - DEPRECATED: Now uses Deepgram TTS dynamically
    * ⚠️ ESTE MÉTODO YA NO SE DEBE USAR - Todo audio debe generarse con Deepgram TTS
    */
+  /**
+   * Get welcome audio (Instant Native Welcome)
+   * Uses cached native file for zero-latency greeting.
+   */
   async getWelcomeAudio() {
-    logger.error('[TTS] ❌ ERROR: getWelcomeAudio() llamado - Este método está DESHABILITADO');
-    logger.error('[TTS] ❌ Todos los audios deben generarse con Deepgram TTS usando generateVoice(text)');
-    throw new Error('getWelcomeAudio() está DESHABILITADO. Usar generateVoice(text) con Deepgram TTS en su lugar.');
+    logger.info('[TTS] ⚡ Getting instant native welcome audio...');
+    // Use the native file mode from generateVoice
+    return this.generateVoice(null, { useNative: true });
   }
 }
 
