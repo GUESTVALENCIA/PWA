@@ -996,6 +996,32 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                   handleTTSFallback(aiResponse, ws);
                 });
                 
+                // ⚠️ CRITICAL: Send text IMMEDIATELY when WebSocket is ready (no delays)
+                // Deepgram TTS WebSocket closes quickly if no data is sent
+                const sendTextAndFlush = () => {
+                  if (ttsWs.readyState === WebSocket.OPEN) {
+                    // Send text IMMEDIATELY - no delay
+                    voiceServices.sendTextToTTS(ttsWs, aiResponse);
+                    
+                    // Small delay before flush to ensure text is sent
+                    setTimeout(() => {
+                      // Flush to start audio generation
+                      voiceServices.flushTTS(ttsWs);
+                      logger.info('[TTS] ✅ Text sent and flushed, waiting for audio chunks...');
+                    }, 10); // Minimal delay for flush
+                  } else {
+                    // Wait for connection to open
+                    ttsWs.once('open', sendTextAndFlush);
+                  }
+                };
+                
+                // If already open, send immediately; otherwise wait for 'open' event
+                if (ttsWs.readyState === WebSocket.OPEN) {
+                  sendTextAndFlush();
+                } else {
+                  ttsWs.once('open', sendTextAndFlush);
+                }
+                
               } else if (responseAudio.type === 'native') {
                 // Native audio file - send as base64
                 logger.info('[TTS] ✅ Using native audio file');
