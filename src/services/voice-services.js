@@ -431,7 +431,12 @@ class VoiceServices {
       options = { streaming: true, model: 'aura-2-agustina-es' };
     }
 
-    const { useNative = false, model = 'aura-2-agustina-es', streaming = true } = options;
+    const { 
+      useNative = false, 
+      model = 'aura-2-agustina-es', 
+      streaming = true,
+      provider = 'auto' // 'auto' = try Deepgram first, fallback to Cartesia
+    } = options;
 
     // Option 1: Use native audio file (lowest latency)
     if (useNative) {
