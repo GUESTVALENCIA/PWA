@@ -731,13 +731,30 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
           }
           
           // Check 2: Already processing another transcript
+          // ✅ MEJORADO: Solo bloquear si es realmente la misma transcripción
+          // Permitir transcripciones nuevas aunque haya una en proceso
           if (deepgramData && deepgramData.isProcessing) {
-            logger.warn('[DEEPGRAM] Already processing, skipping duplicate transcription', {
+            const currentProcessing = deepgramData.processingTranscript || '';
+            const isSameTranscript = currentProcessing.toLowerCase().trim() === transcriptNormalized.toLowerCase().trim();
+            
+            // Solo bloquear si es EXACTAMENTE la misma transcripción
+            if (isSameTranscript) {
+              logger.debug('[DEEPGRAM] Skipping exact duplicate transcription', {
+                agentId: agentId,
+                transcript: transcriptNormalized.substring(0, 50)
+              });
+              return;
+            }
+            
+            // Si es diferente, permitirla (usuario habló de nuevo)
+            logger.info('[DEEPGRAM] New transcript while processing - allowing (user spoke again)', {
               agentId: agentId,
-              currentProcessing: deepgramData.processingTranscript?.substring(0, 50),
+              currentProcessing: currentProcessing.substring(0, 50),
               newTranscript: transcriptNormalized.substring(0, 50)
             });
-            return;
+            // Resetear flag para permitir nueva transcripción
+            deepgramData.isProcessing = false;
+            deepgramData.processingTranscript = null;
           }
           
           // Check 3: Same transcript as last finalized (within 2 seconds) - prevent duplicate events
