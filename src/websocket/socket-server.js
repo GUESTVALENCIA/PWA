@@ -1383,26 +1383,10 @@ async function handleInitialGreeting(ws, voiceServices) {
         
         const ttsWs = greetingAudio.ws;
         let firstChunk = true;
+        let chunksReceived = 0;
+        let totalBytesReceived = 0;
         
-        // Wait for WebSocket to be fully ready before sending
-        const sendTextAndFlush = () => {
-          if (ttsWs.readyState === WebSocket.OPEN) {
-            // Send text to TTS
-            voiceServices.sendTextToTTS(ttsWs, greetingText);
-            
-            // Small delay before flush to ensure text is sent
-            setTimeout(() => {
-              // Flush to start audio generation
-              voiceServices.flushTTS(ttsWs);
-            }, 10);
-          } else {
-            // Wait for connection to open
-            ttsWs.once('open', sendTextAndFlush);
-          }
-        };
-        
-        sendTextAndFlush();
-        
+        // ⚠️ CRITICAL: Set up message handler BEFORE sending any commands
         // Handle incoming PCM audio chunks
         ttsWs.on('message', (data) => {
           // Log message type for debugging
@@ -1449,9 +1433,13 @@ async function handleInitialGreeting(ws, voiceServices) {
             }
             
             // Valid PCM chunk
+            chunksReceived++;
+            totalBytesReceived += data.length;
             const pcmBase64 = data.toString('base64');
-            logger.debug('[TTS] 📤 Sending greeting PCM chunk', {
+            logger.info('[TTS] 📤 Sending greeting PCM chunk', {
+              chunkNumber: chunksReceived,
               length: data.length,
+              totalBytes: totalBytesReceived,
               isFirst: firstChunk
             });
             ws.send(JSON.stringify({
