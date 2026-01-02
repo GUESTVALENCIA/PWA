@@ -719,6 +719,10 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
         sampleRate: resolvedSampleRate,
         channels: resolvedChannels,
         idleTimeoutMs: 600, // 🚀 ENTERPRISE MAX: Reducido a 600ms para latencia mínima (balance óptimo)
+        
+        // 🔄 KEEPALIVE: Mantener conexión estable enviando silencio periódicamente
+        keepAlive: true,
+        keepAliveInterval: 10000, // Enviar keepalive cada 10 segundos
         onTranscriptionFinalized: async (transcript, message) => {
           // 🚀 ROBUST DEDUPLICATION: Prevent duplicate transcriptions from multiple events
           const now = Date.now();

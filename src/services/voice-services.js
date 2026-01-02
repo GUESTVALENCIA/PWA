@@ -131,7 +131,9 @@ class VoiceServices {
       onTranscriptionFinalized = null,
       onTranscriptionUpdated = null,
       onError = null,
-      onClose = null
+      onClose = null,
+      keepAlive = false, // 🔄 KEEPALIVE: Mantener conexión estable
+      keepAliveInterval = 10000 // Intervalo de keepalive en ms (10 segundos)
     } = options;
 
     logger.info('[DEEPGRAM] 🔌 Creating streaming connection...');
@@ -219,6 +221,7 @@ class VoiceServices {
     let interimUtterance = '';
     let lastMessage = null;
     let idleTimer = null;
+    let keepAliveTimer = null; // 🔄 KEEPALIVE: Timer para mantener conexión activa
     const connectionStartTime = connectTime; // Store for error handler
     
     // CRÍTICO: Registrar eventos ANTES de que ocurra el error
@@ -231,6 +234,15 @@ class VoiceServices {
         protocol: connection?.getProtocol?.() || 'N/A'
       }, 'C');
       logger.info('[DEEPGRAM] ✅ Connection opened successfully');
+      
+      // 🔄 KEEPALIVE: Iniciar keepalive si está habilitado
+      if (keepAlive && keepAliveInterval > 0) {
+        clearKeepAliveTimer();
+        keepAliveTimer = setInterval(() => {
+          sendKeepAlive();
+        }, keepAliveInterval);
+        logger.info(`[DEEPGRAM] 🔄 Keepalive iniciado (cada ${keepAliveInterval}ms)`);
+      }
     });
     // #endregion
 
@@ -238,6 +250,36 @@ class VoiceServices {
       if (!idleTimer) return;
       clearTimeout(idleTimer);
       idleTimer = null;
+    };
+    
+    // 🔄 KEEPALIVE: Limpiar timer de keepalive
+    const clearKeepAliveTimer = () => {
+      if (!keepAliveTimer) return;
+      clearInterval(keepAliveTimer);
+      keepAliveTimer = null;
+    };
+    
+    // 🔄 KEEPALIVE: Enviar chunk de silencio para mantener conexión activa
+    const sendKeepAlive = () => {
+      try {
+        if (!connection || connection.getReadyState?.() !== 1) {
+          // Conexión no está abierta, no enviar keepalive
+          return;
+        }
+        
+        // Generar 100ms de silencio (PCM 16-bit, mono)
+        // Para 48kHz: 100ms = 4800 muestras = 9600 bytes (2 bytes por muestra)
+        const silenceDuration = 0.1; // 100ms
+        const samples = Math.floor((sampleRate || 48000) * silenceDuration);
+        const silenceBuffer = Buffer.alloc(samples * 2); // 16-bit = 2 bytes por muestra
+        
+        // Buffer ya está lleno de ceros (silencio)
+        // Enviar a Deepgram para mantener conexión activa
+        connection.send(silenceBuffer);
+        logger.debug('[DEEPGRAM] 🔄 Keepalive enviado (silencio 100ms)');
+      } catch (error) {
+        logger.warn('[DEEPGRAM] ⚠️ Error enviando keepalive:', error.message);
+      }
     };
 
     const buildUtterance = () => `${finalizedUtterance} ${interimUtterance}`.trim();
@@ -372,6 +414,7 @@ class VoiceServices {
     if (onClose) {
       connection.on(LiveTranscriptionEvents.Close, () => {
         clearIdleTimer();
+        clearKeepAliveTimer(); // 🔄 KEEPALIVE: Limpiar timer al cerrar
         // #region agent log
         debugLog('voice-services.js:382', 'Deepgram connection CLOSED', {
           readyState: connection.getReadyState?.(),
