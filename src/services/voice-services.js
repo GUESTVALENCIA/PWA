@@ -459,22 +459,16 @@ class VoiceServices {
       }
     }
 
-    // Option 2: Deepgram TTS WebSocket streaming (dynamic responses, lowest latency)
-    if (streaming && text && text.trim() !== '') {
-      logger.info(`[TTS] 🎙️ Creating TTS WebSocket streaming for: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
-      
-      try {
-        const ttsWs = await this.createTTSStreamingConnection(model);
-        return {
-          type: 'streaming',
-          ws: ttsWs,
-          model: model,
-          text: text // Store text for later use
-        };
-      } catch (error) {
-        logger.error('[TTS] ❌ Error creating TTS WebSocket, falling back to REST:', error);
-        // Fall through to REST API
-      }
+    // 🚫 WEBSOCKET DESHABILITADO: Siempre falla con error 1008
+    // Option 2: Deepgram TTS WebSocket streaming (DESHABILITADO - usar solo REST API)
+    // El WebSocket de Deepgram TTS tiene problemas constantes:
+    // - Error 1008 (Policy Violation)
+    // - Modelo incorrecto (aura-asteria-en en lugar del solicitado)
+    // - Timeouts constantes
+    // SOLUCIÓN: Usar SOLO REST API que funciona perfectamente
+    if (false && streaming && text && text.trim() !== '') {
+      // DESHABILITADO - no usar WebSocket
+      logger.warn('[TTS] ⚠️ WebSocket streaming deshabilitado - usando REST API');
     }
 
     // Option 3: TTS REST API (Deepgram or Cartesia)

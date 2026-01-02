@@ -818,7 +818,8 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
 
             // Generar audio de respuesta usando Deepgram TTS (WebSocket streaming para latencia mínima)
             try {
-              const responseAudio = await voiceServices.generateVoice(aiResponse, { streaming: true, model: 'aura-2-celeste-es' });
+              // 🚫 WEBSOCKET DESHABILITADO: Usar solo REST API (más confiable)
+              const responseAudio = await voiceServices.generateVoice(aiResponse, { streaming: false, model: 'aura-2-celeste-es' });
               
               // Handle different response types
               if (responseAudio.type === 'tts' && responseAudio.data) {
@@ -1450,7 +1451,8 @@ async function handleInitialGreeting(ws, voiceServices) {
     
     // Usar Deepgram TTS WebSocket streaming para el saludo (baja latencia)
     try {
-      const greetingAudio = await voiceServices.generateVoice(greetingText, { streaming: true, model: 'aura-2-celeste-es' });
+      // 🚫 WEBSOCKET DESHABILITADO: Usar solo REST API (más confiable)
+      const greetingAudio = await voiceServices.generateVoice(greetingText, { streaming: false, model: 'aura-2-celeste-es' });
       
       // ⚠️ CRITICAL: Never send WebSocket objects to client - handle streaming server-side
       if (greetingAudio.type === 'streaming' && greetingAudio.ws) {
