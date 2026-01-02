@@ -1461,8 +1461,8 @@ async function handleInitialGreeting(ws, voiceServices) {
       throw new Error('Voice generation service not available');
     }
     
-    // 🚀 ENTERPRISE: Saludo corto, claro y conciso
-    const greetingText = '¡Hola! ¿En qué puedo ayudarte?';
+    // 🚀 ENTERPRISE: Saludo de Sandra con presentación completa
+    const greetingText = 'Hola, soy Sandra, tu asistente de Guests Valencia, ¿en qué puedo ayudarle hoy?';
     
     logger.info(`🎙️ Generating greeting audio: "${greetingText}"`);
     
