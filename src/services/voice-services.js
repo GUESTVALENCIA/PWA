@@ -136,28 +136,14 @@ class VoiceServices {
 
     logger.info('[DEEPGRAM] 🔌 Creating streaming connection...');
 
+    // Configuración MÍNIMA para máxima compatibilidad
     const liveOptions = {
-      // 🚀 ENTERPRISE MAX: Modelo optimizado para llamadas telefónicas de alta calidad
-      // Usar 'nova' base (más compatible con Pay As You Go) en lugar de 'nova-2'
-      model: 'nova', // ✅ Cambiado a 'nova' base para mayor compatibilidad (Pay As You Go)
-      
-      // 🚀 ENTERPRISE MAX: Configuración de idioma
-      language: language,
-      
-      // 🚀 ENTERPRISE MAX: Formateo inteligente para mejor legibilidad
+      model: 'nova',
+      language: language || 'es',
       punctuate: true,
       smart_format: true,
-      
-      // 🚀 ENTERPRISE MAX: Resultados parciales en tiempo real (latencia mínima)
-      interim_results: true,
-      
-      // Parámetros opcionales simplificados para máxima compatibilidad
-      // endpointing: 250, // Comentado temporalmente para debugging
-      // vad_events: true, // Comentado temporalmente para debugging
-      // utterances: true, // Comentado temporalmente para debugging
-      // utterance_end_ms: Math.max(300, Math.min(600, Number(idleTimeoutMs) || 600)), // Comentado
-      // filler_words: false, // Comentado
-      // numerals: true, // Comentado
+      interim_results: true
+      // NO incluir ningún otro parámetro opcional para evitar problemas de compatibilidad
       
       // 🚀 ENTERPRISE MAX: Detección de múltiples hablantes (diarización)
       // diarize: false, // Desactivado por defecto (solo un hablante: usuario)
