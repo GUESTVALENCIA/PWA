@@ -735,7 +735,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
 
             // Generar audio de respuesta usando Deepgram TTS
             try {
-              const responseAudio = await voiceServices.generateVoice(aiResponse, { streaming: false, model: 'aura-2-carina-es' });
+              const responseAudio = await voiceServices.generateVoice(aiResponse, { streaming: false, model: 'aura-2-elvira-es' });
               
               // Handle different response types
               if (responseAudio.type === 'tts' && responseAudio.data) {
@@ -856,7 +856,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
             // Helper function for REST API fallback
             async function handleTTSFallback(text, clientWs) {
               try {
-                const fallbackAudio = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-carina-es' });
+                const fallbackAudio = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-elvira-es' });
                 if (fallbackAudio.type === 'tts') {
                   clientWs.send(JSON.stringify({
                     route: 'audio',
@@ -1099,7 +1099,7 @@ async function handleAudioTTS(payload, ws, voiceServices) {
     // Send text to client for native voice playback (client handles audio locally)
     // Note: We no longer generate audio on server - client uses native voice file
     // ⚠️ CRITICAL: Always use REST API and extract data property
-    const audioResult = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-carina-es' });
+    const audioResult = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-elvira-es' });
     
     // Extract audio data based on type
     let audioData;
@@ -1147,7 +1147,7 @@ async function handleAudioTTS(payload, ws, voiceServices) {
 // Helper function for REST API fallback
 async function handleGreetingFallback(text, clientWs, voiceServices) {
   try {
-    const fallbackAudio = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-carina-es' });
+    const fallbackAudio = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-elvira-es' });
     if (fallbackAudio.type === 'tts') {
       clientWs.send(JSON.stringify({
         route: 'audio',
@@ -1184,10 +1184,9 @@ async function handleInitialGreeting(ws, voiceServices) {
     
     logger.info(`🎙️ Generating greeting audio: "${greetingText}"`);
     
-    // 🎯 OPCIÓN 1: Usar VOZ NATIVA (la voz real de tu hija)
+    // Usar Deepgram TTS para el saludo (temporalmente para probar voces)
     try {
-      // Usar voz nativa (archivo WAV local - latencia más baja, tu voz real)
-      const greetingAudio = await voiceServices.generateVoice(greetingText, { useNative: true });
+      const greetingAudio = await voiceServices.generateVoice(greetingText, { useNative: false, model: 'aura-2-elvira-es' });
       
       // ⚠️ CRITICAL: Never send WebSocket objects to client - handle streaming server-side
       if (greetingAudio.type === 'streaming' && greetingAudio.ws) {
