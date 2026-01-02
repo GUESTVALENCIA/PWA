@@ -1856,7 +1856,12 @@
           // 🚀 FASE 1: Manejar finalización de TTS streaming
           if (data.route === 'audio' && data.action === 'tts_complete') {
             console.log('[MCP] ✅ TTS streaming completado');
-            this.isSpeaking = false;
+            // 🚀 ENTERPRISE ECHO CANCELLATION: Debounce mute release (600ms)
+            console.log('[AUDIO-STREAM] ⏳ Debouncing mic mute (600ms)...');
+            setTimeout(() => {
+              this.isSpeaking = false;
+              console.log('[AUDIO-STREAM] 🎤 Microphone Unmuted (Debounce complete)');
+            }, 600);
             return;
           }
 
@@ -2449,7 +2454,14 @@
 
         audio.onended = () => {
           console.log('[AUDIO] ✅ Audio finalizado completamente');
-          this.isSpeaking = false;
+
+          // 🚀 ENTERPRISE ECHO CANCELLATION: Debounce mute release (600ms)
+          // Maintain Mic Mute for 600ms AFTER audio ends to prevent "hearing self"
+          console.log('[AUDIO] ⏳ Debouncing mic mute (600ms)...');
+          setTimeout(() => {
+            this.isSpeaking = false;
+            console.log('[AUDIO] 🎤 Microphone Unmuted (Debounce complete)');
+          }, 600);
 
           // CRITICAL FIX: Wait 5 seconds before revoking to ensure audio fully finishes
           // This prevents cutting off the end of the audio and gives time for the buffer to clear
