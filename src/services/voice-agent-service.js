@@ -16,7 +16,7 @@ class VoiceAgentService {
   constructor() {
     this.deepgramApiKey = process.env.DEEPGRAM_API_KEY;
     this.openaiApiKey = process.env.OPENAI_API_KEY;
-    
+
     if (!this.deepgramApiKey) {
       logger.warn('[VOICE-AGENT] ⚠️ Deepgram API Key not configured');
       this.deepgram = null;
@@ -69,9 +69,10 @@ class VoiceAgentService {
     const agent = this.deepgram.agent();
 
     // Configure agent when Welcome event is received
+    // Configure agent when Welcome event is received
     agent.on(AgentEvents.Welcome, () => {
       logger.info('[VOICE-AGENT] ✅ Connected to Voice Agent API');
-      
+
       // Send Settings message to configure the agent
       // GPT-4o-mini as preferred model (user requirement)
       agent.send({
@@ -89,9 +90,10 @@ class VoiceAgentService {
               model: 'gpt-4o-mini' // Preferred: GPT-4o-mini (user requirement)
             },
             prompt: `Eres Sandra, la asistente virtual de Guests Valencia, especializada en hospitalidad y turismo.
-Responde SIEMPRE en español neutro, con buena ortografía y gramática.
+Responde SIEMPRE en español neutro (España), con buena ortografía y gramática.
+Nunca cambies tu personalidad ni uses jergas de otros países.
 Actúa como una experta en Hospitalidad y Turismo.
-Sé breve: máximo 4 frases salvo que se pida detalle.
+Sé breve: máximo 2-3 frases salvo que se pida detalle.
 Sé amable, profesional y útil.`
           },
           speak: {
@@ -101,7 +103,7 @@ Sé amable, profesional y útil.`
             }
           },
           language: 'es',
-          greeting: 'Hola, buenas, soy Sandra, tu asistente de Guests Valencia, ¿en qué puedo ayudarte hoy?'
+          greeting: 'Hola, soy Sandra de Guests Valencia. ¿En qué puedo ayudarte?'
         }
       });
 
@@ -128,16 +130,36 @@ Sé amable, profesional y útil.`
     if (onAgentStartedSpeaking) {
       agent.on(AgentEvents.AgentStartedSpeaking, (data) => {
         logger.info('[VOICE-AGENT] 🗣️ Agent started speaking (TTS audio started)');
+        this.isAgentSpeaking = true; // Track state
         onAgentStartedSpeaking(data);
       });
     }
 
+    // Handle agent completed speaking (New event handler)
+    agent.on(AgentEvents.AgentCompletedSpeaking, (data) => {
+      logger.debug('[VOICE-AGENT] 🤐 Agent finished speaking');
+      this.isAgentSpeaking = false;
+    });
+
     // Handle conversation text (transcriptions and responses)
     if (onConversationText) {
+      let lastAgentResponse = ''; // Simple dedupe memory
+
       agent.on(AgentEvents.ConversationText, (data) => {
-        const text = data?.text || '';
+        const text = data?.content || data?.text || ''; // Check 'content' field too
+        const role = data?.role;
+
         if (text) {
-          logger.debug(`[VOICE-AGENT] 💬 Conversation text: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
+          // Deduplication Logic for Agent Responses
+          if (role === 'assistant') {
+            if (text === lastAgentResponse) {
+              logger.warn(`[VOICE-AGENT] 🛑 Duplicate response blocked: "${text.substring(0, 30)}..."`);
+              return; // Skip duplicate
+            }
+            lastAgentResponse = text;
+          }
+
+          logger.debug(`[VOICE-AGENT] 💬 Conversation text (${role}): "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
           onConversationText(data);
         }
       });
