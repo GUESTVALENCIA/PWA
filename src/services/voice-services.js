@@ -229,7 +229,7 @@ class VoiceServices {
     // #region agent log
     const connectTime = Date.now();
     const initialReadyState = connection.getReadyState?.();
-    debugLog('voice-services.js:225', 'Deepgram connection created successfully', {
+    debugLog('voice-services.js:230', 'Deepgram connection created successfully', {
       connectTime,
       readyState: initialReadyState,
       connectionType: connection?.constructor?.name,
@@ -244,6 +244,19 @@ class VoiceServices {
     let lastMessage = null;
     let idleTimer = null;
     const connectionStartTime = connectTime; // Store for error handler
+    
+    // CRÍTICO: Registrar eventos ANTES de que ocurra el error
+    // El evento 'Open' debe registrarse inmediatamente después de crear la conexión
+    // #region agent log
+    connection.on(LiveTranscriptionEvents.Open, () => {
+      debugLog('voice-services.js:248', 'Deepgram connection OPENED (evento capturado)', {
+        readyState: connection.getReadyState?.(),
+        timeSinceCreate: Date.now() - connectTime,
+        protocol: connection?.getProtocol?.() || 'N/A'
+      }, 'C');
+      logger.info('[DEEPGRAM] ✅ Connection opened successfully');
+    });
+    // #endregion
 
     const clearIdleTimer = () => {
       if (!idleTimer) return;
