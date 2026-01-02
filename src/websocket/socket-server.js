@@ -1602,6 +1602,16 @@ async function handleInitialGreeting(ws, voiceServices) {
             closeReason: reason?.toString()
           });
           
+          // Handle error codes
+          if (code === 1008) {
+            logger.error(`[TTS] ❌ Greeting WebSocket closed with Policy Violation (1008): ${reason?.toString() || 'DATA-0000'}`);
+            logger.error(`[TTS] ⚠️ Model 'aura-2-agustina-es' may not be available. Falling back to REST API.`);
+            handleGreetingFallback(greetingText, ws, voiceServices).catch(err => {
+              logger.error('[TTS] ❌ Greeting fallback failed:', err);
+            });
+            return; // Don't send completion, fallback handles it
+          }
+          
           // Only send completion if we received at least one chunk
           if (chunksReceived > 0) {
             ws.send(JSON.stringify({
