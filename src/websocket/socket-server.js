@@ -989,6 +989,14 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                     closeReason: reason?.toString()
                   });
                   
+                  // Handle error codes
+                  if (code === 1008) {
+                    logger.error(`[TTS] ❌ WebSocket closed with Policy Violation (1008): ${reason?.toString() || 'DATA-0000'}`);
+                    logger.error(`[TTS] ⚠️ Model 'aura-2-agustina-es' may not be available. Falling back to REST API.`);
+                    handleTTSFallback(aiResponse, ws);
+                    return; // Don't send completion, fallback handles it
+                  }
+                  
                   // Only send completion if we received at least one chunk
                   if (chunksReceived > 0) {
                     ws.send(JSON.stringify({
@@ -1007,15 +1015,6 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                   logger.error('[TTS] ❌ TTS WebSocket error:', error);
                   // Fallback to REST API
                   handleTTSFallback(aiResponse, ws);
-                });
-                
-                // Handle close events with error codes
-                ttsWs.on('close', (code, reason) => {
-                  if (code === 1008) {
-                    logger.error(`[TTS] ❌ WebSocket closed with Policy Violation (1008): ${reason?.toString() || 'DATA-0000'}`);
-                    logger.error(`[TTS] ⚠️ Model 'aura-2-agustina-es' may not be available. Falling back to REST API.`);
-                    handleTTSFallback(aiResponse, ws);
-                  }
                 });
                 
                 // ⚠️ CRITICAL: Send text IMMEDIATELY when WebSocket is ready (no delays)
