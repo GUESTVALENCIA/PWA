@@ -679,7 +679,7 @@ class VoiceServices {
    * @param {string} model - Deepgram voice model (default: aura-2-celeste-es)
    * @returns {Promise<string>} Base64 encoded audio (MP3)
    */
-  async _generateDeepgramTTS(text, model = 'aura-2-celeste-es') {
+  async _generateDeepgramTTS(text, model = 'aura-2-agustina-es') {
     // Deepgram TTS models for Spanish:
     // FEMENINAS: aura-2-carina-es, aura-2-diana-es, aura-2-agustina-es, aura-2-silvia-es
     // MASCULINAS: aura-2-nestor-es, aura-2-alvaro-es
