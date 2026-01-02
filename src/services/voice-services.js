@@ -151,23 +151,13 @@ class VoiceServices {
       // 🚀 ENTERPRISE MAX: Resultados parciales en tiempo real (latencia mínima)
       interim_results: true,
       
-      // 🚀 ENTERPRISE MAX: Endpointing optimizado para detección rápida de fin de frase
-      endpointing: 250, // 250ms - latencia mínima para enterprise (default: 300ms)
-      
-      // 🚀 ENTERPRISE MAX: Voice Activity Detection (detecta cuando usuario habla/calla)
-      vad_events: true,
-      
-      // 🚀 ENTERPRISE MAX: Segmentación de utterances (detecta fin de frase natural)
-      utterances: true,
-      
-      // 🚀 ENTERPRISE MAX: Tiempo de espera optimizado para balance latencia/precisión
-      utterance_end_ms: Math.max(300, Math.min(600, Number(idleTimeoutMs) || 600)),
-      
-      // 🚀 ENTERPRISE MAX: Elimina palabras de relleno para llamadas profesionales
-      filler_words: false,
-      
-      // 🚀 ENTERPRISE MAX: Reconocimiento mejorado de números en español
-      numerals: true,
+      // Parámetros opcionales simplificados para máxima compatibilidad
+      // endpointing: 250, // Comentado temporalmente para debugging
+      // vad_events: true, // Comentado temporalmente para debugging
+      // utterances: true, // Comentado temporalmente para debugging
+      // utterance_end_ms: Math.max(300, Math.min(600, Number(idleTimeoutMs) || 600)), // Comentado
+      // filler_words: false, // Comentado
+      // numerals: true, // Comentado
       
       // 🚀 ENTERPRISE MAX: Detección de múltiples hablantes (diarización)
       // diarize: false, // Desactivado por defecto (solo un hablante: usuario)
