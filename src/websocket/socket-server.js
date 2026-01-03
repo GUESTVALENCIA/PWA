@@ -1081,17 +1081,30 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                 deepgramData.pendingAIRequest = null;
               }
               
+              // 🚀 NEON BUFFER: Obtener historial de conversación desde base de datos
+              let conversationHistory = [];
+              if (neonService && deepgramData?.sessionId) {
+                try {
+                  conversationHistory = await neonService.getConversationContext(deepgramData.sessionId, 5);
+                  logger.debug(`[NEON BUFFER] 📚 Historial recuperado: ${conversationHistory.length} intercambios`);
+                } catch (error) {
+                  logger.warn('[NEON BUFFER] ⚠️ Error obteniendo historial (continuando):', error.message);
+                }
+              }
+
               // 🚀 GPT-4o: Pasar contexto completo de conversación a la IA
               const conversationContext = {
                 greetingSent: deepgramData?.greetingSent === true,
                 lastFinalizedTranscript: deepgramData?.lastFinalizedTranscript || null, // 🚀 GPT-4o: Contexto previo
-                lastAIResponse: deepgramData?.lastAIResponse || null // 🚀 GPT-4o: Última respuesta para coherencia
+                lastAIResponse: deepgramData?.lastAIResponse || null, // 🚀 GPT-4o: Última respuesta para coherencia
+                conversationHistory: conversationHistory // 🚀 NEON BUFFER: Historial completo desde base de datos
               };
               
               logger.info(`[PIPELINE ROBUSTO] 📋 Contexto enviado a IA:`, {
                 greetingSent: conversationContext.greetingSent,
                 hasLastTranscript: !!conversationContext.lastFinalizedTranscript,
-                hasLastResponse: !!conversationContext.lastAIResponse
+                hasLastResponse: !!conversationContext.lastAIResponse,
+                historyLength: conversationHistory.length
               });
               
               aiResponse = await voiceServices.ai.processMessage(transcript, conversationContext);
@@ -1112,6 +1125,30 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
             }
 
             logger.info(`💬 AI Response received (${aiResponse.length} chars): "${aiResponse.substring(0, 100)}${aiResponse.length > 100 ? '...' : ''}"`);
+
+            // 🚀 NEON BUFFER: Guardar intercambio de conversación en base de datos
+            if (neonService && deepgramData?.sessionId) {
+              try {
+                const metadata = {
+                  greetingSent: deepgramData?.greetingSent || false,
+                  latency: {
+                    transcription: deepgramData?.latencyMetrics?.transcriptionEnd - deepgramData?.latencyMetrics?.transcriptionStart || 0,
+                    ai: deepgramData?.latencyMetrics?.aiEnd - deepgramData?.latencyMetrics?.aiStart || 0
+                  }
+                };
+                await neonService.saveConversationExchange(
+                  deepgramData.sessionId,
+                  agentId,
+                  transcript,
+                  aiResponse,
+                  metadata
+                );
+                logger.debug(`[NEON BUFFER] ✅ Conversación guardada para sesión ${deepgramData.sessionId}`);
+              } catch (error) {
+                // No bloquear la conversación si falla el guardado
+                logger.warn('[NEON BUFFER] ⚠️ Error guardando conversación (continuando):', error.message);
+              }
+            }
 
             // 🚀 PIPELINE ROBUSTO: Registrar métricas de latencia
             if (deepgramData?.latencyMetrics) {
@@ -1308,38 +1345,11 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
               }
             }));
 
-            // 🚀 BUFFER INTELIGENTE: Procesar transcripción interim para generar respuesta temprana
-            // Solo procesar si:
-            // 1. Tiene al menos 3 palabras (suficiente contexto)
-            // 2. Han pasado al menos 400ms desde última transcripción procesada
-            // 3. No hay una respuesta pendiente ya
-            // 4. No está procesando una transcripción finalizada
-            const words = interim.trim().split(/\s+/).filter(w => w.length > 0);
-            const shouldProcessEarly = words.length >= 3 && 
-                                       (now - (deepgramData?.lastInterimProcessedAt || 0)) >= 400 &&
-                                       !deepgramData?.pendingAIResponse &&
-                                       !deepgramData?.isProcessing;
-
-            if (shouldProcessEarly && deepgramData) {
-              // Cancelar request anterior si existe
-              if (deepgramData.pendingAIRequest) {
-                try {
-                  deepgramData.pendingAIRequest.abort();
-                } catch (e) { }
-                deepgramData.pendingAIRequest = null;
-              }
-
-              // Generar respuesta en paralelo (no bloqueante)
-              deepgramData.lastInterimProcessedAt = now;
-              const controller = new AbortController();
-              deepgramData.pendingAIRequest = controller;
-
-              processInterimTranscript(interim, ws, voiceServices, agentId, deepgramData, controller).catch(err => {
-                if (err.name !== 'AbortError') {
-                  logger.debug('[BUFFER INTELIGENTE] Error procesando interim:', err.message);
-                }
-              });
-            }
+            // 🚀 ELIMINADO: Procesamiento duplicado de transcripciones interim
+            // Este código causaba respuestas duplicadas porque procesaba la misma transcripción
+            // dos veces: una vez aquí y otra vez cuando llegaba la transcripción finalizada.
+            // El buffer inteligente ya se maneja en la detección anticipada (línea 1280),
+            // así que este procesamiento adicional es redundante y causa duplicados.
           } catch (_) { }
         },
         onError: (error) => {
@@ -1667,7 +1677,16 @@ async function generateNaturalGreeting(ws, voiceServices, agentId) {
         // 🚀 PIPELINE FINAL: Saludo natural y fluido, generado por IA
         // El saludo debe sonar natural, no como lectura de un guion
         // La IA genera el saludo basándose en su personalidad, no en un texto fijo
-        const greetingPrompt = 'Acabas de descolgar una llamada. Eres Sandra, la asistente de Guests Valencia. Saluda al usuario de forma breve, natural y amable. Máximo 5 palabras.';
+        // 🚀 ELIMINADO: Texto escrito que fuerza saludo específico - solo contexto, sin forzar palabras
+        const greetingPrompt = 'Acabas de descolgar una llamada. Eres Sandra, la asistente de Guests Valencia. Inicia la conversación de forma breve, natural y amable. Máximo 5 palabras.';
+        
+        // ⏱️ PIPELINE FINAL: Latencia mínima - máximo 1 segundo desde que se cuelga hasta que saluda
+        // Los ringtones ya se reprodujeron, ahora generamos el saludo inmediatamente
+        // No hay delay adicional - el saludo debe generarse y enviarse lo más rápido posible
+        
+        try {
+          // La IA genera el saludo naturalmente (mismo sistema que las respuestas normales)
+          const naturalGreeting = await voiceServices.ai.processMessage(greetingPrompt, { greetingSent: false });
         
         // ⏱️ PIPELINE FINAL: Latencia mínima - máximo 1 segundo desde que se cuelga hasta que saluda
         // Los ringtones ya se reprodujeron, ahora generamos el saludo inmediatamente
