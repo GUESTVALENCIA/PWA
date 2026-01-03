@@ -792,7 +792,7 @@ Sé amable, profesional y útil.`;
     }
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000); // 🚀 REAL-TIME: 8s timeout (reducido de 30s para tiempo real)
+    const timeout = setTimeout(() => controller.abort(), 4000); // 🚀 REAL-TIME: 4s timeout (optimizado para latencia mínima)
 
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -808,7 +808,7 @@ Sé amable, profesional y útil.`;
             { role: 'user', content: userMessage }
           ],
           temperature: 0.7,
-          max_tokens: 200
+          max_tokens: 100 // 🚀 REAL-TIME: Reducido para respuestas más rápidas (especialmente saludos breves)
         }),
         signal: controller.signal
       });
@@ -857,7 +857,7 @@ Sé amable, profesional y útil.`;
             { role: 'user', content: userMessage }
           ],
           temperature: 0.7,
-          max_tokens: 200
+          max_tokens: 100 // 🚀 REAL-TIME: Reducido para respuestas más rápidas (especialmente saludos breves)
         }),
         signal: controller.signal
       });
