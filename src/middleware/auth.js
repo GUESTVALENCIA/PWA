@@ -8,10 +8,20 @@ import { logger } from '../utils/logger.js';
 const authMiddleware = (req, res, next) => {
   // Public endpoints that don't require authentication
   const publicEndpoints = ['/health', '/api/voice/diagnose'];
+
+  // VERBOSE AUTH LOGGING
+  logger.info(`[AUTH] Checking request: ${req.method} ${req.path}`);
+
   // ✅ Allow public access to all Sandra routes (Chat & Voice)
-  if (publicEndpoints.includes(req.path) || req.path.startsWith('/api/sandra/')) {
+  // Normalizar path para evitar problemas de trailing slashes
+  const normalizedPath = req.path.endsWith('/') ? req.path.slice(0, -1) : req.path;
+
+  if (publicEndpoints.includes(normalizedPath) || normalizedPath.startsWith('/api/sandra')) {
+    logger.info(`[AUTH] ✅ Public Access Granted for: ${req.path}`);
     return next();
   }
+
+  logger.info(`[AUTH] 🔒 Validating token for protected route...`);
 
   const token = req.headers.authorization?.split(' ')[1] || req.headers['x-api-key'];
 
