@@ -819,13 +819,17 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
           // 🚀 FILTRO: Ignorar transcripciones muy cortas o solo saludos después del saludo inicial
           if (deepgramData?.greetingSent === true) {
             const transcriptLower = transcriptNormalized.toLowerCase().trim();
+            // Detectar si es solo un saludo (con o sin puntuación)
             const isOnlyGreeting = /^(hola|buenos días|buenas tardes|buenas noches|hey|hi)[\s,\.!]*$/i.test(transcriptLower);
+            // Detectar si empieza con saludo seguido de nombre o pregunta simple
+            const startsWithGreeting = /^(hola|buenos días|buenas tardes|buenas noches|hey|hi)[\s,\.!]+(sandra|¿cómo estás|como estas|cómo estás|como estas)[\s,\.!?]*$/i.test(transcriptLower);
             const isTooShort = transcriptNormalized.trim().length < 3;
             
-            if (isOnlyGreeting || isTooShort) {
+            if (isOnlyGreeting || startsWithGreeting || isTooShort) {
               logger.debug('[FILTRO] ⏭️ Ignorando transcripción (solo saludo o muy corta después del saludo inicial)', {
                 transcript: transcriptNormalized,
                 isOnlyGreeting,
+                startsWithGreeting,
                 isTooShort
               });
               return;
