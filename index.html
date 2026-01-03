@@ -1898,7 +1898,8 @@
             if (data.audio || data.payload?.audio) {
               const audioBase64 = data.audio || data.payload?.audio;
               console.log('[MCP] ✅ Detectado audio en mensaje alternativo');
-              const isWelcome = data.isWelcome || data.payload?.isWelcome || (!this.currentAudio && !this.isSpeaking);
+              // ✅ SOLO usar isWelcome explícito del servidor (no fallbacks)
+              const isWelcome = data.payload?.isWelcome === true;
               this.clearResponseWatchdog();
               this.awaitingResponse = false;
               this.playAudioResponse(audioBase64, isWelcome);
@@ -1966,8 +1967,8 @@
               }
             }
 
-            // Detectar si es el saludo inicial
-            const isWelcome = data.payload.isWelcome || (!this.currentAudio && !this.isSpeaking);
+            // ✅ SOLO usar isWelcome explícito del servidor (no fallbacks)
+            const isWelcome = data.payload.isWelcome === true;
             
             // 🚀 WEBRTC PIPELINE: Queue greeting if ringtones are playing
             if (isWelcome && this.waitingForRingtones) {
