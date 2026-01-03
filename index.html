@@ -1857,12 +1857,22 @@
             payload: { type: 'ready', message: 'Cliente listo - esperando ringtones' }
           }));
 
-          // 🚀 REAL-TIME PIPELINE: Después de ringtones, 1 segundo de silencio, luego iniciar micrófono
+          // 🚀 REAL-TIME PIPELINE: Después de ringtones, reproducir saludo en cola, luego iniciar micrófono
           this.playRingtoneAfterConnection(() => {
             // Callback after ringtones complete
-            console.log('[MCP] 🔔 Ringtones completed - esperando 1 segundo de silencio antes de iniciar micrófono');
+            console.log('[MCP] 🔔 Ringtones completed - verificando saludo en cola');
             this.waitingForRingtones = false;
-            this.queuedGreeting = null; // Limpiar cualquier saludo que pudiera estar en cola
+            
+            // 🚀 FIX: Reproducir saludo en cola si existe
+            if (this.queuedGreeting && this.queuedGreeting.audio) {
+              console.log('[MCP] 🔊 Reproduciendo saludo en cola después de ringtones');
+              const queuedAudio = this.queuedGreeting.audio;
+              const queuedIsWelcome = this.queuedGreeting.isWelcome;
+              this.queuedGreeting = null; // Limpiar después de guardar
+              this.playAudioResponse(queuedAudio, queuedIsWelcome);
+            } else {
+              console.log('[MCP] ℹ️ No hay saludo en cola para reproducir');
+            }
             
             // ✅ 1 segundo de silencio después de ringtones, luego iniciar micrófono
             // El usuario habla y Sandra responde naturalmente (sin saludo predeterminado)
