@@ -102,8 +102,8 @@ Sé amable, profesional y útil.`
               model: 'aura-2-agustina-es' // Spanish Peninsular female voice (Agustina)
             }
           },
-          language: 'es',
-          greeting: 'Hola, soy Sandra de Guests Valencia. ¿En qué puedo ayudarte?'
+          language: 'es'
+          // 🚀 ELIMINADO: greeting fijo - el saludo se genera automáticamente con generateNaturalGreeting()
         }
       });
 
