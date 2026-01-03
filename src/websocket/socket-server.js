@@ -8,6 +8,7 @@ import logger from '../utils/logger.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import IPGeolocationService from '../services/ip-geolocation-service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -49,12 +50,29 @@ export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonS
   // #region agent log
   debugLog('socket-server.js:18', 'initWebSocketServer called', { voiceServicesIsNull: voiceServices === null, hasVoiceServices: !!voiceServices, hasDeepgram: !!voiceServices?.deepgram, hasAI: !!voiceServices?.ai, hasWelcomeAudio: !!voiceServices?.getWelcomeAudio }, 'E');
   // #endregion
-	  wss.on('connection', (ws, req) => {
+	  wss.on('connection', async (ws, req) => {
 	    const agentId = req.headers['x-agent-id'] || `agent_${Math.random().toString(36).substring(7)}`;
 	    const connectionTime = new Date().toISOString();
 		    const sttAvailable = voiceServices?.deepgram?.isConfigured === true;
 
-    logger.info(`✅ WebSocket connected: ${agentId}`);
+    // 🚀 MEMORIA PERSISTENTE: Capturar IP y obtener geolocalización
+    const ipAddress = ipGeolocationService.extractIPFromRequest(req);
+    let geolocationData = null;
+    
+    try {
+      geolocationData = await ipGeolocationService.getLocationFromIP(ipAddress);
+      logger.info(`[MEMORIA PERSISTENTE] 📍 IP ${ipAddress} → ${geolocationData.city}, ${geolocationData.country} (${geolocationData.timezone})`);
+    } catch (error) {
+      logger.warn(`[MEMORIA PERSISTENTE] ⚠️ Error obteniendo geolocalización:`, error);
+      geolocationData = {
+        country: 'ES',
+        city: 'Valencia',
+        timezone: 'Europe/Madrid',
+        language: 'es'
+      };
+    }
+
+    logger.info(`✅ WebSocket connected: ${agentId} (IP: ${ipAddress})`);
 
     // Register agent connection
     agentConnections.set(agentId, ws);
@@ -77,6 +95,15 @@ export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonS
     // El saludo se enviará DESPUÉS de que el cliente reproduzca los ringtones
     // El cliente enviará mensaje "ready" después de los ringtones, entonces enviaremos el saludo
     logger.info(`[WEBSOCKET] Conexión establecida para ${agentId} - esperando ringtones del cliente antes de enviar saludo`);
+
+    // 🚀 MEMORIA PERSISTENTE: Almacenar información de IP y geolocalización en el WebSocket
+    ws._callContext = {
+      agentId,
+      ipAddress,
+      geolocationData,
+      callId: `call_${Date.now()}_${agentId}`,
+      sessionId: null // Se establecerá cuando se reciba sessionId del cliente
+    };
 
     // Handle incoming messages
     ws.on('message', (message) => {
@@ -542,13 +569,49 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices) {
 
       case 'conserje':
         if (action === 'message' && payload?.type === 'ready') {
-          // 🚀 REAL-TIME PIPELINE: Generar saludo natural con IA (después de ringtones)
-          // La IA genera el saludo de forma natural, no texto predeterminado
-          logger.info(`[WEBSOCKET] Cliente ${agentId} listo después de ringtones - generando saludo natural con IA`);
+          // 🚀 MEMORIA PERSISTENTE: Crear call log en el stream cuando se recibe "ready"
+          const callContext = ws._callContext || {};
+          const sessionId = payload.sessionId || callContext.sessionId || `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
           
-          // Generar saludo natural usando la IA (no texto fijo)
+          // Actualizar sessionId en el contexto
+          callContext.sessionId = sessionId;
+          ws._callContext = callContext;
+          
+          // Crear call log en NEON
+          if (neonService && callContext.ipAddress) {
+            neonService.createOrUpdateCallLog({
+              callId: callContext.callId,
+              sessionId: sessionId,
+              agentId: agentId,
+              ipAddress: callContext.ipAddress,
+              country: callContext.geolocationData?.country,
+              city: callContext.geolocationData?.city,
+              timezone: callContext.geolocationData?.timezone,
+              language: callContext.geolocationData?.language || 'es'
+            }).then(callLog => {
+              if (callLog) {
+                logger.info(`[MEMORIA PERSISTENTE] ✅ Call log creado: ${callLog.call_id} (IP: ${callContext.ipAddress})`);
+                
+                // Cargar historial previo si existe
+                if (callContext.ipAddress) {
+                  neonService.getCallHistoryByIP(callContext.ipAddress, 1).then(previousCalls => {
+                    if (previousCalls && previousCalls.length > 0) {
+                      const lastCall = previousCalls[0];
+                      logger.info(`[MEMORIA PERSISTENTE] 📋 Historial previo encontrado para IP ${callContext.ipAddress}: ${lastCall.conversation_history?.length || 0} intercambios`);
+                      // El historial se usará en el prompt de la IA
+                    }
+                  }).catch(err => logger.warn('[MEMORIA PERSISTENTE] Error cargando historial previo:', err));
+                }
+              }
+            }).catch(err => logger.warn('[MEMORIA PERSISTENTE] Error creando call log:', err));
+          }
+          
+          // 🚀 REAL-TIME PIPELINE: Generar saludo automático (después de ringtones)
+          logger.info(`[WEBSOCKET] Cliente ${agentId} listo después de ringtones - disparando saludo automático`);
+          
+          // Generar saludo automático (sin condicionar modelo)
           generateNaturalGreeting(ws, voiceServices, agentId).catch((error) => {
-            logger.error(`[WEBSOCKET] Error generando saludo natural para ${agentId}:`, error);
+            logger.error(`[WEBSOCKET] Error generando saludo automático para ${agentId}:`, error);
           });
         } else if (action === 'message' && payload?.type === 'resume_session') {
           // 🚀 GPT-4o: Reanudar sesión después de reconexión usando sessionId
@@ -1144,6 +1207,30 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                   metadata
                 );
                 logger.debug(`[NEON BUFFER] ✅ Conversación guardada para sesión ${deepgramData.sessionId}`);
+                
+                // 🚀 MEMORIA PERSISTENTE: Actualizar call log en el stream durante la conversación
+                const callContext = ws._callContext;
+                if (callContext && callContext.callId && neonService) {
+                  try {
+                    // Detectar intención básica del transcript
+                    let intent = null;
+                    if (transcript.toLowerCase().includes('reserv') || transcript.toLowerCase().includes('reservar')) {
+                      intent = 'reservar_alojamiento';
+                    } else if (transcript.toLowerCase().includes('disponib') || transcript.toLowerCase().includes('disponible')) {
+                      intent = 'consultar_disponibilidad';
+                    } else if (transcript.toLowerCase().includes('precio') || transcript.toLowerCase().includes('coste')) {
+                      intent = 'consultar_precio';
+                    }
+                    
+                    await neonService.updateCallLogConversation(callContext.callId, {
+                      userTranscript: transcript,
+                      aiResponse: aiResponse,
+                      intent: intent
+                    });
+                  } catch (error) {
+                    logger.warn('[MEMORIA PERSISTENTE] Error actualizando call log:', error);
+                  }
+                }
               } catch (error) {
                 // No bloquear la conversación si falla el guardado
                 logger.warn('[NEON BUFFER] ⚠️ Error guardando conversación (continuando):', error.message);
