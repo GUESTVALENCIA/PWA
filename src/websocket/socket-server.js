@@ -1478,53 +1478,59 @@ async function handleInitialGreeting(ws, voiceServices) {
      * Handle initial greeting (AUTOMÁTICO AL SUBIR WEBSOCKET)
      * Envía el audio nativo precacheado INMEDIATAMENTE para latencia cero.
      */
+    /**
+ * Handle initial greeting (AUTOMÁTICO AL SUBIR WEBSOCKET)
+ * Envía saludo generado por TTS para consistencia de voz (misma personalidad).
+ */
     async function handleInitialGreeting(ws, voiceServices) {
       try {
-        if (!voiceServices || !voiceServices.getWelcomeAudio) {
+        if (!voiceServices || !voiceServices.generateVoice) {
           logger.error('Voice services not available for greeting');
           return;
         }
 
-        // 🚀 ENTERPRISE: SALUDO INSTANTÁNEO (ZERO LATENCY)
-        // Usar SIEMPRE el archivo de audio nativo precacheado.
-        // Evitar TTS dinámico para el primer mensaje.
+        // 🚀 ENTERPRISE: SALUDO UNIFICADO (MISMA PERSONALIDAD)
+        // El usuario exige consistencia: NO usar voz nativa.
+        // Usar Deepgram Aura "Diana" para todo.
         const greetingText = 'Hola, soy Sandra, tu asistente de Guests Valencia, ¿en qué puedo ayudarle hoy?';
 
-        logger.info(`⚡ Sending INSTANT native greeting...`);
+        logger.info(`🎙️ Generating TTS greeting (Identity Consistency): "${greetingText}"`);
 
-        // Obtener audio nativo (WAV)
-        const greetingAudio = await voiceServices.getWelcomeAudio();
+        try {
+          // Usar Deepgram REST API (Aura-2-Diana) - Es extremadamente rápida para frases cortas (<200ms)
+          const greetingAudio = await voiceServices.generateVoice(greetingText, {
+            streaming: false,
+            model: 'aura-2-diana-es',
+            provider: 'deepgram' // Forzar Deepgram explícitamente
+          });
 
-        if (greetingAudio && greetingAudio.type === 'native' && greetingAudio.data) {
-          logger.info('[TTS] ✅ Using NATIVE voice file for greeting (Instant load)');
-          const audioBase64 = greetingAudio.data.toString('base64');
+          if (greetingAudio.type === 'tts' && greetingAudio.data) {
+            logger.info('[TTS] ✅ Greeting generated with Aura Diana (Consistency OK)');
+            ws.send(JSON.stringify({
+              route: 'audio',
+              action: 'tts',
+              payload: {
+                audio: greetingAudio.data,
+                format: 'mp3',
+                text: greetingText,
+                isWelcome: true
+              }
+            }));
+            logger.info('✅ Initial greeting sent (Deepgram Diana)');
+          } else {
+            throw new Error('Invalid TTS response format');
+          }
+        } catch (err) {
+          logger.error('[TTS] ❌ Greeting generation failed:', err);
+          // Fallback silencioso o notificar error al cliente si es crítico
           ws.send(JSON.stringify({
-            route: 'audio',
-            action: 'tts',
-            payload: {
-              audio: audioBase64,
-              format: 'wav',
-              text: greetingText,
-              isWelcome: true, // Flag para cliente (playbackRate = 1.0)
-              isNative: true
-            }
+            route: 'error',
+            action: 'message',
+            payload: { error: 'Greeting failed', details: err.message }
           }));
-          logger.info('✅ Initial greeting sent (NATIVE VOICE)');
-        } else {
-          // Fallback de emergencia si falla el nativo (no debería ocurrir)
-          logger.error('[TTS] ❌ Native audio failed/missing, falling back to TTS');
-          await handleGreetingFallback(greetingText, ws, voiceServices);
         }
 
       } catch (error) {
         logger.error('Error generating initial greeting:', error);
-        ws.send(JSON.stringify({
-          route: 'error',
-          action: 'message',
-          payload: {
-            error: 'Initial greeting failed',
-            message: error.message
-          }
-        }));
       }
     }
