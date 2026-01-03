@@ -856,7 +856,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
               // 🚀 ENTERPRISE: FULL DUPLEX STREAMING
               // Usar WebSocket TTS para latencia mínima (<300ms TTFB).
               // Esto elimina el efecto "Walkie-Talkie".
-              const responseAudio = await voiceServices.generateVoice(aiResponse, { 
+              const responseAudio = await voiceServices.generateVoice(aiResponse, {
                 streaming: true, // ✅ FORZAR STREAMING
                 model: 'aura-2-diana-es',
                 provider: 'deepgram'
@@ -871,21 +871,21 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                 let firstChunk = true;
                 let chunksReceived = 0;
                 let totalBytesReceived = 0;
-                
+
                 // Manejador de mensajes WebSocket para TTS
                 const handleTTSMessage = (data) => {
                   const isBuffer = Buffer.isBuffer(data);
-                  
+
                   if (Buffer.isBuffer(data)) {
                     // Check for JSON metadata in Buffer
                     if (data.length > 0 && data[0] === 123) {
                       try {
-                         const msg = JSON.parse(data.toString('utf8'));
-                         if (msg.type === 'Flushed') logger.debug('[TTS] Buffer flushed');
-                         return; 
-                      } catch (e) {}
+                        const msg = JSON.parse(data.toString('utf8'));
+                        if (msg.type === 'Flushed') logger.debug('[TTS] Buffer flushed');
+                        return;
+                      } catch (e) { }
                     }
-                    
+
                     if (data.length === 0) return;
 
                     // Pad if odd length
@@ -908,40 +908,40 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                         isFirst: firstChunk
                       }
                     }));
-                    
+
                     firstChunk = false;
                     chunksReceived++;
                     totalBytesReceived += pcmData.length;
                   } else {
-                     // Handle Text/JSON messages
-                     try {
-                       const msg = JSON.parse(data.toString());
-                       if (msg.type === 'Error') logger.error('[TTS] Stream Error:', msg);
-                     } catch(e) {}
+                    // Handle Text/JSON messages
+                    try {
+                      const msg = JSON.parse(data.toString());
+                      if (msg.type === 'Error') logger.error('[TTS] Stream Error:', msg);
+                    } catch (e) { }
                   }
                 };
 
                 ttsWs.on('message', handleTTSMessage);
-                
+
                 ttsWs.on('close', () => {
-                   if (chunksReceived > 0) {
-                     ws.send(JSON.stringify({ route: 'audio', action: 'tts_complete', payload: {} }));
-                   }
+                  if (chunksReceived > 0) {
+                    ws.send(JSON.stringify({ route: 'audio', action: 'tts_complete', payload: {} }));
+                  }
                 });
 
                 ttsWs.on('error', (err) => logger.error('[TTS] Stream Error:', err));
 
                 // Send text immediately
                 if (ttsWs.readyState === WebSocket.OPEN) {
+                  voiceServices.sendTextToTTS(ttsWs, aiResponse);
+                  setTimeout(() => voiceServices.flushTTS(ttsWs), 10);
+                } else {
+                  ttsWs.once('open', () => {
                     voiceServices.sendTextToTTS(ttsWs, aiResponse);
                     setTimeout(() => voiceServices.flushTTS(ttsWs), 10);
-                } else {
-                    ttsWs.once('open', () => {
-                        voiceServices.sendTextToTTS(ttsWs, aiResponse);
-                        setTimeout(() => voiceServices.flushTTS(ttsWs), 10);
-                    });
+                  });
                 }
-                
+
                 return; // ✅ Streaming handled
               }
 
@@ -958,246 +958,11 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                     language: 'es'
                   }
                 }));
-                 if (deepgramData) deepgramData.isProcessing = false;
+                if (deepgramData) deepgramData.isProcessing = false;
                 return;
               }
 
 
-              // TTS WebSocket streaming (ENABLED for low latency)
-              if (responseAudio.type === 'streaming' && responseAudio.ws) {
-                // TTS WebSocket streaming - send PCM chunks as they arrive
-                logger.info('[TTS] 🎙️ Using TTS WebSocket streaming (PCM)');
-
-                const ttsWs = responseAudio.ws;
-                let firstChunk = true;
-                let chunksReceived = 0;
-                let totalBytesReceived = 0;
-
-                // ⚠️ CRITICAL: Set up message handler BEFORE sending any commands
-                // Handle incoming PCM audio chunks
-                ttsWs.on('message', (data) => {
-                  // Log message type for debugging
-                  const isBuffer = Buffer.isBuffer(data);
-                  const dataType = typeof data;
-                  const dataLength = isBuffer ? data.length : (data?.length || 0);
-
-                  logger.debug('[TTS] 📥 Received message:', {
-                    isBuffer,
-                    dataType,
-                    length: dataLength,
-                    firstBytes: isBuffer ? Array.from(data.slice(0, 10)) : 'N/A'
-                  });
-
-                  // ⚠️ CRITICAL: Deepgram TTS sends BOTH JSON (as Buffer) and PCM audio (as Buffer)
-                  // We must check if Buffer contains JSON before treating it as PCM
-                  if (Buffer.isBuffer(data)) {
-                    // Check if Buffer starts with '{' (JSON) - Deepgram sends metadata as JSON in Buffer
-                    if (data.length > 0 && data[0] === 123) { // 123 = '{' in ASCII
-                      // This is JSON metadata, not PCM audio
-                      try {
-                        const messageStr = data.toString('utf8');
-                        const message = JSON.parse(messageStr);
-                        logger.info('[TTS] 📋 Received JSON metadata (as Buffer):', message);
-
-                        if (message.type === 'Metadata') {
-                          logger.info('[TTS] 📋 Received metadata:', message);
-                          return; // Skip metadata, wait for audio chunks
-                        } else if (message.type === 'Flushed') {
-                          logger.info('[TTS] ✅ TTS buffer flushed');
-                          return;
-                        } else if (message.type === 'Error') {
-                          logger.error('[TTS] ❌ TTS error:', message);
-                          handleTTSFallback(aiResponse, ws);
-                          return;
-                        } else {
-                          logger.debug('[TTS] Unknown JSON message type:', message.type);
-                          return; // Skip unknown JSON messages
-                        }
-                      } catch (e) {
-                        logger.warn('[TTS] ⚠️ Buffer starts with { but failed to parse as JSON:', e.message);
-                        // Continue to treat as PCM if JSON parsing fails
-                      }
-                    }
-
-                    // This is PCM audio data (not JSON)
-                    // Validate PCM data (must be even number of bytes for Int16)
-                    if (data.length === 0) {
-                      logger.debug('[TTS] Empty buffer, skipping');
-                      return;
-                    }
-
-                    if (data.length % 2 !== 0) {
-                      // Try to fix: pad with zero if odd length (last sample incomplete)
-                      logger.warn('[TTS] ⚠️ Odd-length PCM chunk, padding with zero byte', {
-                        originalLength: data.length,
-                        firstBytes: Array.from(data.slice(0, 10))
-                      });
-                      // Pad with one zero byte to make it even
-                      const paddedData = Buffer.concat([data, Buffer.from([0])]);
-                      const pcmBase64 = paddedData.toString('base64');
-                      ws.send(JSON.stringify({
-                        route: 'audio',
-                        action: 'tts_chunk',
-                        payload: {
-                          audio: pcmBase64,
-                          format: 'pcm',
-                          encoding: 'linear16',
-                          sampleRate: 24000, // ✅ TTS output is 24kHz (Deepgram default for streaming)
-                          channels: 1,
-                          isFirst: firstChunk,
-                          padded: true // Flag to indicate padding was applied
-                        }
-                      }));
-                      firstChunk = false;
-                      return;
-                    }
-
-                    // Valid PCM chunk - send to client
-                    const pcmBase64 = data.toString('base64');
-                    logger.debug('[TTS] 📤 Sending valid PCM chunk', {
-                      length: data.length,
-                      base64Length: pcmBase64.length,
-                      isFirst: firstChunk
-                    });
-                    ws.send(JSON.stringify({
-                      route: 'audio',
-                      action: 'tts_chunk',
-                      payload: {
-                        audio: pcmBase64,
-                        format: 'pcm',
-                        encoding: 'linear16',
-                        sampleRate: 24000, // ✅ TTS output is 24kHz (Deepgram default for streaming)
-                        channels: 1,
-                        isFirst: firstChunk
-                      }
-                    }));
-                    firstChunk = false;
-                  } else {
-                    // Not a Buffer - try to parse as JSON (metadata, status, etc.)
-                    try {
-                      const messageStr = data.toString();
-                      const message = JSON.parse(messageStr);
-                      logger.debug('[TTS] 📋 Received JSON message:', message);
-
-                      if (message.type === 'Metadata') {
-                        logger.info('[TTS] 📋 Received metadata:', message);
-                        return; // Skip metadata, wait for audio chunks
-                      } else if (message.type === 'Flushed') {
-                        logger.info('[TTS] ✅ TTS buffer flushed');
-                        return;
-                      } else if (message.type === 'Error') {
-                        logger.error('[TTS] ❌ TTS error:', message);
-                        // Fallback to REST API on error
-                        handleTTSFallback(aiResponse, ws);
-                        return;
-                      } else {
-                        logger.debug('[TTS] Unknown JSON message type:', message.type);
-                      }
-                    } catch (e) {
-                      // Not JSON, not Buffer - log for debugging
-                      logger.warn('[TTS] ⚠️ Unknown message format:', {
-                        type: dataType,
-                        length: dataLength,
-                        preview: typeof data === 'string' ? data.substring(0, 50) : 'N/A'
-                      });
-                    }
-                  }
-                });
-
-                // Send completion when WebSocket closes
-                ttsWs.on('close', (code, reason) => {
-                  logger.info('[TTS] ✅ TTS WebSocket streaming completed', {
-                    totalChunks: chunksReceived,
-                    totalBytes: totalBytesReceived,
-                    closeCode: code,
-                    closeReason: reason?.toString()
-                  });
-
-                  // Handle error codes
-                  if (code === 1008) {
-                    logger.error(`[TTS] ❌ WebSocket closed with Policy Violation (1008): ${reason?.toString() || 'DATA-0000'}`);
-                    logger.error(`[TTS] ⚠️ Model 'aura-2-agustina-es' may not be available. Falling back to REST API.`);
-                    handleTTSFallback(aiResponse, ws);
-                    return; // Don't send completion, fallback handles it
-                  }
-
-                  // Only send completion if we received at least one chunk
-                  if (chunksReceived > 0) {
-                    ws.send(JSON.stringify({
-                      route: 'audio',
-                      action: 'tts_complete',
-                      payload: {}
-                    }));
-                  } else {
-                    // No chunks received - fallback to REST API
-                    logger.warn('[TTS] ⚠️ No audio chunks received, falling back to REST API');
-                    handleTTSFallback(aiResponse, ws);
-                  }
-                });
-
-                ttsWs.on('error', (error) => {
-                  logger.error('[TTS] ❌ TTS WebSocket error:', error);
-                  // Fallback to REST API
-                  handleTTSFallback(aiResponse, ws);
-                });
-
-                // ⚠️ CRITICAL: Send text IMMEDIATELY when WebSocket is ready (no delays)
-                // Deepgram TTS WebSocket closes quickly if no data is sent
-                const sendTextAndFlush = () => {
-                  if (ttsWs.readyState === WebSocket.OPEN) {
-                    // Send text IMMEDIATELY - no delay
-                    voiceServices.sendTextToTTS(ttsWs, aiResponse);
-
-                    // Small delay before flush to ensure text is sent
-                    setTimeout(() => {
-                      // Flush to start audio generation
-                      voiceServices.flushTTS(ttsWs);
-                      logger.info('[TTS] ✅ Text sent and flushed, waiting for audio chunks...');
-                    }, 10); // Minimal delay for flush
-                  } else {
-                    // Wait for connection to open
-                    ttsWs.once('open', sendTextAndFlush);
-                  }
-                };
-
-                // If already open, send immediately; otherwise wait for 'open' event
-                if (ttsWs.readyState === WebSocket.OPEN) {
-                  sendTextAndFlush();
-                } else {
-                  ttsWs.once('open', sendTextAndFlush);
-                }
-
-              } else if (responseAudio.type === 'native') {
-                // Native audio file - send as base64
-                logger.info('[TTS] ✅ Using native audio file');
-                const audioBase64 = responseAudio.data.toString('base64');
-                ws.send(JSON.stringify({
-                  route: 'audio',
-                  action: 'tts',
-                  payload: {
-                    audio: audioBase64,
-                    format: 'wav',
-                    text: aiResponse,
-                    language: 'es',
-                    isNative: true
-                  }
-                }));
-              } else if (responseAudio.type === 'tts') {
-                // REST API fallback (MP3)
-                logger.info('[TTS] ✅ Using Deepgram REST API (MP3 fallback)');
-                ws.send(JSON.stringify({
-                  route: 'audio',
-                  action: 'tts',
-                  payload: {
-                    audio: responseAudio.data,
-                    format: 'mp3',
-                    text: aiResponse,
-                    language: 'es'
-                  }
-                }));
-              }
-
-              logger.info('✅ Audio TTS response sent to client');
             } catch (ttsError) {
               logger.error('[TTS] ❌ ERROR CRÍTICO: No se pudo generar audio:', ttsError);
               throw new Error(`TTS failed: ${ttsError.message}`);
@@ -1280,6 +1045,17 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
 
             // Throttle: avoid spamming the UI (max ~4 msgs/sec) and skip duplicates
             if (interim === lastText && (now - lastAt) < 1500) return;
+
+            // 🚀 FULL DUPLEX: Si el usuario habla (interim > 1 char), cortar audio TTS inmediatamente
+            if (interim && interim.trim().length > 1) {
+              ws.send(JSON.stringify({
+                route: 'audio',
+                action: 'stop_audio',
+                payload: { reason: 'interruption' }
+              }));
+              logger.debug('[FULL DUPLEX] 🛑 User interruption detected, sent stop_audio');
+            }
+
             if ((now - lastAt) < 250) return;
 
             if (deepgramData) {
@@ -1622,3 +1398,11 @@ async function handleInitialGreeting(ws, voiceServices) {
         logger.error('Error generating initial greeting:', error);
       }
     }
+  };
+
+  wss.on('connection', handleConnection);
+
+  return wss;
+};
+
+module.exports = setupWebSocketServer;
