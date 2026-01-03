@@ -760,7 +760,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
           ttsStart: 0,
           ttsEnd: 0,
           audioSent: 0
-        }
+        },
         // 🛡️ PROTECCIÓN CONTRA ECO: Evitar que IA se escuche a sí misma
         lastAIResponse: null, // Última respuesta de IA enviada (para evitar eco)
         lastAIResponseTimestamp: 0, // Timestamp de última respuesta de IA
