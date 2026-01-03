@@ -809,19 +809,26 @@ class VoiceServices {
     logger.info(`[CARTESIA] Using voice ID: ${finalVoiceId}`);
 
     try {
-      // Cartesia API endpoint: https://api.cartesia.ai/tts/tts
-      const response = await fetch('https://api.cartesia.ai/tts/tts', {
+      // Cartesia API endpoint: https://api.cartesia.ai/tts/bytes
+      const response = await fetch('https://api.cartesia.ai/tts/bytes', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': this.cartesiaApiKey
+          'X-API-Key': this.cartesiaApiKey, // ✅ Correct Header
+          'Cartesia-Version': '2024-06-10' // ✅ Recommended version
         },
         body: JSON.stringify({
-          text: text,
-          voice_id: finalVoiceId,
-          model_id: 'sonic-english', // Default model, supports Spanish
-          output_format: 'mp3', // MP3 format for compatibility
-          sample_rate: 24000, // 24kHz for streaming compatibility
+          transcript: text, // ✅ 'transcript' instead of 'text'
+          model_id: 'sonic-multilingual', // ✅ Correct multilingual model for Spanish
+          voice: {
+            mode: 'id',
+            id: finalVoiceId
+          },
+          output_format: {
+            container: 'mp3',
+            bit_rate: 128000,
+            sample_rate: 24000
+          },
           language: 'es' // Spanish
         })
       });
