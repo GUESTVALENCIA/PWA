@@ -767,7 +767,11 @@ Sé amable, profesional y útil.`;
 
     // Si ya se hizo el saludo inicial, evitar saludar de nuevo
     if (context.greetingSent === true) {
-      systemPrompt += `\n\nIMPORTANTE: Ya has saludado al usuario al inicio de la llamada. NO vuelvas a saludar. Responde directamente a su pregunta o comentario.`;
+      systemPrompt += `\n\nIMPORTANTE: Ya has saludado al usuario al inicio de la llamada. 
+- NUNCA vuelvas a saludar (NO digas "Hola", "Buenos días", "Buenas tardes", etc.)
+- NO repitas saludos aunque el usuario diga "Hola" o "Buenos días"
+- Responde directamente a su pregunta o comentario sin saludar
+- Si el usuario solo dice "Hola" o saludos, responde brevemente sin saludar de nuevo (ej: "¿En qué puedo ayudarte?")`;
     }
 
     // ✅ SOLO OpenAI GPT-4o-mini - Sin fallbacks, sin cambios
