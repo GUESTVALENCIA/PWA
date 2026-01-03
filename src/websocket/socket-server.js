@@ -1674,11 +1674,9 @@ async function generateNaturalGreeting(ws, voiceServices, agentId) {
 
     logger.info('👋 Generating natural greeting with AI (after ringtones)...');
 
-        // 🚀 PIPELINE FINAL: Saludo natural y fluido, generado por IA
-        // El saludo debe sonar natural, no como lectura de un guion
-        // La IA genera el saludo basándose en su personalidad, no en un texto fijo
-        // 🚀 ELIMINADO: Texto escrito que fuerza saludo específico - solo contexto, sin forzar palabras
-        const greetingPrompt = 'Acabas de descolgar una llamada. Eres Sandra, la asistente de Guests Valencia. Inicia la conversación de forma breve, natural y amable. Máximo 5 palabras.';
+        // 🚀 PROMPT DEFINITIVO: Pipeline Final según PIPELINE_FINAL_IMPLEMENTADO.md
+        // Prompt del saludo optimizado: "Máximo 5 palabras" para respuestas más rápidas
+        const greetingPrompt = 'Acabas de descolgar una llamada. Eres Sandra, la asistente de Guests Valencia. Saluda al usuario de forma breve, natural y amable. Máximo 5 palabras.';
         
         // ⏱️ PIPELINE FINAL: Latencia mínima - máximo 1 segundo desde que se cuelga hasta que saluda
         // Los ringtones ya se reprodujeron, ahora generamos el saludo inmediatamente
