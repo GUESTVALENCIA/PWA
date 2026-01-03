@@ -47,10 +47,10 @@ export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonS
   // #region agent log
   debugLog('socket-server.js:18', 'initWebSocketServer called', { voiceServicesIsNull: voiceServices === null, hasVoiceServices: !!voiceServices, hasDeepgram: !!voiceServices?.deepgram, hasAI: !!voiceServices?.ai, hasWelcomeAudio: !!voiceServices?.getWelcomeAudio }, 'E');
   // #endregion
-  wss.on('connection', (ws, req) => {
-    const agentId = req.headers['x-agent-id'] || `agent_${Math.random().toString(36).substring(7)}`;
-    const connectionTime = new Date().toISOString();
-    const sttAvailable = voiceServices?.deepgram?.isConfigured === true;
+	  wss.on('connection', (ws, req) => {
+	    const agentId = req.headers['x-agent-id'] || `agent_${Math.random().toString(36).substring(7)}`;
+	    const connectionTime = new Date().toISOString();
+		    const sttAvailable = voiceServices?.deepgram?.isConfigured === true;
 
     logger.info(`✅ WebSocket connected: ${agentId}`);
 
@@ -61,15 +61,15 @@ export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonS
     }
 
     // Send welcome message
-    ws.send(JSON.stringify({
-      type: 'connection_established',
-      agent_id: agentId,
-      timestamp: connectionTime,
-      message: 'Connected to MCP Orchestrator',
-      capabilities: {
-        stt: sttAvailable
-      }
-    }));
+	    ws.send(JSON.stringify({
+	      type: 'connection_established',
+	      agent_id: agentId,
+	      timestamp: connectionTime,
+	      message: 'Connected to MCP Orchestrator',
+	      capabilities: {
+	        stt: sttAvailable
+	      }
+	    }));
 
     // 🚀 WEBRTC PIPELINE: NO enviar saludo automáticamente
     // El saludo se enviará DESPUÉS de que el cliente reproduzca los ringtones
@@ -94,24 +94,24 @@ export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonS
     // Handle disconnection
     ws.on('close', () => {
       logger.info(`🔴 WebSocket disconnected: ${agentId}`);
-
+      
       // Close Deepgram streaming connection if exists (legacy)
       const deepgramData = deepgramConnections.get(agentId);
-      if (deepgramData && deepgramData.connection) {
+	      if (deepgramData && deepgramData.connection) {
         logger.info(`[DEEPGRAM] Closing streaming connection for ${agentId}`);
         try {
           deepgramData.connection.finish();
         } catch (error) {
           logger.error(`[DEEPGRAM] Error closing connection:`, error);
         }
-        deepgramConnections.delete(agentId);
-      }
+	        deepgramConnections.delete(agentId);
+	      }
 
-      sttUnavailableAgents.delete(agentId);
-      sttErrorAgents.delete(agentId);
-
-      agentConnections.delete(agentId);
-      agentSubscriptions.delete(agentId);
+	      sttUnavailableAgents.delete(agentId);
+	      sttErrorAgents.delete(agentId);
+	      
+	      agentConnections.delete(agentId);
+	      agentSubscriptions.delete(agentId);
 
       // Notify other agents of disconnection
       broadcastToAll(wss, {
@@ -221,7 +221,7 @@ function handleMessage(data, agentId, ws, wss, neonService, systemEventEmitter, 
     });
     return;
   }
-
+  
   // Formato existente type/payload (orquestación)
   const { type, payload } = data;
 
@@ -516,7 +516,7 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices) {
     }));
     return;
   }
-
+  
   // #region agent log
   debugLog('socket-server.js:490', 'Voice services validation PASSED', { hasDeepgram: !!voiceServices.deepgram, hasAI: !!voiceServices.ai, hasWelcomeAudio: !!voiceServices.getWelcomeAudio, hasGenerateVoice: !!voiceServices.generateVoice }, 'D');
   // #endregion
@@ -548,12 +548,38 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices) {
           generateNaturalGreeting(ws, voiceServices, agentId).catch((error) => {
             logger.error(`[WEBSOCKET] Error generando saludo natural para ${agentId}:`, error);
           });
+        } else if (action === 'message' && payload?.type === 'resume_session') {
+          // 🚀 PIPELINE ROBUSTO: Reanudar sesión después de reconexión
+          const sessionId = payload.sessionId;
+          logger.info(`[WEBSOCKET] 🔄 Reanudando sesión ${sessionId} para ${agentId}`);
+          
+          // Buscar contexto de sesión existente
+          const deepgramData = deepgramConnections.get(agentId);
+          if (deepgramData && deepgramData.greetingSent) {
+            // Ya se envió el saludo, no enviar de nuevo
+            logger.info(`[WEBSOCKET] ✅ Sesión ${sessionId} reanudada - saludo ya enviado, continuando conversación`);
+            ws.send(JSON.stringify({
+              route: 'conserje',
+              action: 'message',
+              payload: {
+                type: 'session_resumed',
+                sessionId: sessionId,
+                greetingSent: true
+              }
+            }));
+          } else {
+            // Primera conexión o sesión nueva, enviar saludo
+            logger.info(`[WEBSOCKET] ✅ Sesión ${sessionId} nueva - enviando saludo`);
+            generateNaturalGreeting(ws, voiceServices, agentId).catch((error) => {
+              logger.error(`[WEBSOCKET] Error generando saludo natural para ${agentId}:`, error);
+            });
+          }
           
           // Enviar confirmación de que el servidor está listo para recibir audio
           ws.send(JSON.stringify({
             route: 'conserje',
             action: 'message',
-            payload: { type: 'ready_ack', message: 'Servidor listo para recibir audio' }
+            payload: { type: 'session_resumed', sessionId: sessionId, greetingSent: deepgramData?.greetingSent || false }
           }));
         } else {
           ws.send(JSON.stringify({
@@ -669,7 +695,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
 
     // Get or create Deepgram streaming connection for this client
     let deepgramData = deepgramConnections.get(agentId);
-
+    
     // Check if connection exists and is ready
     if (deepgramData && deepgramData.connection) {
       // Verify connection is still open (0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED)
@@ -695,7 +721,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
       logger.debug(`[DEEPGRAM] Agent ${agentId} in error state, skipping connection creation (will retry after timeout)`);
       return; // Skip processing this chunk - wait for error state to clear
     }
-
+    
     if (!deepgramData || !deepgramData.connection) {
       logger.info(`[DEEPGRAM] 🔌 Creating new streaming connection for ${agentId}`);
 
@@ -707,7 +733,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
       // #region agent log
       debugLog('socket-server.js:691', 'Resolved audio params for Deepgram', { resolvedEncoding, resolvedSampleRate, resolvedChannels, originalSampleRate: sampleRate, originalEncoding: encoding }, 'A');
       // #endregion
-
+       
       deepgramData = {
         connection: null,
         isProcessing: false,
@@ -722,6 +748,19 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
         pendingAIResponse: null, // Respuesta de IA generada anticipadamente (interim)
         pendingAIRequest: null, // AbortController para cancelar request anticipado
         lastInterimProcessedAt: 0, // Timestamp de última transcripción interim procesada
+        // 🚀 PIPELINE ROBUSTO: Cola FIFO de respuestas
+        responseQueue: [], // Cola de respuestas generadas (FIFO)
+        maxQueueSize: 3, // Máximo 3 respuestas en cola
+        // 🚀 PIPELINE ROBUSTO: Métricas de latencia
+        latencyMetrics: {
+          transcriptionStart: 0,
+          transcriptionEnd: 0,
+          aiStart: 0,
+          aiEnd: 0,
+          ttsStart: 0,
+          ttsEnd: 0,
+          audioSent: 0
+        }
         // 🛡️ PROTECCIÓN CONTRA ECO: Evitar que IA se escuche a sí misma
         lastAIResponse: null, // Última respuesta de IA enviada (para evitar eco)
         lastAIResponseTimestamp: 0, // Timestamp de última respuesta de IA
@@ -737,11 +776,11 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
         encoding: resolvedEncoding,
         sampleRate: resolvedSampleRate,
         channels: resolvedChannels,
-        idleTimeoutMs: 600, // 🚀 ENTERPRISE MAX: Reducido a 600ms para latencia mínima (balance óptimo)
+        idleTimeoutMs: 30000, // 🚀 PIPELINE ROBUSTO: 30s para evitar desconexiones prematuras
 
         // 🔄 KEEPALIVE: Mantener conexión estable enviando silencio periódicamente
         keepAlive: true,
-        keepAliveInterval: 10000, // Enviar keepalive cada 10 segundos
+        keepAliveInterval: 5000, // 🚀 PIPELINE ROBUSTO: Enviar keepalive cada 5 segundos (según especificación)
         onTranscriptionFinalized: async (transcript, message) => {
           // 🚀 ROBUST DEDUPLICATION: Prevent duplicate transcriptions from multiple events
           const now = Date.now();
@@ -766,9 +805,9 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                 agentId: agentId,
                 transcript: transcriptNormalized.substring(0, 50)
               });
-              return;
-            }
-
+            return;
+          }
+          
             // Si es diferente, permitirla (usuario habló de nuevo)
             logger.info('[DEEPGRAM] New transcript while processing - allowing (user spoke again)', {
               agentId: agentId,
@@ -975,29 +1014,54 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
 
             logger.info(`💬 AI Response received (${aiResponse.length} chars): "${aiResponse.substring(0, 100)}${aiResponse.length > 100 ? '...' : ''}"`);
 
+            // 🚀 PIPELINE ROBUSTO: Registrar métricas de latencia
+            if (deepgramData?.latencyMetrics) {
+              deepgramData.latencyMetrics.transcriptionEnd = Date.now();
+              deepgramData.latencyMetrics.aiEnd = Date.now();
+              const transcriptionLatency = deepgramData.latencyMetrics.transcriptionEnd - deepgramData.latencyMetrics.transcriptionStart;
+              const aiLatency = deepgramData.latencyMetrics.aiEnd - deepgramData.latencyMetrics.aiStart;
+              logger.info(`[LATENCIA] 📊 Métricas: Transcripción=${transcriptionLatency}ms, IA=${aiLatency}ms`);
+            }
+
             // ✅ SOLO REST API - Simple, estable, un solo modelo (aura-2-carina-es)
             try {
+              // 🚀 PIPELINE ROBUSTO: Registrar inicio de TTS
+              if (deepgramData?.latencyMetrics) {
+                deepgramData.latencyMetrics.ttsStart = Date.now();
+              }
+              
               const responseAudio = await voiceServices.generateVoice(aiResponse, {
                 model: 'aura-2-carina-es'
               });
+              
+              // 🚀 PIPELINE ROBUSTO: Registrar fin de TTS
+              if (deepgramData?.latencyMetrics) {
+                deepgramData.latencyMetrics.ttsEnd = Date.now();
+              }
 
               if (responseAudio.type === 'tts' && responseAudio.data) {
                 // 🛡️ PROTECCIÓN CONTRA ECO: Guardar última respuesta de IA
                 if (deepgramData) {
                   deepgramData.lastAIResponse = aiResponse;
                   deepgramData.lastAIResponseTimestamp = Date.now();
+                  
+                  // 🚀 PIPELINE ROBUSTO: Registrar envío de audio y calcular latencia total
+                  deepgramData.latencyMetrics.audioSent = Date.now();
+                  const totalLatency = deepgramData.latencyMetrics.audioSent - deepgramData.latencyMetrics.transcriptionStart;
+                  const ttsLatency = deepgramData.latencyMetrics.ttsEnd - deepgramData.latencyMetrics.ttsStart;
+                  logger.info(`[LATENCIA] 📊 Latencia total: ${totalLatency}ms (TTS: ${ttsLatency}ms)`);
                 }
                 
-                ws.send(JSON.stringify({
+            ws.send(JSON.stringify({
                   route: 'audio',
                   action: 'tts',
-                  payload: {
+              payload: {
                     audio: responseAudio.data,
                     format: 'mp3',
-                    text: aiResponse,
-                    language: 'es'
-                  }
-                }));
+                text: aiResponse,
+                language: 'es'
+              }
+            }));
                 if (deepgramData) deepgramData.isProcessing = false;
                 return;
               }
@@ -1066,6 +1130,49 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
 
             // Throttle: avoid spamming the UI (max ~4 msgs/sec) and skip duplicates
             if (interim === lastText && (now - lastAt) < 1500) return;
+
+            // 🚀 PIPELINE ROBUSTO: Detección anticipada de final de frase
+            // Analizar transcripción interim para detectar si el usuario terminó de hablar
+            const interimTrimmed = interim.trim();
+            const hasPunctuation = /[.!?]$/.test(interimTrimmed);
+            const hasComma = /,/.test(interimTrimmed);
+            const wordCount = interimTrimmed.split(/\s+/).filter(w => w.length > 0).length;
+            const charCount = interimTrimmed.length;
+            
+            // Detectar si parece que el usuario terminó de hablar
+            // Criterios: puntuación final O (coma + 20+ caracteres) O (6+ palabras + 50+ caracteres)
+            const seemsComplete = hasPunctuation || 
+                                  (hasComma && charCount >= 20) || 
+                                  (wordCount >= 6 && charCount >= 50);
+            
+            // Si parece completa y no hay respuesta pendiente, procesar anticipadamente
+            if (seemsComplete && !deepgramData?.pendingAIResponse && !deepgramData?.isProcessing) {
+              const timeSinceLastProcess = now - (deepgramData?.lastInterimProcessedAt || 0);
+              // Solo procesar si han pasado al menos 400ms desde la última vez
+              if (timeSinceLastProcess >= 400) {
+                logger.info(`[DETECCIÓN ANTICIPADA] 🎯 Frase parece completa: "${interimTrimmed.substring(0, 50)}..." - procesando anticipadamente`);
+                deepgramData.lastInterimProcessedAt = now;
+                deepgramData.latencyMetrics.transcriptionStart = now;
+                
+                // Cancelar request anterior si existe
+                if (deepgramData.pendingAIRequest) {
+                  try {
+                    deepgramData.pendingAIRequest.abort();
+                  } catch (_) {}
+                }
+                
+                // Crear nuevo AbortController para este request
+                const controller = new AbortController();
+                deepgramData.pendingAIRequest = controller;
+                
+                // Procesar transcripción interim anticipadamente
+                processInterimTranscript(interimTrimmed, ws, voiceServices, agentId, deepgramData, controller).catch(err => {
+                  if (err.name !== 'AbortError') {
+                    logger.debug('[DETECCIÓN ANTICIPADA] Error procesando interim:', err.message);
+                  }
+                });
+              }
+            }
 
             // 🚀 PIPELINE CALL CENTER: NO enviar ningún mensaje de user_speaking/user_stopped
             // NO hay barge-in, NO hay ajuste de volúmenes, NO hay cortes
@@ -1205,7 +1312,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
           logger.error('[DEEPGRAM] Error flushing buffered audio:', flushError);
         }
       });
-
+      
       logger.info(`[DEEPGRAM] ✅ Streaming connection established for ${agentId}`, {
         agentId: agentId,
         encoding: resolvedEncoding,
@@ -1238,7 +1345,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
             deepgramData.connection.send(buf);
           }
         }
-
+        
         // Send audio buffer to Deepgram
         deepgramData.connection.send(audioBuffer);
         logger.debug(`[DEEPGRAM] ✅ Sent audio chunk: ${audioBuffer.length} bytes to ${agentId}`, {
@@ -1253,7 +1360,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
           stack: error.stack?.substring(0, 300),
           bufferSize: audioBuffer.length
         });
-
+        
         // Try to recreate connection on error
         if (deepgramData && deepgramData.connection) {
           try {
@@ -1265,7 +1372,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
           deepgramData.isProcessing = false;
         }
         deepgramConnections.delete(agentId);
-
+        
         // Send error to client
         ws.send(JSON.stringify({
           route: 'error',
@@ -1470,17 +1577,17 @@ async function generateNaturalGreeting(ws, voiceServices, agentId) {
 
       if (greetingAudio.type === 'tts' && greetingAudio.data) {
         logger.info('[GREETING] ✅ Audio del saludo natural generado con TTS');
-        ws.send(JSON.stringify({
-          route: 'audio',
-          action: 'tts',
-          payload: {
+    ws.send(JSON.stringify({
+      route: 'audio',
+      action: 'tts',
+      payload: {
             audio: greetingAudio.data,
-            format: 'mp3',
+        format: 'mp3',
             text: naturalGreeting,
-            isWelcome: true
-          }
-        }));
-        
+        isWelcome: true
+      }
+    }));
+
         // 🎯 CALL CENTER FEEDBACK: Marcar que ya se envió el saludo inicial
         const deepgramData = deepgramConnections.get(agentId);
         if (deepgramData) {
