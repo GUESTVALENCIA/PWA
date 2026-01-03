@@ -1833,36 +1833,40 @@
             return;
           }
 
-          // 🚀 FULL DUPLEX: Manejar señal de interrupción inmediata (Barge-in)
-          if (data.route === 'audio' && data.action === 'stop_audio') {
-            console.log('[MCP] 🛑 Recibida señal de interrupción stop_audio (Usuario hablando)');
-
-            // 1. Detener audio HTML5 actual si existe
-            if (this.currentAudio) {
-              try {
-                this.currentAudio.pause();
-                this.currentAudio.currentTime = 0;
-              } catch (_) { }
-              this.currentAudio = null;
-            }
-
-            // 2. Limpiar cola de audio
-            this.audioQueue = [];
-
-            // 3. Limpiar buffer de AudioWorklet si existe (Streaming)
-            if (this.audioWorkletNode) {
-              try {
-                this.audioWorkletNode.port.postMessage({ type: 'clear' });
-              } catch (_) { }
-            }
-
-            // 4. Resetear estado (pero NO mutear el micrófono - full duplex)
-            // El micrófono permanece abierto para que el usuario pueda seguir hablando
-            this.isSpeaking = false;
-            this.awaitingResponse = false;
-            this.clearResponseWatchdog();
+          // 🚀 FULL DUPLEX: Manejar notificación de usuario hablando (ajuste dinámico de volumen)
+          if (data.route === 'audio' && data.action === 'user_speaking') {
+            console.log('[MCP] 🎤 Usuario hablando - ajustando volúmenes dinámicamente (sin pausar)');
             
-            console.log('[MCP] ✅ stop_audio procesado - micrófono permanece abierto para full duplex');
+            // NO pausar el audio - solo ajustar volúmenes dinámicamente
+            // El sistema de barge-in en el cliente manejará el ajuste de volúmenes
+            // Marcar que el usuario está hablando para que el sistema de barge-in actúe
+            this.isUserSpeaking = true;
+            
+            // Si hay audio de la IA reproduciéndose, bajar su volumen dinámicamente
+            if (this.currentAudio && !this.currentAudio.paused) {
+              if (!this.audioVolumeBeforeBargeIn) {
+                this.audioVolumeBeforeBargeIn = this.currentAudio.volume;
+              }
+              // Bajar volumen de la IA a 30% (atención al usuario)
+              this.currentAudio.volume = 0.3;
+              console.log('[FULL DUPLEX] 🔊 Usuario habla - volumen de IA bajado a 0.3 (atención al usuario)');
+            }
+
+            return;
+          }
+
+          // 🚀 FULL DUPLEX: Manejar señal de usuario calló (restaurar volúmenes)
+          if (data.route === 'audio' && data.action === 'user_stopped') {
+            console.log('[MCP] 🔇 Usuario calló - restaurando volúmenes');
+            
+            this.isUserSpeaking = false;
+            
+            // Restaurar volumen de la IA si estaba bajado
+            if (this.currentAudio && this.audioVolumeBeforeBargeIn !== undefined) {
+              this.currentAudio.volume = this.audioVolumeBeforeBargeIn;
+              this.audioVolumeBeforeBargeIn = undefined;
+              console.log('[FULL DUPLEX] 🔊 Volumen de IA restaurado');
+            }
 
             return;
           }
@@ -2313,16 +2317,12 @@
           const dataArray = new Uint8Array(this.bargeInAnalyser.frequencyBinCount);
 
           // Monitorear nivel de audio cada 50ms (20 veces por segundo)
+          // 🚀 FULL DUPLEX: Ajuste dinámico de volúmenes - quien habla tiene más atención
           this.bargeInCheckInterval = setInterval(() => {
-            if (!this.currentAudio || !this.isSpeaking) {
-              this.isUserSpeaking = false;
-              return;
-            }
-
             try {
               this.bargeInAnalyser.getByteTimeDomainData(dataArray);
 
-              // Calcular nivel promedio de audio
+              // Calcular nivel promedio de audio del usuario
               let sum = 0;
               for (let i = 0; i < dataArray.length; i++) {
                 const normalized = (dataArray[i] / 128.0) - 1.0;
@@ -2330,28 +2330,36 @@
               }
               const average = sum / dataArray.length;
 
-              // Umbral ajustable: 0.15 = usuario hablando claramente
-              const SPEAKING_THRESHOLD = 0.15;
+              // Umbral ajustable: 0.12 = usuario hablando (más sensible para detectar antes)
+              const SPEAKING_THRESHOLD = 0.12;
+              const userIsSpeaking = average > SPEAKING_THRESHOLD;
 
-              if (average > SPEAKING_THRESHOLD && this.isSpeaking) {
-                // Usuario está hablando mientras Sandra habla
+              // 🚀 ATENCIÓN DINÁMICA: Ajustar volúmenes según quién tiene el hilo de la conversación
+              if (userIsSpeaking && this.isSpeaking) {
+                // Usuario habla mientras la IA habla - dar atención al usuario
                 if (!this.isUserSpeaking) {
                   this.isUserSpeaking = true;
-                  // 🎯 BAJAR VOLUMEN (no pausar) - estilo OpenAI Realtime
+                  // Bajar volumen de la IA a 30% (atención al usuario)
                   if (this.currentAudio) {
-                    this.audioVolumeBeforeBargeIn = this.currentAudio.volume;
-                    this.currentAudio.volume = 0.2; // Bajar a 20% del volumen original
-                    console.log('[BARGE-IN] 🔇 Usuario habla, bajando volumen de Sandra a', this.currentAudio.volume.toFixed(2));
+                    if (!this.audioVolumeBeforeBargeIn) {
+                      this.audioVolumeBeforeBargeIn = this.currentAudio.volume;
+                    }
+                    this.currentAudio.volume = 0.3; // Bajar a 30% - atención al usuario
+                    console.log('[FULL DUPLEX] 🎤 Usuario habla - volumen IA: 0.3 (atención al usuario)');
                   }
                 }
-              } else {
-                // Usuario dejó de hablar o nivel bajo
-                if (this.isUserSpeaking && this.currentAudio) {
-                  this.isUserSpeaking = false;
-                  // Restaurar volumen original
+              } else if (!userIsSpeaking && this.isUserSpeaking && this.isSpeaking) {
+                // Usuario calló, la IA sigue hablando - restaurar volumen de la IA
+                this.isUserSpeaking = false;
+                if (this.currentAudio && this.audioVolumeBeforeBargeIn !== undefined) {
                   this.currentAudio.volume = this.audioVolumeBeforeBargeIn;
-                  console.log('[BARGE-IN] 🔊 Usuario calló, restaurando volumen de Sandra a', this.audioVolumeBeforeBargeIn.toFixed(2));
+                  console.log('[FULL DUPLEX] 🔊 Usuario calló - volumen IA restaurado a', this.audioVolumeBeforeBargeIn.toFixed(2));
+                  this.audioVolumeBeforeBargeIn = undefined;
                 }
+              } else if (!this.isSpeaking) {
+                // La IA no está hablando - resetear estado
+                this.isUserSpeaking = false;
+                this.audioVolumeBeforeBargeIn = undefined;
               }
             } catch (error) {
               console.error('[BARGE-IN] Error en detección:', error);
@@ -2453,7 +2461,16 @@
 
         const audio = new Audio(blobUrl);
         audio._blobUrl = blobUrl;
-        audio.volume = 1.0; // Asegurar volumen máximo
+        
+        // 🚀 FULL DUPLEX: Ajustar volumen según si el usuario está hablando
+        // Si el usuario está hablando, bajar volumen de la IA para darle atención
+        if (this.isUserSpeaking) {
+          audio.volume = 0.3; // 30% - atención al usuario
+          this.audioVolumeBeforeBargeIn = 1.0; // Guardar volumen normal para restaurar después
+          console.log('[FULL DUPLEX] 🎤 IA empieza a hablar pero usuario está hablando - volumen inicial: 0.3');
+        } else {
+          audio.volume = 1.0; // Volumen máximo si el usuario no está hablando
+        }
 
         // 🎯 CONTROL DE VELOCIDAD: Más rápido (15%) para mayor naturalidad
         if (isWelcome) {
