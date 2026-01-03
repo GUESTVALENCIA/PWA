@@ -1408,13 +1408,17 @@ async function generateNaturalGreeting(ws, voiceServices, agentId) {
 
     logger.info('👋 Generating natural greeting with AI (after ringtones)...');
 
-    // 🚀 NATURAL GREETING: Prompt tipo call center - saludo breve y natural
-    // Call center feedback: Saludo breve, directo, amable pero no excesivamente formal
-    const greetingPrompt = 'Acabas de descolgar una llamada. Saluda al usuario de forma breve, natural y amable. No seas demasiado formal.';
-    
-    try {
-      // La IA genera el saludo naturalmente (mismo sistema que las respuestas normales)
-      const naturalGreeting = await voiceServices.ai.processMessage(greetingPrompt);
+        // 🚀 NATURAL GREETING: Prompt tipo call center - saludo breve y natural
+        // Call center feedback: Saludo breve, directo, amable pero no excesivamente formal
+        const greetingPrompt = 'Acabas de descolgar una llamada. Saluda al usuario de forma breve, natural y amable. No seas demasiado formal.';
+        
+        // ⏱️ LATENCIA: Agregar margen después de ringtones antes de generar saludo
+        // El usuario reporta que el saludo sale muy pegado a la llamada
+        await new Promise(resolve => setTimeout(resolve, 500)); // 500ms de margen
+        
+        try {
+          // La IA genera el saludo naturalmente (mismo sistema que las respuestas normales)
+          const naturalGreeting = await voiceServices.ai.processMessage(greetingPrompt);
       
       if (!naturalGreeting || naturalGreeting.trim().length === 0) {
         logger.warn('[GREETING] IA no generó saludo, continuando sin saludo');
