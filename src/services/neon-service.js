@@ -65,7 +65,112 @@ class NeonService {
           logger.warn('⚠️ Error creating conversation_buffer table (may already exist):', tableError.message);
         }
 
-        // 🚀 MEMORIA PERSISTENTE: Crear tabla call_logs para registro de llamadas
+        // 🚀 MEMORIA PERSISTENTE: Crear tabla sessions según diseño GPT-4o
+        try {
+          await this.sql(`
+            CREATE TABLE IF NOT EXISTS sessions (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              session_id VARCHAR(255) UNIQUE NOT NULL,
+              ip_address VARCHAR(45),
+              country VARCHAR(100),
+              city VARCHAR(100),
+              timezone VARCHAR(100),
+              agent_id VARCHAR(100) NOT NULL,
+              user_name VARCHAR(255),
+              greeting_sent BOOLEAN DEFAULT false,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+          `);
+          
+          await this.sql(`
+            CREATE INDEX IF NOT EXISTS idx_sessions_session_id 
+            ON sessions (session_id)
+          `);
+          await this.sql(`
+            CREATE INDEX IF NOT EXISTS idx_sessions_ip 
+            ON sessions (ip_address)
+          `);
+          
+          logger.info('✅ Sessions table created/verified');
+        } catch (tableError) {
+          logger.warn('⚠️ Error creating sessions table (may already exist):', tableError.message);
+        }
+
+        // 🚀 MEMORIA PERSISTENTE: Crear tabla conversation_history según diseño GPT-4o
+        try {
+          await this.sql(`
+            CREATE TABLE IF NOT EXISTS conversation_history (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              session_id VARCHAR(255) NOT NULL,
+              timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              speaker VARCHAR(10) NOT NULL CHECK (speaker IN ('user', 'ai')),
+              message TEXT NOT NULL,
+              intent VARCHAR(100),
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+          `);
+          
+          await this.sql(`
+            CREATE INDEX IF NOT EXISTS idx_conversation_history_session 
+            ON conversation_history (session_id, timestamp DESC)
+          `);
+          
+          logger.info('✅ Conversation history table created/verified');
+        } catch (tableError) {
+          logger.warn('⚠️ Error creating conversation_history table (may already exist):', tableError.message);
+        }
+
+        // 🚀 MEMORIA PERSISTENTE: Crear tabla users según diseño GPT-4o
+        try {
+          await this.sql(`
+            CREATE TABLE IF NOT EXISTS users (
+              user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              name VARCHAR(255),
+              language VARCHAR(10) DEFAULT 'es',
+              last_session_id VARCHAR(255),
+              preferences JSONB DEFAULT '{}',
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+          `);
+          
+          await this.sql(`
+            CREATE INDEX IF NOT EXISTS idx_users_last_session 
+            ON users (last_session_id)
+          `);
+          
+          logger.info('✅ Users table created/verified');
+        } catch (tableError) {
+          logger.warn('⚠️ Error creating users table (may already exist):', tableError.message);
+        }
+
+        // 🚀 MEMORIA PERSISTENTE: Crear tabla negotiation_logs según diseño GPT-4o
+        try {
+          await this.sql(`
+            CREATE TABLE IF NOT EXISTS negotiation_logs (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              session_id VARCHAR(255) NOT NULL,
+              property_id VARCHAR(255),
+              start_price DECIMAL(10, 2),
+              agreed_price DECIMAL(10, 2),
+              status VARCHAR(50) DEFAULT 'pending',
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+          `);
+          
+          await this.sql(`
+            CREATE INDEX IF NOT EXISTS idx_negotiation_session 
+            ON negotiation_logs (session_id)
+          `);
+          
+          logger.info('✅ Negotiation logs table created/verified');
+        } catch (tableError) {
+          logger.warn('⚠️ Error creating negotiation_logs table (may already exist):', tableError.message);
+        }
+
+        // 🚀 MEMORIA PERSISTENTE: Mantener call_logs para compatibilidad
         try {
           await this.sql(`
             CREATE TABLE IF NOT EXISTS call_logs (
@@ -636,14 +741,22 @@ class NeonService {
   /**
    * Get conversation context for AI
    * Returns formatted context from recent exchanges
+   * @param {string} sessionId - Session ID
+   * @param {number} limit - Number of exchanges to retrieve (default: 5)
    */
-  getConversationContext(history) {
-    if (!history || history.length === 0) return [];
-    return history.map(exchange => ({
-      user: exchange.user_transcript,
-      assistant: exchange.ai_response,
-      timestamp: exchange.created_at
-    }));
+  async getConversationContext(sessionId, limit = 5) {
+    try {
+      const history = await this.getConversationHistory(sessionId, limit);
+      if (!history || history.length === 0) return [];
+      return history.map(exchange => ({
+        user: exchange.user_transcript,
+        assistant: exchange.ai_response,
+        timestamp: exchange.created_at
+      }));
+    } catch (error) {
+      logger.error('[NEON] Error getting conversation context:', error);
+      return [];
+    }
   }
 
   /**
@@ -895,6 +1008,131 @@ class NeonService {
       return result;
     } catch (error) {
       logger.error('[NEON] Error getting properties by location:', error);
+      return [];
+    }
+  }
+
+  // ========================================================================
+  // SESSIONS OPERATIONS - Memoria Persistente GPT-4o
+  // ========================================================================
+
+  /**
+   * Create or update session
+   * @param {Object} sessionData - Session information
+   */
+  async createOrUpdateSession(sessionData) {
+    try {
+      const {
+        sessionId,
+        ipAddress,
+        country,
+        city,
+        timezone,
+        agentId,
+        userName = null,
+        greetingSent = false
+      } = sessionData;
+
+      // Check if session exists
+      const existing = await this.sql(
+        `SELECT * FROM sessions WHERE session_id = $1`,
+        [sessionId]
+      );
+
+      if (existing && existing.length > 0) {
+        // Update existing
+        const result = await this.sql(
+          `UPDATE sessions 
+           SET updated_at = CURRENT_TIMESTAMP,
+               ip_address = COALESCE($2, ip_address),
+               country = COALESCE($3, country),
+               city = COALESCE($4, city),
+               timezone = COALESCE($5, timezone),
+               agent_id = COALESCE($6, agent_id),
+               user_name = COALESCE($7, user_name),
+               greeting_sent = COALESCE($8, greeting_sent)
+           WHERE session_id = $1
+           RETURNING *`,
+          [sessionId, ipAddress, country, city, timezone, agentId, userName, greetingSent]
+        );
+        return result[0];
+      } else {
+        // Create new
+        const result = await this.sql(
+          `INSERT INTO sessions (session_id, ip_address, country, city, timezone, agent_id, user_name, greeting_sent)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           RETURNING *`,
+          [sessionId, ipAddress, country, city, timezone, agentId, userName, greetingSent]
+        );
+        logger.info(`[NEON] ✅ Session created: ${sessionId}`);
+        return result[0];
+      }
+    } catch (error) {
+      logger.error('[NEON] Error creating/updating session:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get session by sessionId
+   * @param {string} sessionId - Session ID
+   */
+  async getSession(sessionId) {
+    try {
+      const result = await this.sql(
+        `SELECT * FROM sessions WHERE session_id = $1`,
+        [sessionId]
+      );
+      return result[0] || null;
+    } catch (error) {
+      logger.error('[NEON] Error getting session:', error);
+      return null;
+    }
+  }
+
+  // ========================================================================
+  // CONVERSATION HISTORY OPERATIONS - Memoria Persistente GPT-4o
+  // ========================================================================
+
+  /**
+   * Save conversation history entry
+   * @param {string} sessionId - Session ID
+   * @param {string} speaker - 'user' or 'ai'
+   * @param {string} message - Message content
+   * @param {string} intent - Optional intent
+   */
+  async saveConversationHistoryEntry(sessionId, speaker, message, intent = null) {
+    try {
+      const result = await this.sql(
+        `INSERT INTO conversation_history (session_id, speaker, message, intent)
+         VALUES ($1, $2, $3, $4)
+         RETURNING *`,
+        [sessionId, speaker, message, intent]
+      );
+      return result[0];
+    } catch (error) {
+      logger.error('[NEON] Error saving conversation history entry:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get conversation history entries for a session
+   * @param {string} sessionId - Session ID
+   * @param {number} limit - Number of entries to retrieve
+   */
+  async getConversationHistoryEntries(sessionId, limit = 10) {
+    try {
+      const result = await this.sql(
+        `SELECT * FROM conversation_history
+         WHERE session_id = $1
+         ORDER BY timestamp DESC
+         LIMIT $2`,
+        [sessionId, limit]
+      );
+      return result.reverse(); // Return in chronological order
+    } catch (error) {
+      logger.error('[NEON] Error getting conversation history entries:', error);
       return [];
     }
   }
