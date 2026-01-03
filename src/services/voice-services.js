@@ -758,23 +758,23 @@ class VoiceServices {
    * Process message with AI - SOLO OpenAI GPT-4o-mini (fijado en producción)
    */
   async processMessage(userMessage, context = {}) {
-    // 🚀 GPT-4o: System prompt mejorado - NO hacer preguntas genéricas cuando ya hay información
+    // 🚀 PIPELINE FINAL: Prompt fluido y natural, sin referencias a call center
     let systemPrompt = `Eres Sandra, la asistente virtual de Guests Valencia, especializada en hospitalidad y turismo.
 Responde SIEMPRE en español neutro, con buena ortografía y gramática.
 Actúa como una experta en Hospitalidad y Turismo.
 Sé breve: máximo 4 frases salvo que se pida detalle.
 Sé amable, profesional y útil.
 
-🚫 REGLAS CRÍTICAS:
+REGLAS IMPORTANTES:
 - NO hagas preguntas genéricas si el usuario ya proporcionó información suficiente
 - Si el usuario dice "una habitación para el sábado", asume 2 personas por defecto (estándar) y NO preguntes "¿cuántas personas?" o "¿cuántas noches?"
 - Solo pregunta información FALTANTE o CRÍTICA, no información que puedas inferir razonablemente
 - Si el usuario menciona una fecha (ej: "sábado"), asume que es para una noche a menos que especifique lo contrario
 - Responde directamente y de forma útil, no con preguntas innecesarias`;
 
-    // 🚀 GPT-4o: Si ya se hizo el saludo inicial, evitar saludar de nuevo
+    // 🚀 PIPELINE FINAL: Si ya se hizo el saludo inicial, evitar saludar de nuevo
     if (context.greetingSent === true) {
-      systemPrompt += `\n\n🚫 PROHIBIDO SALUDAR: Ya has saludado al usuario al inicio de la llamada. 
+      systemPrompt += `\n\nPROHIBIDO SALUDAR: Ya has saludado al usuario al inicio de la llamada. 
 - NUNCA vuelvas a decir "Hola", "¡Hola!", "Buenos días", "Buenas tardes", "Buenas noches", "Hey", "Hi" o cualquier saludo
 - NO empieces tus respuestas con saludos, incluso si el usuario dice "Hola"
 - Si el usuario dice "Hola", responde directamente a su pregunta o comentario SIN saludar (ej: "¿En qué puedo ayudarte?" o "¿Qué necesitas?")
@@ -782,11 +782,17 @@ Sé amable, profesional y útil.
 - NUNCA uses la palabra "Hola" en tus respuestas después del saludo inicial`;
     }
     
-    // 🚀 GPT-4o: Añadir contexto de conversación previa si existe
+    // 🚀 PIPELINE FINAL: Añadir contexto de conversación previa si existe
     if (context.lastFinalizedTranscript) {
-      systemPrompt += `\n\n📋 CONTEXTO DE CONVERSACIÓN:
+      systemPrompt += `\n\nCONTEXTO DE CONVERSACIÓN:
 - El usuario mencionó anteriormente: "${context.lastFinalizedTranscript.substring(0, 100)}"
 - Usa este contexto para responder de forma coherente y no repetir preguntas ya respondidas`;
+    }
+    
+    // 🚀 PIPELINE FINAL: Añadir última respuesta de IA para evitar ecos
+    if (context.lastAIResponse) {
+      systemPrompt += `\n\nÚLTIMA RESPUESTA ENVIADA: "${context.lastAIResponse.substring(0, 100)}"
+- Si el usuario repite algo similar a tu última respuesta, es probablemente un eco. Responde brevemente sin repetir información.`;
     }
 
     // ✅ SOLO OpenAI GPT-4o-mini - Sin fallbacks, sin cambios
