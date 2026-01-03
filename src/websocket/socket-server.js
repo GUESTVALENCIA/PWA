@@ -71,11 +71,10 @@ export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonS
       }
     }));
 
-    // 🚀 ENTERPRISE: Enviar saludo automáticamente al establecer conexión (sin esperar mensaje "ready")
-    // El saludo debe ser automático cuando se descuelga la llamada
-    handleInitialGreeting(ws, voiceServices).catch((error) => {
-      logger.error(`[WEBSOCKET] Error enviando saludo automático para ${agentId}:`, error);
-    });
+    // 🚀 WEBRTC PIPELINE: NO enviar saludo automáticamente
+    // El saludo se enviará DESPUÉS de que el cliente reproduzca los ringtones
+    // El cliente enviará mensaje "ready" después de los ringtones, entonces enviaremos el saludo
+    logger.info(`[WEBSOCKET] Conexión establecida para ${agentId} - esperando ringtones del cliente antes de enviar saludo`);
 
     // Handle incoming messages
     ws.on('message', (message) => {
@@ -541,10 +540,13 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices) {
 
       case 'conserje':
         if (action === 'message' && payload?.type === 'ready') {
-          // ✅ El saludo ya se envía automáticamente al establecer la conexión WebSocket
-          // No es necesario enviarlo de nuevo aquí, solo confirmamos que el cliente está listo
-          logger.info(`[WEBSOCKET] Cliente ${agentId} envió mensaje "ready" (saludo ya enviado automáticamente)`);
-          // Enviamos confirmación de que el servidor está listo para recibir audio
+          // 🚀 WEBRTC PIPELINE: Cliente terminó de reproducir ringtones, ahora enviar saludo
+          logger.info(`[WEBSOCKET] Cliente ${agentId} listo después de ringtones - enviando saludo con Carina`);
+          // Enviar saludo DESPUÉS de los ringtones (conexión ya estabilizada, latencia cero)
+          handleInitialGreeting(ws, voiceServices).catch((error) => {
+            logger.error(`[WEBSOCKET] Error enviando saludo después de ringtones para ${agentId}:`, error);
+          });
+          // Enviar confirmación de que el servidor está listo para recibir audio
           ws.send(JSON.stringify({
             route: 'conserje',
             action: 'message',
@@ -1225,7 +1227,7 @@ async function handleInitialGreeting(ws, voiceServices) {
       });
 
       if (greetingAudio.type === 'tts' && greetingAudio.data) {
-        logger.info('[TTS] ✅ Greeting generated with Aura Agustina (Consistency OK)');
+        logger.info('[TTS] ✅ Greeting generated with Aura Carina (Consistency OK)');
         ws.send(JSON.stringify({
           route: 'audio',
           action: 'tts',
