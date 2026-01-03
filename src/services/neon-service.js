@@ -28,6 +28,43 @@ class NeonService {
       const result = await this.sql('SELECT 1 as connected');
 
       if (result && result.length > 0) {
+        // 🚀 NEON BUFFER: Crear tabla conversation_buffer si no existe
+        try {
+          await this.sql(`
+            CREATE TABLE IF NOT EXISTS conversation_buffer (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              session_id VARCHAR(255) NOT NULL,
+              agent_id VARCHAR(100) NOT NULL,
+              user_transcript TEXT NOT NULL,
+              ai_response TEXT NOT NULL,
+              metadata JSONB DEFAULT '{}',
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+          `);
+          
+          // Crear índices si no existen
+          await this.sql(`
+            CREATE INDEX IF NOT EXISTS idx_conversation_session 
+            ON conversation_buffer (session_id)
+          `);
+          await this.sql(`
+            CREATE INDEX IF NOT EXISTS idx_conversation_agent 
+            ON conversation_buffer (agent_id)
+          `);
+          await this.sql(`
+            CREATE INDEX IF NOT EXISTS idx_conversation_created 
+            ON conversation_buffer (created_at DESC)
+          `);
+          await this.sql(`
+            CREATE INDEX IF NOT EXISTS idx_conversation_session_created 
+            ON conversation_buffer (session_id, created_at DESC)
+          `);
+          
+          logger.info('✅ Conversation buffer table created/verified');
+        } catch (tableError) {
+          logger.warn('⚠️ Error creating conversation_buffer table (may already exist):', tableError.message);
+        }
+        
         this.initialized = true;
         logger.info('✅ Database connection verified');
         return true;
@@ -461,6 +498,96 @@ class NeonService {
       `UPDATE proposals SET status = 'unified' WHERE id = ANY($1) RETURNING id`,
       [proposalIds]
     );
+  }
+
+  // ========================================================================
+  // CONVERSATION BUFFER OPERATIONS
+  // ========================================================================
+
+  /**
+   * Save conversation exchange to database
+   * Stores user transcript and AI response for intelligent context retrieval
+   */
+  async saveConversationExchange(sessionId, agentId, userTranscript, aiResponse, metadata = {}) {
+    try {
+      const result = await this.sql(
+        `INSERT INTO conversation_buffer (session_id, agent_id, user_transcript, ai_response, metadata, created_at)
+         VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+         RETURNING *`,
+        [
+          sessionId,
+          agentId,
+          userTranscript,
+          aiResponse,
+          JSON.stringify(metadata || {})
+        ]
+      );
+      logger.debug(`[NEON] ✅ Conversation exchange saved for session ${sessionId}`);
+      return result[0];
+    } catch (error) {
+      logger.error('[NEON] Error saving conversation exchange:', error);
+      // Don't throw - allow conversation to continue even if DB fails
+      return null;
+    }
+  }
+
+  /**
+   * Get conversation history for a session
+   * Returns recent exchanges for context retrieval
+   */
+  async getConversationHistory(sessionId, limit = 10) {
+    try {
+      const result = await this.sql(
+        `SELECT user_transcript, ai_response, metadata, created_at
+         FROM conversation_buffer
+         WHERE session_id = $1
+         ORDER BY created_at DESC
+         LIMIT $2`,
+        [sessionId, limit]
+      );
+      return result.reverse(); // Return in chronological order
+    } catch (error) {
+      logger.error('[NEON] Error getting conversation history:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get conversation context for AI
+   * Returns formatted context from recent exchanges
+   */
+  async getConversationContext(sessionId, limit = 5) {
+    try {
+      const history = await this.getConversationHistory(sessionId, limit);
+      return history.map(exchange => ({
+        user: exchange.user_transcript,
+        assistant: exchange.ai_response,
+        timestamp: exchange.created_at
+      }));
+    } catch (error) {
+      logger.error('[NEON] Error getting conversation context:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Clean old conversation buffers (non-persistent memory)
+   * Removes conversations older than specified hours
+   */
+  async cleanOldConversations(hoursOld = 24) {
+    try {
+      const result = await this.sql(
+        `DELETE FROM conversation_buffer
+         WHERE created_at < NOW() - INTERVAL '${hoursOld} hours'
+         RETURNING id`,
+        []
+      );
+      logger.info(`[NEON] 🧹 Cleaned ${result.length} old conversation exchanges`);
+      return result.length;
+    } catch (error) {
+      logger.error('[NEON] Error cleaning old conversations:', error);
+      return 0;
+    }
   }
 
   // ========================================================================
