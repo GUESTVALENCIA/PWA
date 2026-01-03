@@ -1661,9 +1661,13 @@
                           };
                           
                           // 🚀 PIPELINE ROBUSTO: Almacenar en buffer para reenvío en caso de corte
-                          this.audioBuffer.push(audioMessage);
-                          if (this.audioBuffer.length > this.maxBufferSize) {
-                            this.audioBuffer.shift(); // Mantener solo últimos 4s (GPT-4o recomendación)
+                          // 🚀 LIMPIEZA: Solo agregar al buffer si no está lleno o si es un chunk nuevo
+                          if (this.audioBuffer.length < this.maxBufferSize) {
+                            this.audioBuffer.push(audioMessage);
+                          } else {
+                            // Buffer lleno: reemplazar el más antiguo (FIFO)
+                            this.audioBuffer.shift();
+                            this.audioBuffer.push(audioMessage);
                           }
                           
                           // 🚀 GPT-4o: Actualizar timestamp de último audio enviado
@@ -1679,6 +1683,9 @@
                           if (ws.readyState === WebSocket.OPEN) {
                             ws.send(JSON.stringify(audioMessage));
                             console.log(`[PIPELINE ROBUSTO] 📤 Audio enviado (buffer: ${this.audioBuffer.length}/${this.maxBufferSize} chunks)`);
+                          } else {
+                            // 🚀 LIMPIEZA: Si la conexión no está abierta, no enviar pero mantener en buffer
+                            console.warn(`[PIPELINE ROBUSTO] ⚠️ WebSocket no está abierto (readyState: ${ws.readyState}), chunk guardado en buffer`);
                           }
                           
                           chunkBuffer = new Int16Array(chunkSamples);
