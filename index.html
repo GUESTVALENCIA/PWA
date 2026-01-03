@@ -803,6 +803,9 @@
         this.audioWorkletContext = null;
         this.audioWorkletNode = null;
         this.audioWorkletReady = false;
+        // 🚀 WEBRTC PIPELINE: Queue greeting audio if received during ringtones
+        this.waitingForRingtones = false;
+        this.queuedGreeting = null;
         this.init();
       }
 
@@ -1082,7 +1085,7 @@
         }
       }
 
-      startConversationalCall() {
+      async startConversationalCall() {
         console.log('Iniciando llamada conversacional...');
         if (this.chatLocked || this.activeCall || this.ringTimeout) return;
         this.chatLocked = true;
@@ -1106,7 +1109,9 @@
         const callControls = document.getElementById('sandra-call-controls');
         if (callControls) callControls.classList.remove('hidden');
 
-        this.playRingtone();
+        // 🚀 WEBRTC PIPELINE: Establecer conexión WebSocket PRIMERO, luego ringtones
+        // Connection will trigger ringtones in ws.onopen
+        await this.startRealTimeCall();
       }
 
       ensureAudioContext() {
@@ -1132,20 +1137,32 @@
       }
 
       playRingtone() {
-        console.log('🔔 Iniciando ringtone...');
+        // Legacy method - redirects to playRingtoneAfterConnection with no callback
+        this.playRingtoneAfterConnection(() => {
+          // Old behavior: start call after ringtones
+          if (!this.chatLocked) return;
+          console.log('🔔 Segundo ring completado (legacy mode)');
+          this.setHeroCallActive(true);
+          if (this.useVideo) {
+            this.transitionHeroToVideo();
+            this.startVideoStream();
+          } else {
+            // This should not happen in new flow, but keep for backward compatibility
+            this.startRealTimeCall();
+          }
+        });
+      }
+
+      playRingtoneAfterConnection(callback) {
+        console.log('🔔 Iniciando ringtone después de conexión establecida...');
         this.stopRingtone();
 
         const ctx = this.ensureAudioContext();
         if (!ctx) {
+          // Fallback if no audio context
           this.ringTimeout = setTimeout(() => {
             this.ringTimeout = null;
-            if (!this.chatLocked) return;
-            if (this.useVideo) {
-              this.transitionHeroToVideo();
-              this.startVideoStream();
-            } else {
-              this.startRealTimeCall();
-            }
+            if (callback) callback();
           }, 3000);
           return;
         }
@@ -1196,15 +1213,13 @@
         const totalMs = Math.ceil(((dur * 2) + gap + 0.25) * 1000);
         this.ringTimeout = setTimeout(() => {
           this.ringTimeout = null;
-          if (!this.chatLocked) return;
-          console.log('🔔 Segundo ring completado, descolgando llamada...');
-          this.setHeroCallActive(true);
-          if (this.useVideo) {
-            this.transitionHeroToVideo();
-            this.startVideoStream();
-          } else {
-            this.startRealTimeCall();
+          if (!this.chatLocked) {
+            if (callback) callback();
+            return;
           }
+          console.log('🔔 Segundo ring completado, llamada lista');
+          this.setHeroCallActive(true);
+          if (callback) callback();
         }, totalMs);
       }
 
@@ -1737,20 +1752,50 @@
         ws.onopen = async () => {
           console.log('✅ WebSocket conectado (Enterprise Mode)', wsUrl);
 
-          // 🚀 ENTERPRISE: Cliente listo - stream activo directamente (sin mensaje de bienvenida)
-          console.log('[MCP] Cliente listo - stream activo, esperando input del usuario');
+          // 🚀 WEBRTC PIPELINE: Play ringtones AFTER connection is established
+          console.log('[MCP] 🚀 Connection established - playing ringtones before greeting');
+          this.waitingForRingtones = true;
+          this.queuedGreeting = null;
+          
+          // Send ready signal (server will send greeting, but we'll queue it)
           ws.send(JSON.stringify({
             route: 'conserje',
             action: 'message',
-            payload: { type: 'ready', message: 'Cliente listo - stream activo' }
+            payload: { type: 'ready', message: 'Cliente listo - esperando ringtones' }
           }));
 
-          // Esperar capacidades del servidor antes de pedir micr?fono (evita prompts cuando STT no est? disponible)
-          sttCapabilitiesTimeout = setTimeout(() => {
-            if (this.sttAvailable === false) return;
-            if (this.sttAvailable === null) this.sttAvailable = true;
-            startMicrophoneCapture();
-          }, 1500);
+          // Play 2 ringtones, then handle greeting and start microphone
+          this.playRingtoneAfterConnection(() => {
+            // Callback after ringtones complete
+            console.log('[MCP] 🔔 Ringtones completed - processing greeting and starting microphone');
+            this.waitingForRingtones = false;
+            
+            // Play queued greeting if available
+            if (this.queuedGreeting) {
+              console.log('[MCP] 📞 Playing queued greeting after ringtones');
+              const greeting = this.queuedGreeting;
+              this.queuedGreeting = null;
+              
+              // Play greeting and start microphone after it finishes
+              this.playAudioResponse(greeting.audio, true);
+              
+              // Wait for greeting to finish, then start microphone
+              setTimeout(() => {
+                sttCapabilitiesTimeout = setTimeout(() => {
+                  if (this.sttAvailable === false) return;
+                  if (this.sttAvailable === null) this.sttAvailable = true;
+                  startMicrophoneCapture();
+                }, 1500);
+              }, 3000); // Give greeting time to play (max greeting is ~3s)
+            } else {
+              // No greeting queued, start microphone immediately
+              sttCapabilitiesTimeout = setTimeout(() => {
+                if (this.sttAvailable === false) return;
+                if (this.sttAvailable === null) this.sttAvailable = true;
+                startMicrophoneCapture();
+              }, 1500);
+            }
+          });
         };
 
         ws.onmessage = async (event) => {
@@ -1923,6 +1968,17 @@
 
             // Detectar si es el saludo inicial
             const isWelcome = data.payload.isWelcome || (!this.currentAudio && !this.isSpeaking);
+            
+            // 🚀 WEBRTC PIPELINE: Queue greeting if ringtones are playing
+            if (isWelcome && this.waitingForRingtones) {
+              console.log('[MCP] 📞 Greeting received during ringtones - queuing for playback after ringtones');
+              this.queuedGreeting = {
+                audio: data.payload.audio,
+                isWelcome: true
+              };
+              return;
+            }
+            
             this.playAudioResponse(data.payload.audio, isWelcome);
             return;
           }
