@@ -49,6 +49,11 @@ import UnificationService from './src/services/unification-service.js';
 import ImplementationService from './src/services/implementation-service.js';
 import ContextBuilder from './src/services/context-builder.js';
 
+// 🚀 SANDRA ORCHESTRATOR - Unificación con IA-SANDRA
+import SandraOrchestrator from './src/orchestrators/sandra-orchestrator.js';
+import NegotiationBridge from './src/orchestrators/negotiation-bridge.js';
+import ContextBridge from './src/orchestrators/context-bridge.js';
+
 // ===== IMPORTS RUTAS =====
 import projectRoutes from './src/routes/projects.js';
 import readRoutes from './src/routes/read.js';
@@ -89,6 +94,9 @@ let reviewService = null;
 let unificationService = null;
 let implementationService = null;
 let contextBuilder = null;
+let sandraOrchestrator = null;
+let negotiationBridge = null;
+let contextBridge = null;
 
 // ===== MIDDLEWARE GLOBAL =====
 app.use(helmet());
@@ -167,13 +175,43 @@ async function startup() {
     implementationService = new ImplementationService(neonService, systemEventEmitter, projectManager);
     contextBuilder = new ContextBuilder(neonService);
 
-    // 5. Inicializar MCP Server
+    // 5. 🚀 Inicializar SANDRA ORCHESTRATOR (Unificación con IA-SANDRA)
+    try {
+      logger.info('🚀 Inicializando Sandra Orchestrator...');
+      sandraOrchestrator = new SandraOrchestrator({
+        sandraRepoPath: process.env.SANDRA_REPO_PATH
+      });
+      
+      const initialized = await sandraOrchestrator.initialize();
+      if (initialized) {
+        logger.info('✅ Sandra Orchestrator inicializado correctamente');
+        
+        // Inicializar bridges
+        negotiationBridge = new NegotiationBridge(sandraOrchestrator);
+        await negotiationBridge.initialize();
+        
+        contextBridge = new ContextBridge(sandraOrchestrator);
+        await contextBridge.initialize();
+        
+        // Log estado
+        const status = sandraOrchestrator.getStatus();
+        logger.info('📊 Estado Sandra Orchestrator:', status);
+      } else {
+        logger.warn('⚠️ Sandra Orchestrator no se pudo inicializar completamente');
+        logger.warn('⚠️ Continuando sin servicios de IA-SANDRA (usando servicios del PWA)');
+      }
+    } catch (error) {
+      logger.error('❌ Error inicializando Sandra Orchestrator:', error);
+      logger.warn('⚠️ Continuando sin servicios de IA-SANDRA (usando servicios del PWA)');
+    }
+
+    // 6. Inicializar MCP Server
     mcpServer = new MCPServer(projectManager, stateManager);
 
-    // 6. Cargar proyectos
+    // 7. Cargar proyectos
     await projectManager.loadProjects();
 
-    // 7. Hacer servicios disponibles en req.services para las rutas
+    // 8. Hacer servicios disponibles en req.services para las rutas
     app.use((req, res, next) => {
       req.services = {
         proposal: proposalService,
@@ -184,12 +222,16 @@ async function startup() {
         neon: neonService,
         project: projectManager,
         state: stateManager,
-        events: systemEventEmitter
+        events: systemEventEmitter,
+        // 🚀 SANDRA ORCHESTRATOR - Servicios de IA-SANDRA
+        sandra: sandraOrchestrator,
+        negotiation: negotiationBridge,
+        contextBridge: contextBridge
       };
       next();
     });
 
-    // 8. Inicializar servicios de voz
+    // 9. Inicializar servicios de voz
     let voiceServices = null;
     // #region agent log
     debugLog('server.js:168', 'Starting voice services initialization', { step: 'before_import' }, 'A');
