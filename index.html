@@ -1764,37 +1764,23 @@
             payload: { type: 'ready', message: 'Cliente listo - esperando ringtones' }
           }));
 
-          // Play 2 ringtones, then handle greeting and start microphone
+          // 🚀 REAL-TIME PIPELINE: Después de ringtones, 1 segundo de silencio, luego iniciar micrófono
           this.playRingtoneAfterConnection(() => {
             // Callback after ringtones complete
-            console.log('[MCP] 🔔 Ringtones completed - processing greeting and starting microphone');
+            console.log('[MCP] 🔔 Ringtones completed - esperando 1 segundo de silencio antes de iniciar micrófono');
             this.waitingForRingtones = false;
+            this.queuedGreeting = null; // Limpiar cualquier saludo que pudiera estar en cola
             
-            // Play queued greeting if available
-            if (this.queuedGreeting) {
-              console.log('[MCP] 📞 Playing queued greeting after ringtones');
-              const greeting = this.queuedGreeting;
-              this.queuedGreeting = null;
-              
-              // Play greeting and start microphone after it finishes
-              this.playAudioResponse(greeting.audio, true);
-              
-              // Wait for greeting to finish, then start microphone
-              setTimeout(() => {
-                sttCapabilitiesTimeout = setTimeout(() => {
-                  if (this.sttAvailable === false) return;
-                  if (this.sttAvailable === null) this.sttAvailable = true;
-                  startMicrophoneCapture();
-                }, 1500);
-              }, 3000); // Give greeting time to play (max greeting is ~3s)
-            } else {
-              // No greeting queued, start microphone immediately
+            // ✅ 1 segundo de silencio después de ringtones, luego iniciar micrófono
+            // El usuario habla y Sandra responde naturalmente (sin saludo predeterminado)
+            setTimeout(() => {
               sttCapabilitiesTimeout = setTimeout(() => {
                 if (this.sttAvailable === false) return;
                 if (this.sttAvailable === null) this.sttAvailable = true;
+                console.log('[MCP] 🎤 Iniciando captura de micrófono - listo para conversación natural');
                 startMicrophoneCapture();
-              }, 1500);
-            }
+              }, 100); // Pequeño delay adicional para estabilización
+            }, 1000); // 1 segundo de silencio después de ringtones
           });
         };
 
