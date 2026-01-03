@@ -819,24 +819,61 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
             return;
           }
 
-          // 🚀 FILTRO: Ignorar transcripciones muy cortas o solo saludos después del saludo inicial
-          if (deepgramData?.greetingSent === true) {
-            const transcriptLower = transcriptNormalized.toLowerCase().trim();
-            // Detectar si es solo un saludo (con o sin puntuación)
-            const isOnlyGreeting = /^(hola|buenos días|buenas tardes|buenas noches|hey|hi)[\s,\.!]*$/i.test(transcriptLower);
-            // Detectar si empieza con saludo seguido de nombre o pregunta simple
-            const startsWithGreeting = /^(hola|buenos días|buenas tardes|buenas noches|hey|hi)[\s,\.!]+(sandra|¿cómo estás|como estas|cómo estás|como estas)[\s,\.!?]*$/i.test(transcriptLower);
-            const isTooShort = transcriptNormalized.trim().length < 3;
-            
-            if (isOnlyGreeting || startsWithGreeting || isTooShort) {
-              logger.debug('[FILTRO] ⏭️ Ignorando transcripción (solo saludo o muy corta después del saludo inicial)', {
-                transcript: transcriptNormalized,
-                isOnlyGreeting,
-                startsWithGreeting,
-                isTooShort
-              });
-              return;
+          // 🚀 FILTRO ROBUSTO: Ignorar transcripciones incompletas, muy cortas o solo saludos
+          // Este filtro previene que la IA responda a fragmentos de audio que no son mensajes completos
+          const transcriptLower = transcriptNormalized.toLowerCase().trim();
+          const transcriptWords = transcriptNormalized.trim().split(/\s+/).filter(w => w.length > 0);
+          
+          // 1. Filtrar transcripciones muy cortas (menos de 15 caracteres o menos de 4 palabras)
+          const isTooShort = transcriptNormalized.trim().length < 15 || transcriptWords.length < 4;
+          
+          // 2. Filtrar transcripciones incompletas (no terminan con puntuación final y son cortas)
+          const endsWithPunctuation = /[.!?]$/.test(transcriptNormalized.trim());
+          const isIncomplete = !endsWithPunctuation && transcriptWords.length < 6;
+          
+          // 3. Filtrar solo saludos (después del saludo inicial)
+          const isOnlyGreeting = deepgramData?.greetingSent === true && 
+            /^(hola|buenos días|buenas tardes|buenas noches|hey|hi)[\s,\.!]*$/i.test(transcriptLower);
+          
+          // 4. Filtrar fragmentos que son claramente incompletos (palabras sueltas o frases muy cortas)
+          const isFragment = transcriptWords.length <= 2 && transcriptNormalized.trim().length < 25;
+          
+          // 5. Filtrar si es substring de una transcripción anterior reciente (mismo usuario hablando)
+          const isSubstringOfRecent = deepgramData?.lastFinalizedTranscript && 
+            deepgramData.lastFinalizedTranscript.length > transcriptNormalized.length &&
+            deepgramData.lastFinalizedTranscript.includes(transcriptNormalized) &&
+            (now - deepgramData.lastFinalizedTimestamp) < 3000; // Dentro de 3 segundos
+          
+          // 6. Filtrar si es extensión de una transcripción anterior reciente (mismo inicio, más palabras)
+          // Ejemplo: "Hola, buenas. Sí, mira, quiero" → "Hola, buenas. Sí, mira, quiero conseguir un aloja"
+          let isExtensionOfRecent = false;
+          if (deepgramData?.lastFinalizedTranscript && (now - deepgramData.lastFinalizedTimestamp) < 3000) {
+            const lastLower = deepgramData.lastFinalizedTranscript.toLowerCase().trim();
+            // Si la transcripción actual empieza con la anterior (es una extensión)
+            if (transcriptLower.startsWith(lastLower) && transcriptLower.length > lastLower.length) {
+              // Y la diferencia es pequeña (menos de 30 caracteres o 5 palabras), es probablemente una extensión
+              const diff = transcriptLower.substring(lastLower.length).trim();
+              const diffWords = diff.split(/\s+/).filter(w => w.length > 0);
+              if (diff.length < 30 && diffWords.length < 5) {
+                isExtensionOfRecent = true;
+              }
             }
+          }
+          
+          if (isTooShort || isIncomplete || isOnlyGreeting || isFragment || isSubstringOfRecent || isExtensionOfRecent) {
+            logger.debug('[FILTRO] ⏭️ Ignorando transcripción (incompleta, muy corta, fragmento, substring o extensión)', {
+              transcript: transcriptNormalized.substring(0, 60),
+              isTooShort,
+              isIncomplete,
+              isOnlyGreeting,
+              isFragment,
+              isSubstringOfRecent,
+              isExtensionOfRecent,
+              wordCount: transcriptWords.length,
+              length: transcriptNormalized.trim().length,
+              lastTranscript: deepgramData?.lastFinalizedTranscript?.substring(0, 60)
+            });
+            return;
           }
 
           // 🛡️ PROTECCIÓN CONTRA ECO: No procesar si la transcripción coincide con la última respuesta de IA
