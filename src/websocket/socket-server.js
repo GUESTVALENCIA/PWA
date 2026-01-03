@@ -540,9 +540,15 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices) {
 
       case 'conserje':
         if (action === 'message' && payload?.type === 'ready') {
-          // 🚀 REAL-TIME PIPELINE: NO enviar saludo - esperar a que el usuario hable
-          // Después de ringtones: 1 segundo de silencio, luego el usuario habla y Sandra responde naturalmente
-          logger.info(`[WEBSOCKET] Cliente ${agentId} listo después de ringtones - esperando audio del usuario (sin saludo predeterminado)`);
+          // 🚀 REAL-TIME PIPELINE: Generar saludo natural con IA (después de ringtones)
+          // La IA genera el saludo de forma natural, no texto predeterminado
+          logger.info(`[WEBSOCKET] Cliente ${agentId} listo después de ringtones - generando saludo natural con IA`);
+          
+          // Generar saludo natural usando la IA (no texto fijo)
+          generateNaturalGreeting(ws, voiceServices, agentId).catch((error) => {
+            logger.error(`[WEBSOCKET] Error generando saludo natural para ${agentId}:`, error);
+          });
+          
           // Enviar confirmación de que el servidor está listo para recibir audio
           ws.send(JSON.stringify({
             route: 'conserje',
@@ -1197,7 +1203,63 @@ async function handleAudioTTS(payload, ws, voiceServices) {
   }
 }
 
-// ✅ ELIMINADO: handleInitialGreeting - No se envía saludo predeterminado
-// El sistema ahora es completamente natural: después de ringtones, 1 segundo de silencio,
-// luego el usuario habla y Sandra responde naturalmente (real-time)
+/**
+ * Generate natural greeting using AI (not fixed text)
+ * After ringtones, AI generates a natural greeting that matches the conversational tone
+ */
+async function generateNaturalGreeting(ws, voiceServices, agentId) {
+  try {
+    if (!voiceServices || !voiceServices.ai || !voiceServices.generateVoice) {
+      logger.error('Voice services not available for natural greeting');
+      return;
+    }
+
+    logger.info('👋 Generating natural greeting with AI (after ringtones)...');
+
+    // 🚀 NATURAL GREETING: Pedir a la IA que salude naturalmente (después de descolgar)
+    // Esto genera un saludo natural que coincide con el tono conversacional, no texto fijo
+    const greetingPrompt = 'La llamada ha sido descolgada después de los ringtones. Saluda al usuario de forma natural y amable.';
+    
+    try {
+      // La IA genera el saludo naturalmente (mismo sistema que las respuestas normales)
+      const naturalGreeting = await voiceServices.ai.processMessage(greetingPrompt);
+      
+      if (!naturalGreeting || naturalGreeting.trim().length === 0) {
+        logger.warn('[GREETING] IA no generó saludo, continuando sin saludo');
+        return;
+      }
+
+      logger.info(`[GREETING] ✅ Saludo natural generado por IA: "${naturalGreeting.substring(0, 50)}..."`);
+
+      // Generar audio del saludo usando TTS (misma voz, mismo tono que respuestas normales)
+      const greetingAudio = await voiceServices.generateVoice(naturalGreeting, {
+        model: 'aura-2-carina-es'
+      });
+
+      if (greetingAudio.type === 'tts' && greetingAudio.data) {
+        logger.info('[GREETING] ✅ Audio del saludo natural generado con TTS');
+        ws.send(JSON.stringify({
+          route: 'audio',
+          action: 'tts',
+          payload: {
+            audio: greetingAudio.data,
+            format: 'mp3',
+            text: naturalGreeting,
+            isWelcome: true
+          }
+        }));
+        logger.info('✅ Natural greeting sent (AI-generated, TTS)');
+      } else {
+        logger.error('[GREETING] ❌ Invalid TTS response format');
+      }
+    } catch (err) {
+      logger.error('[GREETING] ❌ Error generando saludo natural:', err);
+      // No enviar error al cliente - simplemente continuar sin saludo
+      // El usuario puede hablar directamente
+    }
+
+  } catch (error) {
+    logger.error('Error generating natural greeting:', error);
+  }
+}
 
