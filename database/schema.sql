@@ -170,6 +170,23 @@ CREATE INDEX IF NOT EXISTS idx_sessions_agent ON agent_sessions (agent_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_project ON agent_sessions (project_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_status ON agent_sessions (status);
 
+-- Conversation Buffer table: Stores conversation exchanges for intelligent context retrieval
+-- Non-persistent memory: conversations are cleaned after 24 hours by default
+CREATE TABLE IF NOT EXISTS conversation_buffer (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id VARCHAR(255) NOT NULL,
+  agent_id VARCHAR(100) NOT NULL,
+  user_transcript TEXT NOT NULL,
+  ai_response TEXT NOT NULL,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_conversation_session ON conversation_buffer (session_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_agent ON conversation_buffer (agent_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_created ON conversation_buffer (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_conversation_session_created ON conversation_buffer (session_id, created_at DESC);
+
 -- ============================================================================
 -- PERFORMANCE & INDEXING
 -- ============================================================================
