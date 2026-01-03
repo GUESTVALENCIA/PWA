@@ -1136,9 +1136,6 @@ class NeonService {
       return [];
     }
   }
-      return [];
-    }
-  }
 
   /**
    * Clean old conversation buffers (non-persistent memory)
