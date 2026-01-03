@@ -83,7 +83,7 @@ class VoiceServices {
       logger.error('[VOICE-SERVICES] ⚠️ WARNING: No AI providers configured!');
       logger.error('[VOICE-SERVICES] Configure at least one: GROQ_API_KEY, OPENAI_API_KEY, or GEMINI_API_KEY');
     }
-
+    
     // Initialize Deepgram SDK instance (v3 format)
     if (this.deepgramApiKey) {
       try {
@@ -422,7 +422,7 @@ class VoiceServices {
     };
 
     logger.info('[DEEPGRAM] ✅ Streaming connection created', connectionSummary);
-
+    
     // Log connection state for debugging
     if (connection.getReadyState) {
       const initialState = connection.getReadyState();
@@ -434,7 +434,7 @@ class VoiceServices {
         logger.info('[DEEPGRAM] ⏳ Connection is CONNECTING, will be ready shortly...');
       }
     }
-
+    
     return connection;
   }
 
@@ -768,10 +768,12 @@ Sé amable, profesional y útil.`;
 
     // 🚀 PROMPT DEFINITIVO: Ajustes dinámicos según el contexto
     if (context.greetingSent === true) {
-      systemPrompt += `\n\n### Recordatorio importante:
-- Ya has saludado al usuario al inicio de la llamada. NO vuelvas a saludar.
-- Si el usuario dice "Hola", responde directamente a su pregunta o comentario SIN saludar (ej: "¿En qué puedo ayudarte?" o "¿Qué necesitas?")
-- NUNCA uses la palabra "Hola" en tus respuestas después del saludo inicial`;
+      systemPrompt += `\n\n### REGLA CRÍTICA - NO VIOLAR:
+- Ya has saludado al usuario al inicio de la llamada. NUNCA vuelvas a saludar.
+- Si el usuario dice "Hola", "Buenas", "Buenos días", etc., NO respondas con otro saludo.
+- Responde directamente a su pregunta o comentario SIN mencionar "Hola", "Soy Sandra", ni ninguna forma de saludo.
+- Ejemplos PROHIBIDOS después del saludo inicial: "Hola", "Hola, soy Sandra", "Buenas", "¿En qué puedo ayudarte?" (esto es un saludo implícito)
+- Ejemplos CORRECTOS: Responde directamente a lo que pregunta (ej: si pregunta por alojamiento, habla de alojamientos directamente)`;
     }
     
     // 🚀 NEON BUFFER: Añadir historial completo de conversación desde base de datos
@@ -810,34 +812,34 @@ Sé amable, profesional y útil.`;
 
     try {
       logger.info('[AI] 🎯 Usando OpenAI GPT-4o-mini (único modelo en producción)...');
-      return await this._callOpenAI(userMessage, systemPrompt);
-    } catch (error) {
+        return await this._callOpenAI(userMessage, systemPrompt);
+      } catch (error) {
       logger.error('[AI] ❌ Error con OpenAI GPT-4o-mini:', error.message);
       throw error;
+      }
     }
-  }
 
   async _callOpenAI(userMessage, systemPrompt) {
     if (!this.openaiApiKey) {
       throw new Error('OPENAI_API_KEY not configured');
-    }
+  }
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 2500); // 🚀 REAL-TIME: 2.5s timeout (reducido para respuestas más rápidas)
 
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.openaiApiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.openaiApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
           model: 'gpt-4o-mini', // 🎯 PRODUCCIÓN: GPT-4o-mini (modelo principal para producción)
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userMessage }
-          ],
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage }
+        ],
           temperature: 0.7,
           max_tokens: 100 // 🚀 REAL-TIME: Reducido para respuestas más rápidas (especialmente saludos breves)
         }),
@@ -846,17 +848,17 @@ Sé amable, profesional y útil.`;
 
       clearTimeout(timeout);
 
-      if (!response.ok) {
-        const errorText = await response.text();
+    if (!response.ok) {
+      const errorText = await response.text();
         const errorMsg = errorText.length > 200 ? errorText.substring(0, 200) : errorText;
         throw new Error(`OpenAI Error ${response.status}: ${errorMsg}`);
-      }
+    }
 
-      const data = await response.json();
+    const data = await response.json();
       if (!data.choices || !data.choices[0] || !data.choices[0].message) {
         throw new Error('OpenAI: Invalid response format');
       }
-      return data.choices[0].message.content;
+    return data.choices[0].message.content;
     } catch (error) {
       clearTimeout(timeout);
           if (error.name === 'AbortError') {
@@ -875,18 +877,18 @@ Sé amable, profesional y útil.`;
     const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
     try {
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.groqApiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.groqApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
           model: 'gpt-oss-20b', // Modelo GPT OSS 20B de Groq (según imagen Deepgram)
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userMessage }
-          ],
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage }
+        ],
           temperature: 0.7,
           max_tokens: 100 // 🚀 REAL-TIME: Reducido para respuestas más rápidas (especialmente saludos breves)
         }),
@@ -895,17 +897,17 @@ Sé amable, profesional y útil.`;
 
       clearTimeout(timeout);
 
-      if (!response.ok) {
-        const errorText = await response.text();
+    if (!response.ok) {
+      const errorText = await response.text();
         const errorMsg = errorText.length > 200 ? errorText.substring(0, 200) : errorText;
         throw new Error(`Groq Error ${response.status}: ${errorMsg}`);
-      }
+    }
 
-      const data = await response.json();
+    const data = await response.json();
       if (!data.choices || !data.choices[0] || !data.choices[0].message) {
         throw new Error('Groq: Invalid response format');
       }
-      return data.choices[0].message.content;
+    return data.choices[0].message.content;
     } catch (error) {
       clearTimeout(timeout);
       if (error.name === 'AbortError') {
