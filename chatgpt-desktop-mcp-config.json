@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "guests-valencia-pwa": {
+      "command": "node",
+      "args": [
+        "C:\\Users\\clayt\\OneDrive\\GUESTVALENCIAPWA\\mcp-server-chatgpt.js"
+      ],
+      "env": {
+        "NODE_ENV": "production"
+      }
+    }
+  }
+}
