@@ -13,10 +13,10 @@ const __dirname = path.dirname(__filename);
 const DEBUG_LOG_PATH = path.join(__dirname, '../../.cursor/debug.log');
 const debugLog = (location, message, data, hypothesisId) => {
   try {
-    const logEntry = {location, message, data, timestamp:Date.now(), sessionId:'debug-session', runId:'run1', hypothesisId};
-    if (!fs.existsSync(path.dirname(DEBUG_LOG_PATH))) fs.mkdirSync(path.dirname(DEBUG_LOG_PATH), {recursive:true});
+    const logEntry = { location, message, data, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId };
+    if (!fs.existsSync(path.dirname(DEBUG_LOG_PATH))) fs.mkdirSync(path.dirname(DEBUG_LOG_PATH), { recursive: true });
     fs.appendFileSync(DEBUG_LOG_PATH, JSON.stringify(logEntry) + '\n');
-  } catch(e) {}
+  } catch (e) { }
 };
 
 // Active agent subscriptions: Map<agentId, Set<projectIds>>
@@ -42,12 +42,12 @@ const sttErrorAgents = new Set();
  */
 export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonService, voiceServices = null) {
   // #region agent log
-  debugLog('socket-server.js:18', 'initWebSocketServer called', {voiceServicesIsNull:voiceServices===null,hasVoiceServices:!!voiceServices,hasDeepgram:!!voiceServices?.deepgram,hasAI:!!voiceServices?.ai,hasWelcomeAudio:!!voiceServices?.getWelcomeAudio}, 'E');
+  debugLog('socket-server.js:18', 'initWebSocketServer called', { voiceServicesIsNull: voiceServices === null, hasVoiceServices: !!voiceServices, hasDeepgram: !!voiceServices?.deepgram, hasAI: !!voiceServices?.ai, hasWelcomeAudio: !!voiceServices?.getWelcomeAudio }, 'E');
   // #endregion
-	  wss.on('connection', (ws, req) => {
-	    const agentId = req.headers['x-agent-id'] || `agent_${Math.random().toString(36).substring(7)}`;
-	    const connectionTime = new Date().toISOString();
-		    const sttAvailable = voiceServices?.deepgram?.isConfigured === true;
+  wss.on('connection', (ws, req) => {
+    const agentId = req.headers['x-agent-id'] || `agent_${Math.random().toString(36).substring(7)}`;
+    const connectionTime = new Date().toISOString();
+    const sttAvailable = voiceServices?.deepgram?.isConfigured === true;
 
     logger.info(`✅ WebSocket connected: ${agentId}`);
 
@@ -58,15 +58,15 @@ export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonS
     }
 
     // Send welcome message
-	    ws.send(JSON.stringify({
-	      type: 'connection_established',
-	      agent_id: agentId,
-	      timestamp: connectionTime,
-	      message: 'Connected to MCP Orchestrator',
-	      capabilities: {
-	        stt: sttAvailable
-	      }
-	    }));
+    ws.send(JSON.stringify({
+      type: 'connection_established',
+      agent_id: agentId,
+      timestamp: connectionTime,
+      message: 'Connected to MCP Orchestrator',
+      capabilities: {
+        stt: sttAvailable
+      }
+    }));
 
     // 🚀 ENTERPRISE: Enviar saludo automáticamente al establecer conexión (sin esperar mensaje "ready")
     // El saludo debe ser automático cuando se descuelga la llamada
@@ -92,24 +92,24 @@ export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonS
     // Handle disconnection
     ws.on('close', () => {
       logger.info(`🔴 WebSocket disconnected: ${agentId}`);
-      
+
       // Close Deepgram streaming connection if exists (legacy)
       const deepgramData = deepgramConnections.get(agentId);
-	      if (deepgramData && deepgramData.connection) {
+      if (deepgramData && deepgramData.connection) {
         logger.info(`[DEEPGRAM] Closing streaming connection for ${agentId}`);
         try {
           deepgramData.connection.finish();
         } catch (error) {
           logger.error(`[DEEPGRAM] Error closing connection:`, error);
         }
-	        deepgramConnections.delete(agentId);
-	      }
-	      
-	      sttUnavailableAgents.delete(agentId);
-	      sttErrorAgents.delete(agentId);
-	      
-	      agentConnections.delete(agentId);
-	      agentSubscriptions.delete(agentId);
+        deepgramConnections.delete(agentId);
+      }
+
+      sttUnavailableAgents.delete(agentId);
+      sttErrorAgents.delete(agentId);
+
+      agentConnections.delete(agentId);
+      agentSubscriptions.delete(agentId);
 
       // Notify other agents of disconnection
       broadcastToAll(wss, {
@@ -219,7 +219,7 @@ function handleMessage(data, agentId, ws, wss, neonService, systemEventEmitter, 
     });
     return;
   }
-  
+
   // Formato existente type/payload (orquestación)
   const { type, payload } = data;
 
@@ -472,12 +472,12 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices) {
   const { route, action, payload } = data;
 
   // #region agent log
-  debugLog('socket-server.js:430', 'handleVoiceMessage called', {route,action,voiceServicesIsNull:voiceServices===null,hasVoiceServices:!!voiceServices,hasDeepgram:!!voiceServices?.deepgram,hasAI:!!voiceServices?.ai,hasWelcomeAudio:!!voiceServices?.getWelcomeAudio,voiceServicesKeys:voiceServices?Object.keys(voiceServices):[]}, 'D');
+  debugLog('socket-server.js:430', 'handleVoiceMessage called', { route, action, voiceServicesIsNull: voiceServices === null, hasVoiceServices: !!voiceServices, hasDeepgram: !!voiceServices?.deepgram, hasAI: !!voiceServices?.ai, hasWelcomeAudio: !!voiceServices?.getWelcomeAudio, voiceServicesKeys: voiceServices ? Object.keys(voiceServices) : [] }, 'D');
   // #endregion
 
   if (!voiceServices) {
     // #region agent log
-    debugLog('socket-server.js:433', 'Voice services is NULL - sending error', {route,action}, 'A');
+    debugLog('socket-server.js:433', 'Voice services is NULL - sending error', { route, action }, 'A');
     // #endregion
     logger.warn('Voice services not available');
     ws.send(JSON.stringify({
@@ -495,7 +495,7 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices) {
   // 🚀 ENTERPRISE: Solo requerir deepgram y AI - getWelcomeAudio ya no se usa (todo con Deepgram TTS)
   if (!voiceServices.deepgram || !voiceServices.ai || !voiceServices.generateVoice) {
     // #region agent log
-    debugLog('socket-server.js:469', 'Voice services missing required properties', {hasDeepgram:!!voiceServices.deepgram,hasAI:!!voiceServices.ai,hasWelcomeAudio:!!voiceServices.getWelcomeAudio,hasGenerateVoice:!!voiceServices.generateVoice,allKeys:voiceServices?Object.keys(voiceServices):[],voiceServicesType:typeof voiceServices}, 'C');
+    debugLog('socket-server.js:469', 'Voice services missing required properties', { hasDeepgram: !!voiceServices.deepgram, hasAI: !!voiceServices.ai, hasWelcomeAudio: !!voiceServices.getWelcomeAudio, hasGenerateVoice: !!voiceServices.generateVoice, allKeys: voiceServices ? Object.keys(voiceServices) : [], voiceServicesType: typeof voiceServices }, 'C');
     // #endregion
     logger.warn('Voice services not fully initialized', {
       hasDeepgram: !!voiceServices.deepgram,
@@ -514,9 +514,9 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices) {
     }));
     return;
   }
-  
+
   // #region agent log
-  debugLog('socket-server.js:490', 'Voice services validation PASSED', {hasDeepgram:!!voiceServices.deepgram,hasAI:!!voiceServices.ai,hasWelcomeAudio:!!voiceServices.getWelcomeAudio,hasGenerateVoice:!!voiceServices.generateVoice}, 'D');
+  debugLog('socket-server.js:490', 'Voice services validation PASSED', { hasDeepgram: !!voiceServices.deepgram, hasAI: !!voiceServices.ai, hasWelcomeAudio: !!voiceServices.getWelcomeAudio, hasGenerateVoice: !!voiceServices.generateVoice }, 'D');
   // #endregion
 
   try {
@@ -584,7 +584,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
   const { audio, format, mimeType, encoding, sampleRate, channels } = payload;
 
   // #region agent log
-  debugLog('socket-server.js:584', 'Audio STT payload received', {encoding,sampleRate,channels,format,audioLength:audio?.length}, 'A');
+  debugLog('socket-server.js:584', 'Audio STT payload received', { encoding, sampleRate, channels, format, audioLength: audio?.length }, 'A');
   // #endregion
 
   if (!audio) {
@@ -661,7 +661,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
 
     // Get or create Deepgram streaming connection for this client
     let deepgramData = deepgramConnections.get(agentId);
-    
+
     // Check if connection exists and is ready
     if (deepgramData && deepgramData.connection) {
       // Verify connection is still open (0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED)
@@ -681,13 +681,13 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
         deepgramData = null;
       }
     }
-    
+
     // Prevent creating new connections if we're in error state (avoid spam of failed connections)
     if (sttErrorAgents.has(agentId) && (!deepgramData || !deepgramData.connection)) {
       logger.debug(`[DEEPGRAM] Agent ${agentId} in error state, skipping connection creation (will retry after timeout)`);
       return; // Skip processing this chunk - wait for error state to clear
     }
-    
+
     if (!deepgramData || !deepgramData.connection) {
       logger.info(`[DEEPGRAM] 🔌 Creating new streaming connection for ${agentId}`);
 
@@ -695,11 +695,11 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
       const resolvedEncoding = (typeof encoding === 'string' && encoding.trim()) ? encoding.trim() : 'linear16';
       const resolvedSampleRate = Number.isFinite(Number(sampleRate)) ? Number(sampleRate) : 48000; // ✅ 48000 Hz según JSON
       const resolvedChannels = Number.isFinite(Number(channels)) ? Number(channels) : 1;
-      
+
       // #region agent log
-      debugLog('socket-server.js:691', 'Resolved audio params for Deepgram', {resolvedEncoding,resolvedSampleRate,resolvedChannels,originalSampleRate:sampleRate,originalEncoding:encoding}, 'A');
+      debugLog('socket-server.js:691', 'Resolved audio params for Deepgram', { resolvedEncoding, resolvedSampleRate, resolvedChannels, originalSampleRate: sampleRate, originalEncoding: encoding }, 'A');
       // #endregion
-       
+
       deepgramData = {
         connection: null,
         isProcessing: false,
@@ -719,7 +719,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
         sampleRate: resolvedSampleRate,
         channels: resolvedChannels,
         idleTimeoutMs: 600, // 🚀 ENTERPRISE MAX: Reducido a 600ms para latencia mínima (balance óptimo)
-        
+
         // 🔄 KEEPALIVE: Mantener conexión estable enviando silencio periódicamente
         keepAlive: true,
         keepAliveInterval: 10000, // Enviar keepalive cada 10 segundos
@@ -727,20 +727,20 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
           // 🚀 ROBUST DEDUPLICATION: Prevent duplicate transcriptions from multiple events
           const now = Date.now();
           const transcriptNormalized = transcript?.trim() || '';
-          
+
           // Check 1: Empty transcript
           if (!transcriptNormalized) {
             logger.debug('[DEEPGRAM] Empty transcript in finalized event, skipping');
             return;
           }
-          
+
           // Check 2: Already processing another transcript
           // ✅ MEJORADO: Solo bloquear si es realmente la misma transcripción
           // Permitir transcripciones nuevas aunque haya una en proceso
           if (deepgramData && deepgramData.isProcessing) {
             const currentProcessing = deepgramData.processingTranscript || '';
             const isSameTranscript = currentProcessing.toLowerCase().trim() === transcriptNormalized.toLowerCase().trim();
-            
+
             // Solo bloquear si es EXACTAMENTE la misma transcripción
             if (isSameTranscript) {
               logger.debug('[DEEPGRAM] Skipping exact duplicate transcription', {
@@ -749,7 +749,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
               });
               return;
             }
-            
+
             // Si es diferente, permitirla (usuario habló de nuevo)
             logger.info('[DEEPGRAM] New transcript while processing - allowing (user spoke again)', {
               agentId: agentId,
@@ -760,12 +760,12 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
             deepgramData.isProcessing = false;
             deepgramData.processingTranscript = null;
           }
-          
+
           // Check 3: Same transcript as last finalized (within 3 seconds) - prevent duplicate events
           // Deepgram envía múltiples eventos (idle_timeout, Results, speech_final) para la misma transcripción
-          if (deepgramData && 
-              deepgramData.lastFinalizedTranscript === transcriptNormalized &&
-              (now - deepgramData.lastFinalizedTimestamp) < 3000) {
+          if (deepgramData &&
+            deepgramData.lastFinalizedTranscript === transcriptNormalized &&
+            (now - deepgramData.lastFinalizedTimestamp) < 3000) {
             logger.debug('[DEEPGRAM] Duplicate finalized transcript detected (multiple events), skipping', {
               agentId: agentId,
               transcript: transcriptNormalized.substring(0, 50),
@@ -774,11 +774,11 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
             });
             return;
           }
-          
+
           // Check 3.5: Si ya está procesando EXACTAMENTE esta transcripción, saltarla
-          if (deepgramData && 
-              deepgramData.isProcessing &&
-              deepgramData.processingTranscript === transcriptNormalized) {
+          if (deepgramData &&
+            deepgramData.isProcessing &&
+            deepgramData.processingTranscript === transcriptNormalized) {
             logger.debug('[DEEPGRAM] Already processing this exact transcript, skipping duplicate event', {
               agentId: agentId,
               transcript: transcriptNormalized.substring(0, 50),
@@ -786,12 +786,12 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
             });
             return;
           }
-          
+
           // Check 4: Transcript is subset of currently processing (race condition protection)
-          if (deepgramData && 
-              deepgramData.processingTranscript &&
-              transcriptNormalized.length < deepgramData.processingTranscript.length &&
-              deepgramData.processingTranscript.includes(transcriptNormalized)) {
+          if (deepgramData &&
+            deepgramData.processingTranscript &&
+            transcriptNormalized.length < deepgramData.processingTranscript.length &&
+            deepgramData.processingTranscript.includes(transcriptNormalized)) {
             logger.warn('[DEEPGRAM] New transcript is subset of processing transcript, skipping', {
               agentId: agentId,
               processing: deepgramData.processingTranscript.substring(0, 50),
@@ -802,7 +802,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
 
           // ✅ VALID TRANSCRIPT - Process it
           logger.info(`[DEEPGRAM] ✅ Utterance finalized (${message?.type || 'unknown'}): "${transcriptNormalized}"`);
-          
+
           // ⚠️ CRITICAL: Update tracking ANTES de procesar para evitar race conditions
           // Esto previene que múltiples eventos de Deepgram procesen la misma transcripción
           if (deepgramData) {
@@ -825,8 +825,8 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                 }
               }));
             }
-          } catch (_) {}
-          
+          } catch (_) { }
+
           // ⚠️ NOTA: isProcessing ya se marcó arriba (línea 808) para evitar race conditions
           // No necesitamos marcarlo de nuevo aquí
 
@@ -840,7 +840,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
               ws.send(JSON.stringify({
                 route: 'error',
                 action: 'message',
-                payload: { 
+                payload: {
                   error: 'AI did not generate a response',
                   message: 'The AI provider returned an empty response'
                 }
@@ -855,7 +855,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
             try {
               // 🚫 WEBSOCKET DESHABILITADO: Usar solo REST API (más confiable)
               const responseAudio = await voiceServices.generateVoice(aiResponse, { streaming: false, model: 'aura-2-agustina-es' });
-              
+
               // Handle different response types
               if (responseAudio.type === 'tts' && responseAudio.data) {
                 // REST API fallback (MP3)
@@ -874,17 +874,17 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                 if (deepgramData) deepgramData.isProcessing = false;
                 return;
               }
-              
+
               // TTS WebSocket streaming (ENABLED for low latency)
               if (responseAudio.type === 'streaming' && responseAudio.ws) {
                 // TTS WebSocket streaming - send PCM chunks as they arrive
                 logger.info('[TTS] 🎙️ Using TTS WebSocket streaming (PCM)');
-                
+
                 const ttsWs = responseAudio.ws;
                 let firstChunk = true;
                 let chunksReceived = 0;
                 let totalBytesReceived = 0;
-                
+
                 // ⚠️ CRITICAL: Set up message handler BEFORE sending any commands
                 // Handle incoming PCM audio chunks
                 ttsWs.on('message', (data) => {
@@ -892,14 +892,14 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                   const isBuffer = Buffer.isBuffer(data);
                   const dataType = typeof data;
                   const dataLength = isBuffer ? data.length : (data?.length || 0);
-                  
+
                   logger.debug('[TTS] 📥 Received message:', {
                     isBuffer,
                     dataType,
                     length: dataLength,
                     firstBytes: isBuffer ? Array.from(data.slice(0, 10)) : 'N/A'
                   });
-                  
+
                   // ⚠️ CRITICAL: Deepgram TTS sends BOTH JSON (as Buffer) and PCM audio (as Buffer)
                   // We must check if Buffer contains JSON before treating it as PCM
                   if (Buffer.isBuffer(data)) {
@@ -910,7 +910,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                         const messageStr = data.toString('utf8');
                         const message = JSON.parse(messageStr);
                         logger.info('[TTS] 📋 Received JSON metadata (as Buffer):', message);
-                        
+
                         if (message.type === 'Metadata') {
                           logger.info('[TTS] 📋 Received metadata:', message);
                           return; // Skip metadata, wait for audio chunks
@@ -930,14 +930,14 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                         // Continue to treat as PCM if JSON parsing fails
                       }
                     }
-                    
+
                     // This is PCM audio data (not JSON)
                     // Validate PCM data (must be even number of bytes for Int16)
                     if (data.length === 0) {
                       logger.debug('[TTS] Empty buffer, skipping');
                       return;
                     }
-                    
+
                     if (data.length % 2 !== 0) {
                       // Try to fix: pad with zero if odd length (last sample incomplete)
                       logger.warn('[TTS] ⚠️ Odd-length PCM chunk, padding with zero byte', {
@@ -963,7 +963,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                       firstChunk = false;
                       return;
                     }
-                    
+
                     // Valid PCM chunk - send to client
                     const pcmBase64 = data.toString('base64');
                     logger.debug('[TTS] 📤 Sending valid PCM chunk', {
@@ -990,7 +990,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                       const messageStr = data.toString();
                       const message = JSON.parse(messageStr);
                       logger.debug('[TTS] 📋 Received JSON message:', message);
-                      
+
                       if (message.type === 'Metadata') {
                         logger.info('[TTS] 📋 Received metadata:', message);
                         return; // Skip metadata, wait for audio chunks
@@ -1015,7 +1015,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                     }
                   }
                 });
-                
+
                 // Send completion when WebSocket closes
                 ttsWs.on('close', (code, reason) => {
                   logger.info('[TTS] ✅ TTS WebSocket streaming completed', {
@@ -1024,7 +1024,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                     closeCode: code,
                     closeReason: reason?.toString()
                   });
-                  
+
                   // Handle error codes
                   if (code === 1008) {
                     logger.error(`[TTS] ❌ WebSocket closed with Policy Violation (1008): ${reason?.toString() || 'DATA-0000'}`);
@@ -1032,7 +1032,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                     handleTTSFallback(aiResponse, ws);
                     return; // Don't send completion, fallback handles it
                   }
-                  
+
                   // Only send completion if we received at least one chunk
                   if (chunksReceived > 0) {
                     ws.send(JSON.stringify({
@@ -1046,20 +1046,20 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                     handleTTSFallback(aiResponse, ws);
                   }
                 });
-                
+
                 ttsWs.on('error', (error) => {
                   logger.error('[TTS] ❌ TTS WebSocket error:', error);
                   // Fallback to REST API
                   handleTTSFallback(aiResponse, ws);
                 });
-                
+
                 // ⚠️ CRITICAL: Send text IMMEDIATELY when WebSocket is ready (no delays)
                 // Deepgram TTS WebSocket closes quickly if no data is sent
                 const sendTextAndFlush = () => {
                   if (ttsWs.readyState === WebSocket.OPEN) {
                     // Send text IMMEDIATELY - no delay
                     voiceServices.sendTextToTTS(ttsWs, aiResponse);
-                    
+
                     // Small delay before flush to ensure text is sent
                     setTimeout(() => {
                       // Flush to start audio generation
@@ -1071,14 +1071,14 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                     ttsWs.once('open', sendTextAndFlush);
                   }
                 };
-                
+
                 // If already open, send immediately; otherwise wait for 'open' event
                 if (ttsWs.readyState === WebSocket.OPEN) {
                   sendTextAndFlush();
                 } else {
                   ttsWs.once('open', sendTextAndFlush);
                 }
-                
+
               } else if (responseAudio.type === 'native') {
                 // Native audio file - send as base64
                 logger.info('[TTS] ✅ Using native audio file');
@@ -1108,13 +1108,13 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                   }
                 }));
               }
-              
+
               logger.info('✅ Audio TTS response sent to client');
             } catch (ttsError) {
               logger.error('[TTS] ❌ ERROR CRÍTICO: No se pudo generar audio:', ttsError);
               throw new Error(`TTS failed: ${ttsError.message}`);
             }
-            
+
             // Helper function for REST API fallback
             async function handleTTSFallback(text, clientWs) {
               try {
@@ -1141,11 +1141,11 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
               stack: error.stack?.substring(0, 300),
               transcript: transcript.substring(0, 50)
             });
-            
+
             // Extract detailed error information
             let errorDetails = error.message || 'Unknown error occurred while processing with AI';
             let errorType = 'AI processing failed';
-            
+
             // Check if it's the "All AI providers failed" error
             if (error.message && error.message.includes('All AI providers failed')) {
               errorType = 'All AI providers failed';
@@ -1157,7 +1157,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                 errorDetails = 'Todos los proveedores de AI fallaron. Verifica las API keys en Render Dashboard.';
               }
             }
-            
+
             ws.send(JSON.stringify({
               route: 'error',
               action: 'message',
@@ -1208,7 +1208,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                 language: 'es'
               }
             }));
-          } catch (_) {}
+          } catch (_) { }
         },
         onError: (error) => {
           // Log detailed error information for debugging
@@ -1228,7 +1228,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
           // Send error to client only once, but allow recovery by NOT blocking future connections
           if (!sttErrorAgents.has(agentId)) {
             sttErrorAgents.add(agentId);
-            
+
             // Log detailed error information for debugging
             const errorDetails = {
               message: error?.message || 'Unknown error',
@@ -1239,7 +1239,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
               stringified: String(error)
             };
             logger.error(`[DEEPGRAM] STT streaming error for ${agentId}:`, errorDetails);
-            
+
             ws.send(JSON.stringify({
               route: 'error',
               action: 'message',
@@ -1264,13 +1264,13 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
         },
         onClose: () => {
           logger.info(`[DEEPGRAM] Streaming connection closed for ${agentId}`);
-          
+
           // Reset processing flag before removing connection to allow recovery
           const closedDeepgramData = deepgramConnections.get(agentId);
           if (closedDeepgramData) {
             closedDeepgramData.isProcessing = false;
           }
-          
+
           deepgramConnections.delete(agentId);
         }
       });
@@ -1291,7 +1291,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
           logger.error('[DEEPGRAM] Error flushing buffered audio:', flushError);
         }
       });
-      
+
       logger.info(`[DEEPGRAM] ✅ Streaming connection established for ${agentId}`, {
         agentId: agentId,
         encoding: resolvedEncoding,
@@ -1324,7 +1324,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
             deepgramData.connection.send(buf);
           }
         }
-        
+
         // Send audio buffer to Deepgram
         deepgramData.connection.send(audioBuffer);
         logger.debug(`[DEEPGRAM] ✅ Sent audio chunk: ${audioBuffer.length} bytes to ${agentId}`, {
@@ -1339,7 +1339,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
           stack: error.stack?.substring(0, 300),
           bufferSize: audioBuffer.length
         });
-        
+
         // Try to recreate connection on error
         if (deepgramData && deepgramData.connection) {
           try {
@@ -1351,7 +1351,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
           deepgramData.isProcessing = false;
         }
         deepgramConnections.delete(agentId);
-        
+
         // Send error to client
         ws.send(JSON.stringify({
           route: 'error',
@@ -1400,11 +1400,11 @@ async function handleAudioTTS(payload, ws, voiceServices) {
     // Note: We no longer generate audio on server - client uses native voice file
     // ⚠️ CRITICAL: Always use REST API and extract data property
     const audioResult = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-agustina-es' });
-    
+
     // Extract audio data based on type
     let audioData;
     let audioFormat = 'mp3';
-    
+
     if (audioResult.type === 'tts' && audioResult.data) {
       audioData = audioResult.data;
       audioFormat = 'mp3';
@@ -1473,293 +1473,58 @@ async function handleGreetingFallback(text, clientWs, voiceServices) {
 async function handleInitialGreeting(ws, voiceServices) {
   try {
     logger.info('👋 Generating initial greeting in real-time (Deepgram TTS)...');
-    
-    if (!voiceServices || !voiceServices.generateVoice) {
-      logger.error('generateVoice not available in voiceServices');
-      throw new Error('Voice generation service not available');
-    }
-    
-    // 🚀 ENTERPRISE: Saludo de Sandra con presentación completa
-    const greetingText = 'Hola, soy Sandra, tu asistente de Guests Valencia, ¿en qué puedo ayudarle hoy?';
-    
-    logger.info(`🎙️ Generating greeting audio: "${greetingText}"`);
-    
-    // Usar Deepgram TTS WebSocket streaming para el saludo (baja latencia)
-    try {
-      // 🚫 WEBSOCKET DESHABILITADO: Usar solo REST API (más confiable)
-      const greetingAudio = await voiceServices.generateVoice(greetingText, { streaming: false, model: 'aura-2-agustina-es' });
-      
-      // ⚠️ CRITICAL: Never send WebSocket objects to client - handle streaming server-side
-      if (greetingAudio.type === 'streaming' && greetingAudio.ws) {
-        // TTS WebSocket streaming - send PCM chunks as they arrive
-        logger.info('[TTS] 🎙️ Using TTS WebSocket streaming for greeting (PCM)');
-        
-        const ttsWs = greetingAudio.ws;
-        let firstChunk = true;
-        let chunksReceived = 0;
-        let totalBytesReceived = 0;
-        
-        // ⚠️ CRITICAL: Set up message handler BEFORE sending any commands
-        // Handle incoming PCM audio chunks
-        ttsWs.on('message', (data) => {
-          // Log message type for debugging
-          const isBuffer = Buffer.isBuffer(data);
-          const dataType = typeof data;
-          const dataLength = isBuffer ? data.length : (data?.length || 0);
-          
-          logger.debug('[TTS] 📥 Received greeting message:', {
-            isBuffer,
-            dataType,
-            length: dataLength
-          });
-          
-          // ⚠️ CRITICAL: Deepgram TTS sends BOTH JSON (as Buffer) and PCM audio (as Buffer)
-          // We must check if Buffer contains JSON before treating it as PCM
-          if (Buffer.isBuffer(data)) {
-            // Check if Buffer starts with '{' (JSON) - Deepgram sends metadata as JSON in Buffer
-            if (data.length > 0 && data[0] === 123) { // 123 = '{' in ASCII
-              // This is JSON metadata, not PCM audio
-              try {
-                const messageStr = data.toString('utf8');
-                const message = JSON.parse(messageStr);
-                logger.info('[TTS] 📋 Received greeting JSON metadata (as Buffer):', message);
-                
-                if (message.type === 'Metadata') {
-                  logger.info('[TTS] 📋 Received greeting metadata:', message);
-                  return; // Skip metadata, wait for audio chunks
-                } else if (message.type === 'Flushed') {
-                  logger.info('[TTS] ✅ Greeting TTS buffer flushed');
-                  return;
-                } else if (message.type === 'Error') {
-                  logger.error('[TTS] ❌ Greeting TTS error:', message);
-                  handleGreetingFallback(greetingText, ws, voiceServices).catch(err => {
-                    logger.error('[TTS] ❌ Greeting fallback failed:', err);
-                  });
-                  return;
-                } else {
-                  logger.debug('[TTS] Unknown greeting JSON message type:', message.type);
-                  return; // Skip unknown JSON messages
-                }
-              } catch (e) {
-                logger.warn('[TTS] ⚠️ Greeting buffer starts with { but failed to parse as JSON:', e.message);
-                // Continue to treat as PCM if JSON parsing fails
-              }
-            }
-            
-            // This is PCM audio data (not JSON)
-            if (data.length === 0) {
-              logger.debug('[TTS] Empty greeting buffer, skipping');
-              return;
-            }
-            
-            if (data.length % 2 !== 0) {
-              // Try to fix: pad with zero if odd length
-              logger.warn('[TTS] ⚠️ Odd-length greeting PCM chunk, padding with zero byte', {
-                originalLength: data.length
-              });
-              const paddedData = Buffer.concat([data, Buffer.from([0])]);
-              const pcmBase64 = paddedData.toString('base64');
-              ws.send(JSON.stringify({
-                route: 'audio',
-                action: 'tts_chunk',
-                payload: {
-                  audio: pcmBase64,
-                  format: 'pcm',
-                  encoding: 'linear16',
-                  sampleRate: 24000, // ✅ TTS output is 24kHz (Deepgram default for streaming)
-                  channels: 1,
-                  isFirst: firstChunk,
-                  isWelcome: true,
-                  padded: true
-                }
-              }));
-              firstChunk = false;
-              return;
-            }
-            
-            // Valid PCM chunk
-            chunksReceived++;
-            totalBytesReceived += data.length;
-            const pcmBase64 = data.toString('base64');
-            logger.info('[TTS] 📤 Sending greeting PCM chunk', {
-              chunkNumber: chunksReceived,
-              length: data.length,
-              totalBytes: totalBytesReceived,
-              isFirst: firstChunk
-            });
-            ws.send(JSON.stringify({
-              route: 'audio',
-              action: 'tts_chunk',
-              payload: {
-                audio: pcmBase64,
-                format: 'pcm',
-                encoding: 'linear16',
-                sampleRate: 24000, // ✅ TTS output is 24kHz (Deepgram default for streaming)
-                channels: 1,
-                isFirst: firstChunk,
-                isWelcome: true
-              }
-            }));
-            firstChunk = false;
-          } else {
-            // Not a Buffer - try to parse as JSON
-            try {
-              const messageStr = data.toString();
-              const message = JSON.parse(messageStr);
-              logger.debug('[TTS] 📋 Received greeting JSON message:', message);
-              
-              if (message.type === 'Metadata') {
-                logger.info('[TTS] 📋 Received greeting metadata:', message);
-                return;
-              } else if (message.type === 'Flushed') {
-                logger.info('[TTS] ✅ Greeting TTS buffer flushed');
-                return;
-              } else if (message.type === 'Error') {
-                logger.error('[TTS] ❌ Greeting TTS error:', message);
-                handleGreetingFallback(greetingText, ws, voiceServices).catch(err => {
-                  logger.error('[TTS] ❌ Greeting fallback failed:', err);
-                });
-                return;
-              }
-            } catch (e) {
-              logger.warn('[TTS] ⚠️ Unknown greeting message format:', {
-                type: dataType,
-                length: dataLength
-              });
-            }
-          }
-        });
-        
-        // Send completion when WebSocket closes
-        ttsWs.on('close', (code, reason) => {
-          logger.info('[TTS] ✅ Greeting TTS WebSocket streaming completed', {
-            totalChunks: chunksReceived,
-            totalBytes: totalBytesReceived,
-            closeCode: code,
-            closeReason: reason?.toString()
-          });
-          
-          // Handle error codes
-          if (code === 1008) {
-            logger.error(`[TTS] ❌ Greeting WebSocket closed with Policy Violation (1008): ${reason?.toString() || 'DATA-0000'}`);
-            logger.error(`[TTS] ⚠️ Model 'aura-2-agustina-es' may not be available. Falling back to REST API.`);
-            handleGreetingFallback(greetingText, ws, voiceServices).catch(err => {
-              logger.error('[TTS] ❌ Greeting fallback failed:', err);
-            });
-            return; // Don't send completion, fallback handles it
-          }
-          
-          // Only send completion if we received at least one chunk
-          if (chunksReceived > 0) {
-            ws.send(JSON.stringify({
-              route: 'audio',
-              action: 'tts_complete',
-              payload: {}
-            }));
-          } else {
-            // No chunks received - fallback to REST API
-            logger.warn('[TTS] ⚠️ No greeting audio chunks received, falling back to REST API');
-            handleGreetingFallback(greetingText, ws, voiceServices).catch(err => {
-              logger.error('[TTS] ❌ Greeting fallback failed:', err);
-            });
-          }
-        });
-        
-        ttsWs.on('error', (error) => {
-          logger.error('[TTS] ❌ Greeting TTS WebSocket error, falling back to REST:', error);
-          // Fallback to REST API
-          handleGreetingFallback(greetingText, ws, voiceServices).catch(err => {
-            logger.error('[TTS] ❌ Fallback failed:', err);
-          });
-        });
-        
-        // ⚠️ CRITICAL: Send text IMMEDIATELY when WebSocket is ready (no delays)
-        // Deepgram TTS WebSocket closes quickly if no data is sent
-        const sendTextAndFlush = () => {
-          if (ttsWs.readyState === WebSocket.OPEN) {
-            // Send text IMMEDIATELY - no delay
-            voiceServices.sendTextToTTS(ttsWs, greetingText);
-            
-            // Small delay before flush to ensure text is sent
-            setTimeout(() => {
-              // Flush to start audio generation
-              voiceServices.flushTTS(ttsWs);
-              logger.info('[TTS] ✅ Greeting text sent and flushed, waiting for audio chunks...');
-            }, 10); // Minimal delay for flush
-          } else {
-            // Wait for connection to open
-            ttsWs.once('open', sendTextAndFlush);
-          }
-        };
-        
-        // If already open, send immediately; otherwise wait for 'open' event
-        if (ttsWs.readyState === WebSocket.OPEN) {
-          sendTextAndFlush();
-        } else {
-          ttsWs.once('open', sendTextAndFlush);
+
+    /**
+     * Handle initial greeting (AUTOMÁTICO AL SUBIR WEBSOCKET)
+     * Envía el audio nativo precacheado INMEDIATAMENTE para latencia cero.
+     */
+    async function handleInitialGreeting(ws, voiceServices) {
+      try {
+        if (!voiceServices || !voiceServices.getWelcomeAudio) {
+          logger.error('Voice services not available for greeting');
+          return;
         }
-        
-        // ⚠️ CRITICAL: Return immediately - do NOT send greetingAudio object to client
-        return; // Exit early if streaming is set up
-      }
-      
-      // OPCIÓN 1: Usar VOZ NATIVA (archivo WAV)
-      if (greetingAudio.type === 'native' && greetingAudio.data) {
-        logger.info('[TTS] ✅ Using NATIVE voice file for greeting (your daughter\'s real voice)');
-        const audioBase64 = greetingAudio.data.toString('base64');
+
+        // 🚀 ENTERPRISE: SALUDO INSTANTÁNEO (ZERO LATENCY)
+        // Usar SIEMPRE el archivo de audio nativo precacheado.
+        // Evitar TTS dinámico para el primer mensaje.
+        const greetingText = 'Hola, soy Sandra, tu asistente de Guests Valencia, ¿en qué puedo ayudarle hoy?';
+
+        logger.info(`⚡ Sending INSTANT native greeting...`);
+
+        // Obtener audio nativo (WAV)
+        const greetingAudio = await voiceServices.getWelcomeAudio();
+
+        if (greetingAudio && greetingAudio.type === 'native' && greetingAudio.data) {
+          logger.info('[TTS] ✅ Using NATIVE voice file for greeting (Instant load)');
+          const audioBase64 = greetingAudio.data.toString('base64');
+          ws.send(JSON.stringify({
+            route: 'audio',
+            action: 'tts',
+            payload: {
+              audio: audioBase64,
+              format: 'wav',
+              text: greetingText,
+              isWelcome: true, // Flag para cliente (playbackRate = 1.0)
+              isNative: true
+            }
+          }));
+          logger.info('✅ Initial greeting sent (NATIVE VOICE)');
+        } else {
+          // Fallback de emergencia si falla el nativo (no debería ocurrir)
+          logger.error('[TTS] ❌ Native audio failed/missing, falling back to TTS');
+          await handleGreetingFallback(greetingText, ws, voiceServices);
+        }
+
+      } catch (error) {
+        logger.error('Error generating initial greeting:', error);
         ws.send(JSON.stringify({
-          route: 'audio',
-          action: 'tts',
+          route: 'error',
+          action: 'message',
           payload: {
-            audio: audioBase64,
-            format: 'wav',
-            text: greetingText,
-            isWelcome: true,
-            isNative: true
+            error: 'Initial greeting failed',
+            message: error.message
           }
         }));
-        logger.info('✅ Initial greeting sent (NATIVE VOICE)');
-        return;
       }
-      
-      // Fallback to REST API if native not available
-      if (greetingAudio.type === 'tts' && greetingAudio.data) {
-        logger.info('[TTS] ✅ Using Deepgram REST API for greeting (MP3 fallback)');
-        ws.send(JSON.stringify({
-          route: 'audio',
-          action: 'tts',
-          payload: {
-            audio: greetingAudio.data,
-            format: 'mp3',
-            text: greetingText,
-            isWelcome: true
-          }
-        }));
-        logger.info('✅ Initial greeting sent (REST API)');
-        return;
-      }
-      
-      // ⚠️ If we get here, something unexpected happened
-      logger.error('[TTS] ❌ Unexpected greetingAudio type:', greetingAudio.type);
-      throw new Error(`Unexpected audio type: ${greetingAudio.type}`);
-      
-    } catch (streamingError) {
-      logger.warn('[TTS] Streaming failed, falling back to REST:', streamingError);
-      // Fall through to REST fallback
     }
-    
-    // Fallback to REST API
-    await handleGreetingFallback(greetingText, ws, voiceServices);
-    
-  } catch (error) {
-    logger.error('Error generating initial greeting:', error);
-    ws.send(JSON.stringify({
-      route: 'error',
-      action: 'message',
-      payload: {
-        error: 'Initial greeting failed',
-        message: error.message
-      }
-    }));
-  }
-}
