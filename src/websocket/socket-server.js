@@ -1030,50 +1030,11 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
             // Throttle: avoid spamming the UI (max ~4 msgs/sec) and skip duplicates
             if (interim === lastText && (now - lastAt) < 1500) return;
 
-            // 🚀 FULL DUPLEX: Si el usuario habla (interim > 1 char), notificar para ajuste dinámico de volumen
-            // NO enviar stop_audio - solo notificar para que el cliente ajuste volúmenes (sin pausar)
-            if (interim && interim.trim().length > 1) {
-              // Si el usuario no estaba hablando antes, notificar que empezó
-              if (!deepgramData?.isUserSpeaking) {
-                deepgramData.isUserSpeaking = true;
-                ws.send(JSON.stringify({
-                  route: 'audio',
-                  action: 'user_speaking',
-                  payload: { 
-                    reason: 'user_voice_detected',
-                    level: 'active' // Usuario hablando activamente
-                  }
-                }));
-                logger.debug('[FULL DUPLEX] 🎤 Usuario empezó a hablar - notificando para ajuste dinámico de volumen');
-              }
-              
-              // Resetear timeout de "usuario calló" - el usuario sigue hablando
-              if (deepgramData?.userSpeakingTimeout) {
-                clearTimeout(deepgramData.userSpeakingTimeout);
-                deepgramData.userSpeakingTimeout = null;
-              }
-              
-              // Configurar timeout para detectar cuando el usuario deja de hablar (1 segundo sin interim)
-              if (deepgramData) {
-                deepgramData.userSpeakingTimeout = setTimeout(() => {
-                  if (deepgramData?.isUserSpeaking) {
-                    deepgramData.isUserSpeaking = false;
-                    ws.send(JSON.stringify({
-                      route: 'audio',
-                      action: 'user_stopped',
-                      payload: { 
-                        reason: 'user_silence_detected',
-                        silenceDuration: 1000 // 1 segundo de silencio
-                      }
-                    }));
-                    logger.debug('[FULL DUPLEX] 🔇 Usuario calló (1s sin interim) - restaurando volúmenes');
-                  }
-                  if (deepgramData) {
-                    deepgramData.userSpeakingTimeout = null;
-                  }
-                }, 1000); // 1 segundo de silencio = usuario calló
-              }
-            }
+            // 🚀 PIPELINE CALL CENTER: NO enviar ningún mensaje de user_speaking/user_stopped
+            // NO hay barge-in, NO hay ajuste de volúmenes, NO hay cortes
+            // El sistema es completamente fluido - ambos pueden hablar a la vez sin interferencia
+            // El cliente ignora estos mensajes de todas formas, pero no los enviamos para evitar confusión
+            // Solo procesar la transcripción normalmente, sin notificaciones especiales
 
             if ((now - lastAt) < 250) return;
 
