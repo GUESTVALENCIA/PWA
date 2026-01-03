@@ -717,7 +717,11 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
         lastFinalizedTranscript: '', // Track last finalized transcript to prevent duplicates
         lastFinalizedTimestamp: 0, // Timestamp of last finalized transcript
         processingTranscript: null, // Currently processing transcript (to prevent race conditions)
-        greetingSent: false // 🎯 CALL CENTER FEEDBACK: Flag para evitar saludos duplicados
+        greetingSent: false, // 🎯 CALL CENTER FEEDBACK: Flag para evitar saludos duplicados
+        // 🚀 BUFFER INTELIGENTE: Procesamiento temprano de respuestas
+        pendingAIResponse: null, // Respuesta de IA generada anticipadamente (interim)
+        pendingAIRequest: null, // AbortController para cancelar request anticipado
+        lastInterimProcessedAt: 0 // Timestamp de última transcripción interim procesada
       };
       deepgramConnections.set(agentId, deepgramData);
 
@@ -840,15 +844,39 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
           // No necesitamos marcarlo de nuevo aquí
 
           try {
-            // Process with AI
-            logger.info(`🤖 Processing transcript with AI: "${transcript.substring(0, 50)}${transcript.length > 50 ? '...' : ''}"`);
+            // 🚀 BUFFER INTELIGENTE: Verificar si ya tenemos respuesta anticipada
+            let aiResponse = null;
             
-            // 🎯 CALL CENTER FEEDBACK: Pasar contexto de conversación a la IA
-            const conversationContext = {
-              greetingSent: deepgramData?.greetingSent === true
-            };
-            
-            const aiResponse = await voiceServices.ai.processMessage(transcript, conversationContext);
+            if (deepgramData?.pendingAIResponse) {
+              // ✅ Latencia cero: usar respuesta del buffer inteligente
+              aiResponse = deepgramData.pendingAIResponse;
+              deepgramData.pendingAIResponse = null;
+              
+              // Limpiar request pendiente
+              if (deepgramData.pendingAIRequest) {
+                deepgramData.pendingAIRequest = null;
+              }
+              
+              logger.info(`[BUFFER INTELIGENTE] ⚡ Usando respuesta anticipada: "${aiResponse.substring(0, 50)}..."`);
+            } else {
+              // Procesar normalmente si no hay respuesta anticipada
+              logger.info(`🤖 Processing transcript with AI: "${transcript.substring(0, 50)}${transcript.length > 50 ? '...' : ''}"`);
+              
+              // Cancelar cualquier request pendiente
+              if (deepgramData?.pendingAIRequest) {
+                try {
+                  deepgramData.pendingAIRequest.abort();
+                } catch (e) { }
+                deepgramData.pendingAIRequest = null;
+              }
+              
+              // 🎯 CALL CENTER FEEDBACK: Pasar contexto de conversación a la IA
+              const conversationContext = {
+                greetingSent: deepgramData?.greetingSent === true
+              };
+              
+              aiResponse = await voiceServices.ai.processMessage(transcript, conversationContext);
+            }
 
             if (!aiResponse || aiResponse.trim().length === 0) {
               logger.error('[AI] Empty response received from AI');
@@ -978,6 +1006,39 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                 language: 'es'
               }
             }));
+
+            // 🚀 BUFFER INTELIGENTE: Procesar transcripción interim para generar respuesta temprana
+            // Solo procesar si:
+            // 1. Tiene al menos 3 palabras (suficiente contexto)
+            // 2. Han pasado al menos 400ms desde última transcripción procesada
+            // 3. No hay una respuesta pendiente ya
+            // 4. No está procesando una transcripción finalizada
+            const words = interim.trim().split(/\s+/).filter(w => w.length > 0);
+            const shouldProcessEarly = words.length >= 3 && 
+                                       (now - (deepgramData?.lastInterimProcessedAt || 0)) >= 400 &&
+                                       !deepgramData?.pendingAIResponse &&
+                                       !deepgramData?.isProcessing;
+
+            if (shouldProcessEarly && deepgramData) {
+              // Cancelar request anterior si existe
+              if (deepgramData.pendingAIRequest) {
+                try {
+                  deepgramData.pendingAIRequest.abort();
+                } catch (e) { }
+                deepgramData.pendingAIRequest = null;
+              }
+
+              // Generar respuesta en paralelo (no bloqueante)
+              deepgramData.lastInterimProcessedAt = now;
+              const controller = new AbortController();
+              deepgramData.pendingAIRequest = controller;
+
+              processInterimTranscript(interim, ws, voiceServices, agentId, deepgramData, controller).catch(err => {
+                if (err.name !== 'AbortError') {
+                  logger.debug('[BUFFER INTELIGENTE] Error procesando interim:', err.message);
+                }
+              });
+            }
           } catch (_) { }
         },
         onError: (error) => {
@@ -1207,6 +1268,58 @@ async function handleAudioTTS(payload, ws, voiceServices) {
         message: error.message
       }
     }));
+  }
+}
+
+/**
+ * 🚀 BUFFER INTELIGENTE: Procesar transcripción interim para generar respuesta anticipada
+ * Esta función genera la respuesta de IA ANTES de que el usuario termine de hablar,
+ * reduciendo la latencia percibida a casi cero
+ */
+async function processInterimTranscript(interimText, ws, voiceServices, agentId, deepgramData, abortController) {
+  try {
+    if (!voiceServices || !voiceServices.ai) {
+      return;
+    }
+
+    logger.debug(`[BUFFER INTELIGENTE] 🧠 Procesando transcripción interim: "${interimText.substring(0, 50)}..."`);
+
+    // 🎯 CALL CENTER FEEDBACK: Pasar contexto de conversación
+    const conversationContext = {
+      greetingSent: deepgramData?.greetingSent === true
+    };
+
+    // Generar respuesta de IA (sin bloquear, puede ser cancelada)
+    const aiResponse = await voiceServices.ai.processMessage(interimText, conversationContext);
+
+    // Verificar si fue cancelada
+    if (abortController?.signal?.aborted) {
+      logger.debug('[BUFFER INTELIGENTE] ⏹️ Respuesta cancelada (usuario continuó hablando)');
+      return;
+    }
+
+    // Verificar si ya se procesó una transcripción finalizada
+    if (deepgramData?.isProcessing) {
+      logger.debug('[BUFFER INTELIGENTE] ⏹️ Respuesta ignorada (ya se procesó transcripción finalizada)');
+      return;
+    }
+
+    // Guardar respuesta en buffer
+    if (deepgramData) {
+      deepgramData.pendingAIResponse = aiResponse;
+      deepgramData.pendingAIRequest = null;
+      logger.info(`[BUFFER INTELIGENTE] ✅ Respuesta anticipada generada: "${aiResponse.substring(0, 50)}..."`);
+    }
+
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      logger.debug('[BUFFER INTELIGENTE] ⏹️ Procesamiento cancelado');
+    } else {
+      logger.debug('[BUFFER INTELIGENTE] ❌ Error:', error.message);
+    }
+    if (deepgramData) {
+      deepgramData.pendingAIRequest = null;
+    }
   }
 }
 
