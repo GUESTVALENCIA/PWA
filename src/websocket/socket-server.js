@@ -27,7 +27,7 @@ const agentConnections = new Map();
 // Deepgram streaming connections: Map<agentId, { connection, isProcessing, greetingSent }>
 const deepgramConnections = new Map();
 // 🚀 GPT-4o: Mapa de sesiones por sessionId para mantener estado entre reconexiones
-const sessionMap = new Map(); // Map<sessionId, { agentId, greetingSent, lastTranscript, createdAt }>
+const sessionMap = new Map(); // Map<sessionId, { agentId, greetingSent, lastFinalizedTranscript, lastAIResponse, createdAt, lastUpdatedAt, lastReconnectedAt }>
 // Voice Agent connections: Map<agentId, { agent, isProcessing }>
 const voiceAgentConnections = new Map();
 // Track agents where STT is not available (prevents error spam)
@@ -561,16 +561,22 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices) {
           
           if (existingSession) {
             // Sesión existente encontrada - restaurar estado
-            logger.info(`[PIPELINE ROBUSTO] ✅ Sesión ${sessionId} encontrada - restaurando estado`, {
+            logger.info(`[PIPELINE ROBUSTO] ✅ Sesión ${sessionId} encontrada - restaurando estado completo`, {
               greetingSent: existingSession.greetingSent,
-              lastTranscript: existingSession.lastTranscript?.substring(0, 50),
+              lastFinalizedTranscript: existingSession.lastFinalizedTranscript?.substring(0, 50),
+              lastAIResponse: existingSession.lastAIResponse?.substring(0, 50),
               createdAt: existingSession.createdAt
             });
             
-            // Restaurar greetingSent en deepgramData si existe
+            // 🚀 GPT-4o: Restaurar estado completo en deepgramData
             if (deepgramData) {
               deepgramData.greetingSent = existingSession.greetingSent;
               deepgramData.sessionId = sessionId;
+              deepgramData.lastFinalizedTranscript = existingSession.lastFinalizedTranscript || '';
+              deepgramData.lastAIResponse = existingSession.lastAIResponse || null;
+              if (existingSession.lastAIResponse) {
+                deepgramData.lastAIResponseTimestamp = Date.now(); // Aproximado
+              }
             }
             
             // Actualizar agentId en la sesión (puede cambiar en reconexión)
@@ -598,8 +604,10 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices) {
             sessionMap.set(sessionId, {
               agentId: agentId,
               greetingSent: false,
-              lastTranscript: null,
+              lastFinalizedTranscript: null, // 🚀 GPT-4o: Cambiado de lastTranscript
+              lastAIResponse: null, // 🚀 GPT-4o: Añadido para contexto
               createdAt: new Date().toISOString(),
+              lastUpdatedAt: null,
               lastReconnectedAt: null
             });
             
@@ -1072,10 +1080,18 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                 deepgramData.pendingAIRequest = null;
               }
               
-              // 🎯 CALL CENTER FEEDBACK: Pasar contexto de conversación a la IA
+              // 🚀 GPT-4o: Pasar contexto completo de conversación a la IA
               const conversationContext = {
-                greetingSent: deepgramData?.greetingSent === true
+                greetingSent: deepgramData?.greetingSent === true,
+                lastFinalizedTranscript: deepgramData?.lastFinalizedTranscript || null, // 🚀 GPT-4o: Contexto previo
+                lastAIResponse: deepgramData?.lastAIResponse || null // 🚀 GPT-4o: Última respuesta para coherencia
               };
+              
+              logger.info(`[PIPELINE ROBUSTO] 📋 Contexto enviado a IA:`, {
+                greetingSent: conversationContext.greetingSent,
+                hasLastTranscript: !!conversationContext.lastFinalizedTranscript,
+                hasLastResponse: !!conversationContext.lastAIResponse
+              });
               
               aiResponse = await voiceServices.ai.processMessage(transcript, conversationContext);
             }
@@ -1126,6 +1142,17 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                 if (deepgramData) {
                   deepgramData.lastAIResponse = aiResponse;
                   deepgramData.lastAIResponseTimestamp = Date.now();
+                  
+                  // 🚀 GPT-4o: Actualizar sessionMap con contexto de conversación
+                  if (deepgramData.sessionId) {
+                    const session = sessionMap.get(deepgramData.sessionId);
+                    if (session) {
+                      session.lastFinalizedTranscript = transcript;
+                      session.lastAIResponse = aiResponse;
+                      session.lastUpdatedAt = new Date().toISOString();
+                      logger.info(`[PIPELINE ROBUSTO] ✅ SessionMap actualizado con contexto para ${deepgramData.sessionId}`);
+                    }
+                  }
                   
                   // 🚀 PIPELINE ROBUSTO: Registrar envío de audio y calcular latencia total
                   deepgramData.latencyMetrics.audioSent = Date.now();
@@ -1221,17 +1248,18 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
             const wordCount = interimTrimmed.split(/\s+/).filter(w => w.length > 0).length;
             const charCount = interimTrimmed.length;
             
-            // Detectar si parece que el usuario terminó de hablar
-            // Criterios: puntuación final O (coma + 20+ caracteres) O (6+ palabras + 50+ caracteres)
-            const seemsComplete = hasPunctuation || 
-                                  (hasComma && charCount >= 20) || 
+            // 🚀 GPT-4o: Detección anticipada mejorada - NO procesar frases incompletas que generan "Parece que tu mensaje está incompleto"
+            // Criterios más estrictos: puntuación final Y (mínimo 4 palabras Y 30+ caracteres) O (6+ palabras Y 50+ caracteres)
+            // Esto evita procesar fragmentos como "una habitación para" que generan respuestas confusas
+            const seemsComplete = (hasPunctuation && wordCount >= 4 && charCount >= 30) || 
                                   (wordCount >= 6 && charCount >= 50);
             
-            // Si parece completa y no hay respuesta pendiente, procesar anticipadamente
+            // 🚀 GPT-4o: Aumentar umbral de silencio antes de procesar (de 400ms a 800ms)
+            // Esto da más tiempo para que el usuario complete la frase antes de procesar
             if (seemsComplete && !deepgramData?.pendingAIResponse && !deepgramData?.isProcessing) {
               const timeSinceLastProcess = now - (deepgramData?.lastInterimProcessedAt || 0);
-              // Solo procesar si han pasado al menos 400ms desde la última vez
-              if (timeSinceLastProcess >= 400) {
+              // Solo procesar si han pasado al menos 800ms desde la última vez (GPT-4o recomendación)
+              if (timeSinceLastProcess >= 800) {
                 logger.info(`[DETECCIÓN ANTICIPADA] 🎯 Frase parece completa: "${interimTrimmed.substring(0, 50)}..." - procesando anticipadamente`);
                 deepgramData.lastInterimProcessedAt = now;
                 deepgramData.latencyMetrics.transcriptionStart = now;
