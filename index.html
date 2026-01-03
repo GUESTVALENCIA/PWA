@@ -1598,6 +1598,38 @@
                         chunkIndex = 0;
                         return;
                       }
+                      
+                      // 🚀 GPT-4o: Verificar si necesitamos enviar silencio (usuario calló)
+                      const now = Date.now();
+                      const timeSinceLastAudio = now - (this.lastAudioSentAt || 0);
+                      // Si han pasado más de 500ms sin audio, iniciar timer de silencio
+                      if (timeSinceLastAudio > 500 && !this.silenceKeepAliveTimer) {
+                        this.silenceKeepAliveTimer = setTimeout(() => {
+                          // Enviar chunk de silencio para mantener conexión activa
+                          if (ws.readyState === WebSocket.OPEN && this.activeCall === ws) {
+                            const silenceChunk = new Int16Array(chunkSamples); // Ya está lleno de ceros (silencio)
+                            const base64Silence = arrayBufferToBase64(silenceChunk.buffer);
+                            const silenceMessage = {
+                              route: 'audio',
+                              action: 'stt',
+                              payload: {
+                                audio: base64Silence,
+                                format: 'linear16',
+                                encoding: 'linear16',
+                                sampleRate: targetSampleRate,
+                                channels: 1,
+                                mimeType: 'audio/raw',
+                                sessionId: this.sessionId,
+                                isSilence: true // 🚀 GPT-4o: Marcar como silencio para logging
+                              }
+                            };
+                            ws.send(JSON.stringify(silenceMessage));
+                            this.lastAudioSentAt = Date.now();
+                            console.log(`[PIPELINE ROBUSTO] 🔇 Enviando silencio keepalive (${timeSinceLastAudio}ms sin audio)`);
+                            this.silenceKeepAliveTimer = null; // Reset timer
+                          }
+                        }, 1000); // Enviar silencio cada 1s si no hay audio
+                      }
 
                       const input = e.inputBuffer.getChannelData(0);
                       const downsampled = downsampleBuffer(input, ctx.sampleRate, targetSampleRate);
@@ -1625,12 +1657,22 @@
                           // 🚀 PIPELINE ROBUSTO: Almacenar en buffer para reenvío en caso de corte
                           this.audioBuffer.push(audioMessage);
                           if (this.audioBuffer.length > this.maxBufferSize) {
-                            this.audioBuffer.shift(); // Mantener solo últimos 2s
+                            this.audioBuffer.shift(); // Mantener solo últimos 4s (GPT-4o recomendación)
+                          }
+                          
+                          // 🚀 GPT-4o: Actualizar timestamp de último audio enviado
+                          this.lastAudioSentAt = Date.now();
+                          
+                          // 🚀 GPT-4o: Cancelar timer de silencio si hay audio real
+                          if (this.silenceKeepAliveTimer) {
+                            clearTimeout(this.silenceKeepAliveTimer);
+                            this.silenceKeepAliveTimer = null;
                           }
                           
                           // Enviar si la conexión está abierta
                           if (ws.readyState === WebSocket.OPEN) {
                             ws.send(JSON.stringify(audioMessage));
+                            console.log(`[PIPELINE ROBUSTO] 📤 Audio enviado (buffer: ${this.audioBuffer.length}/${this.maxBufferSize} chunks)`);
                           }
                           
                           chunkBuffer = new Int16Array(chunkSamples);
@@ -2110,12 +2152,21 @@
         };
 
         // 🚀 PIPELINE ROBUSTO: Buffer de reenvío para manejar cortes de red
-        this.audioBuffer = []; // Almacenar últimos 2s de audio (8 chunks de 250ms)
-        this.maxBufferSize = 8; // 2 segundos a 250ms por chunk
-        this.sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        this.audioBuffer = []; // Almacenar últimos 3-4s de audio (12-16 chunks de 250ms)
+        this.maxBufferSize = 16; // 🚀 GPT-4o: Aumentado a 4 segundos (16 chunks) para reconexiones más lentas
+        // 🚀 GPT-4o: sessionId debe mantenerse entre reconexiones - NO regenerar
+        if (!this.sessionId) {
+          this.sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+          console.log(`[PIPELINE ROBUSTO] 🆔 Nueva sesión creada: ${this.sessionId}`);
+        } else {
+          console.log(`[PIPELINE ROBUSTO] 🔄 Manteniendo sessionId existente: ${this.sessionId}`);
+        }
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 3;
         this.reconnectDelay = 1000; // 1 segundo inicial
+        // 🚀 GPT-4o: Timer para enviar silencio cuando el usuario deja de hablar
+        this.silenceKeepAliveTimer = null;
+        this.lastAudioSentAt = Date.now();
 
         ws.onclose = (event) => {
           console.log('[MCP] WebSocket cerrado', { code: event.code, reason: event.reason, wasClean: event.wasClean });
