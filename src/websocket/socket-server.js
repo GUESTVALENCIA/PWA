@@ -3,6 +3,7 @@
  * Handles agent connections and broadcasts state changes
  */
 
+import { WebSocket } from 'ws';
 import logger from '../utils/logger.js';
 import fs from 'fs';
 import path from 'path';
@@ -41,7 +42,7 @@ const sttErrorAgents = new Set();
  * @param {Object} voiceServices - Legacy voice services (deprecated - using VoiceAgentService)
  */
 // Socket Server - Full Duplex Optimized v1.1
-const WebSocket = require('ws');
+
 export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonService, voiceServices = null) {
   // #region agent log
   debugLog('socket-server.js:18', 'initWebSocketServer called', { voiceServicesIsNull: voiceServices === null, hasVoiceServices: !!voiceServices, hasDeepgram: !!voiceServices?.deepgram, hasAI: !!voiceServices?.ai, hasWelcomeAudio: !!voiceServices?.getWelcomeAudio }, 'E');
