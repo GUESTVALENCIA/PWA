@@ -10,10 +10,13 @@
     "build:tailwind": "tailwindcss -c tailwind.config.cjs -i styles/tailwind.css -o assets/tailwind.css --minify",
     "setup": "node scripts/setup.js",
     "test": "jest --detectOpenHandles",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "mcp:start": "node mcp-server-chatgpt.js",
+    "mcp:test": "node test-mcp-server.js"
   },
   "dependencies": {
     "@deepgram/sdk": "^3.13.0",
+    "@modelcontextprotocol/sdk": "^1.25.1",
     "@neondatabase/serverless": "^0.9.0",
     "axios": "^1.6.2",
     "bcryptjs": "^2.4.3",
