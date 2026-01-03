@@ -721,7 +721,10 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
         // 🚀 BUFFER INTELIGENTE: Procesamiento temprano de respuestas
         pendingAIResponse: null, // Respuesta de IA generada anticipadamente (interim)
         pendingAIRequest: null, // AbortController para cancelar request anticipado
-        lastInterimProcessedAt: 0 // Timestamp de última transcripción interim procesada
+        lastInterimProcessedAt: 0, // Timestamp de última transcripción interim procesada
+        // 🛡️ PROTECCIÓN CONTRA ECO: Evitar que IA se escuche a sí misma
+        lastAIResponse: null, // Última respuesta de IA enviada (para evitar eco)
+        lastAIResponseTimestamp: 0 // Timestamp de última respuesta de IA
       };
       deepgramConnections.set(agentId, deepgramData);
 
@@ -813,6 +816,40 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
             return;
           }
 
+          // 🚀 FILTRO: Ignorar transcripciones muy cortas o solo saludos después del saludo inicial
+          if (deepgramData?.greetingSent === true) {
+            const transcriptLower = transcriptNormalized.toLowerCase().trim();
+            const isOnlyGreeting = /^(hola|buenos días|buenas tardes|buenas noches|hey|hi)[\s,\.!]*$/i.test(transcriptLower);
+            const isTooShort = transcriptNormalized.trim().length < 3;
+            
+            if (isOnlyGreeting || isTooShort) {
+              logger.debug('[FILTRO] ⏭️ Ignorando transcripción (solo saludo o muy corta después del saludo inicial)', {
+                transcript: transcriptNormalized,
+                isOnlyGreeting,
+                isTooShort
+              });
+              return;
+            }
+          }
+
+          // 🛡️ PROTECCIÓN CONTRA ECO: No procesar si la transcripción coincide con la última respuesta de IA
+          // Esto evita que la IA se escuche a sí misma y se responda
+          if (deepgramData?.lastAIResponse && (now - deepgramData.lastAIResponseTimestamp) < 5000) {
+            const lastResponseLower = deepgramData.lastAIResponse.toLowerCase().trim();
+            const transcriptLower = transcriptNormalized.toLowerCase().trim();
+            
+            // Verificar si la transcripción es similar a la última respuesta (posible eco)
+            const similarity = calculateSimilarity(transcriptLower, lastResponseLower);
+            if (similarity > 0.7) {
+              logger.debug('[PROTECCIÓN ECO] 🛡️ Ignorando transcripción (posible eco de respuesta de IA)', {
+                transcript: transcriptNormalized.substring(0, 50),
+                lastResponse: deepgramData.lastAIResponse.substring(0, 50),
+                similarity: similarity.toFixed(2)
+              });
+              return;
+            }
+          }
+
           // ✅ VALID TRANSCRIPT - Process it
           logger.info(`[DEEPGRAM] ✅ Utterance finalized (${message?.type || 'unknown'}): "${transcriptNormalized}"`);
 
@@ -901,6 +938,12 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
               });
 
               if (responseAudio.type === 'tts' && responseAudio.data) {
+                // 🛡️ PROTECCIÓN CONTRA ECO: Guardar última respuesta de IA
+                if (deepgramData) {
+                  deepgramData.lastAIResponse = aiResponse;
+                  deepgramData.lastAIResponseTimestamp = Date.now();
+                }
+                
                 ws.send(JSON.stringify({
                   route: 'audio',
                   action: 'tts',
@@ -1269,6 +1312,31 @@ async function handleAudioTTS(payload, ws, voiceServices) {
       }
     }));
   }
+}
+
+/**
+ * 🛡️ PROTECCIÓN CONTRA ECO: Calcular similitud entre dos textos
+ * Retorna un valor entre 0 (completamente diferente) y 1 (idéntico)
+ */
+function calculateSimilarity(text1, text2) {
+  if (!text1 || !text2) return 0;
+  if (text1 === text2) return 1;
+  
+  // Normalizar: remover puntuación y espacios extra
+  const normalize = (str) => str.replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const n1 = normalize(text1);
+  const n2 = normalize(text2);
+  
+  if (n1 === n2) return 1;
+  if (n1.length === 0 || n2.length === 0) return 0;
+  
+  // Calcular similitud simple: palabras comunes
+  const words1 = new Set(n1.split(/\s+/));
+  const words2 = new Set(n2.split(/\s+/));
+  const intersection = new Set([...words1].filter(x => words2.has(x)));
+  const union = new Set([...words1, ...words2]);
+  
+  return intersection.size / union.size;
 }
 
 /**
