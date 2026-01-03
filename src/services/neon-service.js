@@ -64,6 +64,87 @@ class NeonService {
         } catch (tableError) {
           logger.warn('⚠️ Error creating conversation_buffer table (may already exist):', tableError.message);
         }
+
+        // 🚀 MEMORIA PERSISTENTE: Crear tabla call_logs para registro de llamadas
+        try {
+          await this.sql(`
+            CREATE TABLE IF NOT EXISTS call_logs (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              call_id VARCHAR(255) UNIQUE NOT NULL,
+              session_id VARCHAR(255) NOT NULL,
+              agent_id VARCHAR(100) NOT NULL,
+              ip_address VARCHAR(45),
+              country VARCHAR(100),
+              city VARCHAR(100),
+              timezone VARCHAR(100),
+              language VARCHAR(10) DEFAULT 'es',
+              start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              end_time TIMESTAMP,
+              user_name VARCHAR(255),
+              intent VARCHAR(100),
+              conversation_history JSONB DEFAULT '[]',
+              booking_details JSONB DEFAULT '{}',
+              negotiation_data JSONB DEFAULT '{}',
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+          `);
+          
+          await this.sql(`
+            CREATE INDEX IF NOT EXISTS idx_call_logs_ip 
+            ON call_logs (ip_address)
+          `);
+          await this.sql(`
+            CREATE INDEX IF NOT EXISTS idx_call_logs_session 
+            ON call_logs (session_id)
+          `);
+          await this.sql(`
+            CREATE INDEX IF NOT EXISTS idx_call_logs_agent 
+            ON call_logs (agent_id)
+          `);
+          await this.sql(`
+            CREATE INDEX IF NOT EXISTS idx_call_logs_start_time 
+            ON call_logs (start_time DESC)
+          `);
+          
+          logger.info('✅ Call logs table created/verified');
+        } catch (tableError) {
+          logger.warn('⚠️ Error creating call_logs table (may already exist):', tableError.message);
+        }
+
+        // 🚀 MEMORIA PERSISTENTE: Crear tabla properties para cache de disponibilidad
+        try {
+          await this.sql(`
+            CREATE TABLE IF NOT EXISTS properties (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              property_id VARCHAR(255) UNIQUE NOT NULL,
+              name VARCHAR(255),
+              location VARCHAR(255),
+              availability_data JSONB DEFAULT '{}',
+              pricing_data JSONB DEFAULT '{}',
+              amenities JSONB DEFAULT '[]',
+              last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+          `);
+          
+          await this.sql(`
+            CREATE INDEX IF NOT EXISTS idx_properties_property_id 
+            ON properties (property_id)
+          `);
+          await this.sql(`
+            CREATE INDEX IF NOT EXISTS idx_properties_location 
+            ON properties (location)
+          `);
+          await this.sql(`
+            CREATE INDEX IF NOT EXISTS idx_properties_last_updated 
+            ON properties (last_updated DESC)
+          `);
+          
+          logger.info('✅ Properties table created/verified');
+        } catch (tableError) {
+          logger.warn('⚠️ Error creating properties table (may already exist):', tableError.message);
+        }
         
         this.initialized = true;
         logger.info('✅ Database connection verified');
@@ -556,31 +637,281 @@ class NeonService {
    * Get conversation context for AI
    * Returns formatted context from recent exchanges
    */
-  async getConversationContext(sessionId, limit = 5) {
+  getConversationContext(history) {
+    if (!history || history.length === 0) return [];
+    return history.map(exchange => ({
+      user: exchange.user_transcript,
+      assistant: exchange.ai_response,
+      timestamp: exchange.created_at
+    }));
+  }
+
+  /**
+   * Clean old conversations (older than 30 days)
+   */
+  async cleanOldConversations(days = 30) {
     try {
-      const history = await this.getConversationHistory(sessionId, limit);
-      return history.map(exchange => ({
-        user: exchange.user_transcript,
-        assistant: exchange.ai_response,
-        timestamp: exchange.created_at
-      }));
+      const result = await this.sql(
+        `DELETE FROM conversation_buffer 
+         WHERE created_at < NOW() - INTERVAL '${days} days'`
+      );
+      logger.info(`[NEON] ✅ Cleaned ${result.length || 0} old conversation exchanges`);
+      return result;
     } catch (error) {
-      logger.error('[NEON] Error getting conversation context:', error);
+      logger.error('[NEON] Error cleaning old conversations:', error);
+      return [];
+    }
+  }
+
+  // ========================================================================
+  // CALL LOGS OPERATIONS - Memoria Persistente
+  // ========================================================================
+
+  /**
+   * Create or update call log entry
+   * @param {Object} callData - Call information
+   */
+  async createOrUpdateCallLog(callData) {
+    try {
+      const {
+        callId,
+        sessionId,
+        agentId,
+        ipAddress,
+        country,
+        city,
+        timezone,
+        language = 'es'
+      } = callData;
+
+      // Check if call log exists
+      const existing = await this.sql(
+        `SELECT * FROM call_logs WHERE call_id = $1`,
+        [callId]
+      );
+
+      if (existing && existing.length > 0) {
+        // Update existing
+        const result = await this.sql(
+          `UPDATE call_logs 
+           SET updated_at = CURRENT_TIMESTAMP,
+               session_id = COALESCE($2, session_id),
+               agent_id = COALESCE($3, agent_id),
+               ip_address = COALESCE($4, ip_address),
+               country = COALESCE($5, country),
+               city = COALESCE($6, city),
+               timezone = COALESCE($7, timezone),
+               language = COALESCE($8, language)
+           WHERE call_id = $1
+           RETURNING *`,
+          [callId, sessionId, agentId, ipAddress, country, city, timezone, language]
+        );
+        return result[0];
+      } else {
+        // Create new
+        const result = await this.sql(
+          `INSERT INTO call_logs (call_id, session_id, agent_id, ip_address, country, city, timezone, language)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           RETURNING *`,
+          [callId, sessionId, agentId, ipAddress, country, city, timezone, language]
+        );
+        logger.info(`[NEON] ✅ Call log created for ${callId}`);
+        return result[0];
+      }
+    } catch (error) {
+      logger.error('[NEON] Error creating/updating call log:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get call history for an IP address
+   * Returns recent calls from the same IP for context
+   */
+  async getCallHistoryByIP(ipAddress, limit = 5) {
+    try {
+      const result = await this.sql(
+        `SELECT * FROM call_logs 
+         WHERE ip_address = $1 
+         ORDER BY start_time DESC 
+         LIMIT $2`,
+        [ipAddress, limit]
+      );
+      return result;
+    } catch (error) {
+      logger.error('[NEON] Error getting call history by IP:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Update call log with conversation data
+   */
+  async updateCallLogConversation(callId, conversationData) {
+    try {
+      const {
+        userTranscript,
+        aiResponse,
+        intent,
+        bookingDetails,
+        negotiationData
+      } = conversationData;
+
+      // Get current conversation history
+      const current = await this.sql(
+        `SELECT conversation_history FROM call_logs WHERE call_id = $1`,
+        [callId]
+      );
+      
+      const history = current[0]?.conversation_history || [];
+      history.push({
+        user: userTranscript,
+        assistant: aiResponse,
+        timestamp: new Date().toISOString()
+      });
+
+      const result = await this.sql(
+        `UPDATE call_logs 
+         SET conversation_history = $2,
+             intent = COALESCE($3, intent),
+             booking_details = COALESCE($4, booking_details),
+             negotiation_data = COALESCE($5, negotiation_data),
+             updated_at = CURRENT_TIMESTAMP
+         WHERE call_id = $1
+         RETURNING *`,
+        [
+          callId,
+          JSON.stringify(history),
+          intent || null,
+          bookingDetails ? JSON.stringify(bookingDetails) : null,
+          negotiationData ? JSON.stringify(negotiationData) : null
+        ]
+      );
+      return result[0];
+    } catch (error) {
+      logger.error('[NEON] Error updating call log conversation:', error);
+      return null;
+    }
+  }
+
+  /**
+   * End call - update end_time
+   */
+  async endCall(callId) {
+    try {
+      const result = await this.sql(
+        `UPDATE call_logs 
+         SET end_time = CURRENT_TIMESTAMP,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE call_id = $1
+         RETURNING *`,
+        [callId]
+      );
+      return result[0];
+    } catch (error) {
+      logger.error('[NEON] Error ending call:', error);
+      return null;
+    }
+  }
+
+  // ========================================================================
+  // PROPERTIES OPERATIONS - Cache de Disponibilidad
+  // ========================================================================
+
+  /**
+   * Get property availability from cache
+   */
+  async getPropertyAvailability(propertyId) {
+    try {
+      const result = await this.sql(
+        `SELECT * FROM properties WHERE property_id = $1`,
+        [propertyId]
+      );
+      return result[0] || null;
+    } catch (error) {
+      logger.error('[NEON] Error getting property availability:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Update property availability cache
+   */
+  async updatePropertyAvailability(propertyId, availabilityData, pricingData) {
+    try {
+      const existing = await this.sql(
+        `SELECT * FROM properties WHERE property_id = $1`,
+        [propertyId]
+      );
+
+      if (existing && existing.length > 0) {
+        // Update
+        const result = await this.sql(
+          `UPDATE properties 
+           SET availability_data = $2,
+               pricing_data = $3,
+               last_updated = CURRENT_TIMESTAMP
+           WHERE property_id = $1
+           RETURNING *`,
+          [
+            propertyId,
+            JSON.stringify(availabilityData),
+            JSON.stringify(pricingData)
+          ]
+        );
+        return result[0];
+      } else {
+        // Create
+        const result = await this.sql(
+          `INSERT INTO properties (property_id, availability_data, pricing_data)
+           VALUES ($1, $2, $3)
+           RETURNING *`,
+          [
+            propertyId,
+            JSON.stringify(availabilityData),
+            JSON.stringify(pricingData)
+          ]
+        );
+        return result[0];
+      }
+    } catch (error) {
+      logger.error('[NEON] Error updating property availability:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get properties by location
+   */
+  async getPropertiesByLocation(location, limit = 20) {
+    try {
+      const result = await this.sql(
+        `SELECT * FROM properties 
+         WHERE location ILIKE $1 
+         ORDER BY last_updated DESC 
+         LIMIT $2`,
+        [`%${location}%`, limit]
+      );
+      return result;
+    } catch (error) {
+      logger.error('[NEON] Error getting properties by location:', error);
+      return [];
+    }
+  }
       return [];
     }
   }
 
   /**
    * Clean old conversation buffers (non-persistent memory)
-   * Removes conversations older than specified hours
+   * Removes conversations older than specified days
    */
-  async cleanOldConversations(hoursOld = 24) {
+  async cleanOldConversations(days = 30) {
     try {
       const result = await this.sql(
         `DELETE FROM conversation_buffer
-         WHERE created_at < NOW() - INTERVAL '${hoursOld} hours'
-         RETURNING id`,
-        []
+         WHERE created_at < NOW() - INTERVAL '${days} days'
+         RETURNING id`
       );
       logger.info(`[NEON] 🧹 Cleaned ${result.length} old conversation exchanges`);
       return result.length;
