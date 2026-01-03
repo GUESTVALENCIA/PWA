@@ -1137,19 +1137,15 @@
       }
 
       playRingtone() {
-        // Legacy method - redirects to playRingtoneAfterConnection with no callback
+        // 🚀 ELIMINADO: Código legacy que causaba llamadas duplicadas
+        // Este método ya no inicia llamadas - solo reproduce ringtones
+        // Las llamadas se inician desde startConversationalCall() -> startRealTimeCall()
+        console.warn('[LEGACY] playRingtone() llamado - método legacy, no debe iniciar llamadas');
         this.playRingtoneAfterConnection(() => {
-          // Old behavior: start call after ringtones
+          // Solo actualizar UI, NO iniciar llamada (ya se inició desde startConversationalCall)
           if (!this.chatLocked) return;
-          console.log('🔔 Segundo ring completado (legacy mode)');
+          console.log('🔔 Segundo ring completado');
           this.setHeroCallActive(true);
-          if (this.useVideo) {
-            this.transitionHeroToVideo();
-            this.startVideoStream();
-          } else {
-            // This should not happen in new flow, but keep for backward compatibility
-            this.startRealTimeCall();
-          }
         });
       }
 
@@ -1253,10 +1249,15 @@
 
       startVideoStream() {
         console.log('🎬 Iniciando stream de video...');
+        // 🚀 ELIMINADO: Llamada duplicada a startRealTimeCall()
+        // La llamada ya se inició desde startConversationalCall() -> startRealTimeCall()
+        // Este método solo maneja el video, NO debe iniciar la llamada
+        
         if (!this.useVideo) {
-          this.startRealTimeCall();
+          // Si no hay video, solo actualizar UI - la llamada ya está activa
           return;
         }
+        
         const heroVideo = document.getElementById('hero-video');
         const videoSource = heroVideo.querySelector('source');
 
@@ -1265,8 +1266,7 @@
           heroVideo.load();
           heroVideo.play().catch(e => console.log('Error al reproducir video:', e));
         }
-        // Start Real Time Call (WebSocket + Audio Capture)
-        this.startRealTimeCall();
+        // 🚀 NO llamar startRealTimeCall() aquí - ya se llamó desde startConversationalCall()
       }
 
       async getMcpConfig() {
@@ -1461,6 +1461,12 @@
       }
 
       async startRealTimeCall() {
+        // 🚀 PROTECCIÓN: Verificar que no hay una llamada activa antes de crear nueva conexión
+        if (this.activeCall && (this.activeCall.readyState === WebSocket.CONNECTING || this.activeCall.readyState === WebSocket.OPEN)) {
+          console.warn('[MCP] ⚠️ Ya hay una llamada activa, ignorando llamada duplicada');
+          return;
+        }
+
         // Ocultar prompt de llamada cuando inicia la llamada real
         const callPrompt = document.getElementById('sandra-call-prompt');
         if (callPrompt) callPrompt.style.display = 'none';
@@ -2178,24 +2184,33 @@
             
             setTimeout(async () => {
               try {
-                const cfg = await this.getMcpConfig();
-                const wsUrl = this.buildWebSocketUrl(cfg.MCP_SERVER_URL, cfg.MCP_TOKEN);
-                const newWs = new WebSocket(wsUrl);
+                // 🚀 PROTECCIÓN: Verificar que no hay una conexión activa antes de reconectar
+                if (this.activeCall && (this.activeCall.readyState === WebSocket.CONNECTING || this.activeCall.readyState === WebSocket.OPEN)) {
+                  console.log('[MCP] ⚠️ Ya hay una conexión activa, cancelando reconexión');
+                  this.reconnectAttempts = 0;
+                  return;
+                }
                 
-                // Configurar nuevos handlers
-                this.setupWebSocketHandlers(newWs, cfg);
+                // 🚀 RECONEXIÓN: Reutilizar startRealTimeCall() con protección
+                // Esto asegura que los handlers se configuren correctamente
+                console.log('[MCP] 🔄 Iniciando reconexión mediante startRealTimeCall()...');
+                await this.startRealTimeCall();
                 
-                // Reenviar buffer de audio almacenado
-                if (this.audioBuffer.length > 0) {
+                // Esperar a que el WebSocket se conecte antes de reenviar buffer
+                const maxWait = 5000; // 5 segundos máximo
+                const startWait = Date.now();
+                while (this.activeCall && this.activeCall.readyState !== WebSocket.OPEN && (Date.now() - startWait) < maxWait) {
+                  await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                
+                // Reenviar buffer de audio almacenado si la conexión está abierta
+                if (this.activeCall && this.activeCall.readyState === WebSocket.OPEN && this.audioBuffer.length > 0) {
                   console.log(`[MCP] 📦 Reenviando ${this.audioBuffer.length} chunks de audio almacenados...`);
                   for (const audioChunk of this.audioBuffer) {
-                    if (newWs.readyState === WebSocket.OPEN) {
-                      newWs.send(JSON.stringify(audioChunk));
-                    }
+                    this.activeCall.send(JSON.stringify(audioChunk));
                   }
                 }
                 
-                this.activeCall = newWs;
                 this.reconnectAttempts = 0; // Reset en caso de éxito
               } catch (error) {
                 console.error('[MCP] ❌ Error en reconexión:', error);
