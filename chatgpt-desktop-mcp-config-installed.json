@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "guests-valencia-pwa": {
+      "command": "node",
+      "args": [
+        "C:\\Users\\clayt\\OneDrive\\GUESTVALENCIAPWA\\mcp-server-chatgpt.js"
+      ],
+      "env": {
+        "NODE_ENV": "production"
+      },
+      "description": "Servidor MCP unificado - Level Enterprise by Power HGPT - Level Galaxy - Ejecución de código y trabajo en equipo con O3 Pro High"
+    }
+  }
+}
