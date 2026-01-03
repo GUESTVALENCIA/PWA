@@ -1308,11 +1308,9 @@ async function handleInitialGreeting(ws, voiceServices) {
     logger.info(`🎙️ Generating greeting audio: "${greetingText}"`);
 
     try {
-      // Usar Deepgram REST API (Aura-2-Agustina) - Es extremadamente rápida para frases cortas (<200ms)
+      // Usar Deepgram REST API (aura-2-carina-es) - Peninsular, Voz Interactiva/IVR
       const greetingAudio = await voiceServices.generateVoice(greetingText, {
-        streaming: false,
-        model: 'aura-2-agustina-es',
-        provider: 'deepgram' // Forzar Deepgram explícitamente
+        model: 'aura-2-carina-es'
       });
 
       if (greetingAudio.type === 'tts' && greetingAudio.data) {
