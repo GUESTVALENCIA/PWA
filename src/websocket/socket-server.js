@@ -851,15 +851,103 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
 
             logger.info(`💬 AI Response received (${aiResponse.length} chars): "${aiResponse.substring(0, 100)}${aiResponse.length > 100 ? '...' : ''}"`);
 
-            // Generar audio de respuesta usando Deepgram TTS (WebSocket streaming para latencia mínima)
+            // Generar audio de respuesta usando Deepgram TTS Streaming (Full Duplex)
             try {
-              // 🚫 WEBSOCKET DESHABILITADO: Usar solo REST API (más confiable)
-              const responseAudio = await voiceServices.generateVoice(aiResponse, { streaming: false, model: 'aura-2-agustina-es' });
+              // 🚀 ENTERPRISE: FULL DUPLEX STREAMING
+              // Usar WebSocket TTS para latencia mínima (<300ms TTFB).
+              // Esto elimina el efecto "Walkie-Talkie".
+              const responseAudio = await voiceServices.generateVoice(aiResponse, { 
+                streaming: true, // ✅ FORZAR STREAMING
+                model: 'aura-2-diana-es',
+                provider: 'deepgram'
+              });
 
-              // Handle different response types
+              // Handle streaming response (Preferred)
+              if (responseAudio.type === 'streaming' && responseAudio.ws) {
+                // TTS WebSocket streaming - send PCM chunks as they arrive
+                logger.info('[TTS] 🎙️ Using TTS WebSocket streaming (PCM) for response');
+
+                const ttsWs = responseAudio.ws;
+                let firstChunk = true;
+                let chunksReceived = 0;
+                let totalBytesReceived = 0;
+                
+                // Manejador de mensajes WebSocket para TTS
+                const handleTTSMessage = (data) => {
+                  const isBuffer = Buffer.isBuffer(data);
+                  
+                  if (Buffer.isBuffer(data)) {
+                    // Check for JSON metadata in Buffer
+                    if (data.length > 0 && data[0] === 123) {
+                      try {
+                         const msg = JSON.parse(data.toString('utf8'));
+                         if (msg.type === 'Flushed') logger.debug('[TTS] Buffer flushed');
+                         return; 
+                      } catch (e) {}
+                    }
+                    
+                    if (data.length === 0) return;
+
+                    // Pad if odd length
+                    let pcmData = data;
+                    if (data.length % 2 !== 0) {
+                      pcmData = Buffer.concat([data, Buffer.from([0])]);
+                    }
+
+                    // Send PCM chunk
+                    const pcmBase64 = pcmData.toString('base64');
+                    ws.send(JSON.stringify({
+                      route: 'audio',
+                      action: 'tts_chunk',
+                      payload: {
+                        audio: pcmBase64,
+                        format: 'pcm',
+                        encoding: 'linear16',
+                        sampleRate: 24000,
+                        channels: 1,
+                        isFirst: firstChunk
+                      }
+                    }));
+                    
+                    firstChunk = false;
+                    chunksReceived++;
+                    totalBytesReceived += pcmData.length;
+                  } else {
+                     // Handle Text/JSON messages
+                     try {
+                       const msg = JSON.parse(data.toString());
+                       if (msg.type === 'Error') logger.error('[TTS] Stream Error:', msg);
+                     } catch(e) {}
+                  }
+                };
+
+                ttsWs.on('message', handleTTSMessage);
+                
+                ttsWs.on('close', () => {
+                   if (chunksReceived > 0) {
+                     ws.send(JSON.stringify({ route: 'audio', action: 'tts_complete', payload: {} }));
+                   }
+                });
+
+                ttsWs.on('error', (err) => logger.error('[TTS] Stream Error:', err));
+
+                // Send text immediately
+                if (ttsWs.readyState === WebSocket.OPEN) {
+                    voiceServices.sendTextToTTS(ttsWs, aiResponse);
+                    setTimeout(() => voiceServices.flushTTS(ttsWs), 10);
+                } else {
+                    ttsWs.once('open', () => {
+                        voiceServices.sendTextToTTS(ttsWs, aiResponse);
+                        setTimeout(() => voiceServices.flushTTS(ttsWs), 10);
+                    });
+                }
+                
+                return; // ✅ Streaming handled
+              }
+
+              // Fallback to REST (only if streaming fails/returns non-stream)
               if (responseAudio.type === 'tts' && responseAudio.data) {
-                // REST API fallback (MP3)
-                logger.info('[TTS] ✅ Using Deepgram REST API (MP3)');
+                logger.warn('[TTS] ⚠️ Streaming not available, falling back to REST');
                 ws.send(JSON.stringify({
                   route: 'audio',
                   action: 'tts',
@@ -870,10 +958,10 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                     language: 'es'
                   }
                 }));
-                logger.info('✅ Audio TTS response sent to client (REST API)');
-                if (deepgramData) deepgramData.isProcessing = false;
+                 if (deepgramData) deepgramData.isProcessing = false;
                 return;
               }
+
 
               // TTS WebSocket streaming (ENABLED for low latency)
               if (responseAudio.type === 'streaming' && responseAudio.ws) {
