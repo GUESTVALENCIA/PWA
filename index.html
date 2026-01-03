@@ -1833,41 +1833,14 @@
             return;
           }
 
-          // 🚀 FULL DUPLEX: Manejar notificación de usuario hablando (ajuste dinámico de volumen)
-          if (data.route === 'audio' && data.action === 'user_speaking') {
-            console.log('[MCP] 🎤 Usuario hablando - ajustando volúmenes dinámicamente (sin pausar)');
-            
-            // NO pausar el audio - solo ajustar volúmenes dinámicamente
-            // El sistema de barge-in en el cliente manejará el ajuste de volúmenes
-            // Marcar que el usuario está hablando para que el sistema de barge-in actúe
-            this.isUserSpeaking = true;
-            
-            // Si hay audio de la IA reproduciéndose, bajar su volumen dinámicamente
-            if (this.currentAudio && !this.currentAudio.paused) {
-              if (!this.audioVolumeBeforeBargeIn) {
-                this.audioVolumeBeforeBargeIn = this.currentAudio.volume;
-              }
-              // Bajar volumen de la IA a 30% (atención al usuario)
-              this.currentAudio.volume = 0.3;
-              console.log('[FULL DUPLEX] 🔊 Usuario habla - volumen de IA bajado a 0.3 (atención al usuario)');
-            }
-
-            return;
-          }
-
-          // 🚀 FULL DUPLEX: Manejar señal de usuario calló (restaurar volúmenes)
-          if (data.route === 'audio' && data.action === 'user_stopped') {
-            console.log('[MCP] 🔇 Usuario calló - restaurando volúmenes');
-            
-            this.isUserSpeaking = false;
-            
-            // Restaurar volumen de la IA si estaba bajado
-            if (this.currentAudio && this.audioVolumeBeforeBargeIn !== undefined) {
-              this.currentAudio.volume = this.audioVolumeBeforeBargeIn;
-              this.audioVolumeBeforeBargeIn = undefined;
-              console.log('[FULL DUPLEX] 🔊 Volumen de IA restaurado');
-            }
-
+          // 🚀 PIPELINE CALL CENTER: Ignorar TODOS los mensajes que puedan causar cortes
+          // NO hay ajuste de volúmenes, NO hay barge-in, NO hay cortes, NO hay pausas
+          // El sistema es completamente fluido - ambos pueden hablar a la vez sin interferencia
+          if (data.route === 'audio' && (data.action === 'user_speaking' || data.action === 'user_stopped' || data.action === 'stop_audio')) {
+            // Ignorar completamente - no hacer nada
+            // El micrófono permanece abierto, el audio sigue reproduciéndose
+            // stop_audio puede venir de código viejo en Render, pero lo ignoramos completamente
+            console.log('[PIPELINE CALL CENTER] ⚠️ Mensaje', data.action, 'ignorado - sistema fluido sin cortes');
             return;
           }
 
@@ -2287,15 +2260,13 @@
         }
       }
 
-      // 🚀 FASE 1: Clear audio (for barge-in)
+      // 🚀 PIPELINE CALL CENTER: clearAudio DESACTIVADO
+      // NO se pausa audio, NO se limpia, NO hay cortes
+      // El audio sigue reproduciéndose naturalmente
       clearAudio() {
-        if (this.audioWorkletNode) {
-          this.audioWorkletNode.port.postMessage({ type: 'clear' });
-        }
-        if (this.currentAudio && !this.currentAudio.paused) {
-          this.currentAudio.pause();
-        }
-        this.isSpeaking = false;
+        // DESACTIVADO - NO hacer nada para evitar cortes
+        // El audio seguirá reproduciéndose naturalmente
+        console.log('[AUDIO] ⚠️ clearAudio() llamado pero DESACTIVADO - pipeline call center (sin cortes)');
       }
 
       // 🚀 ENTERPRISE: Barge-in avanzado - detectar voz del usuario para bajar volumen (no cortar)
@@ -2316,57 +2287,24 @@
 
           const dataArray = new Uint8Array(this.bargeInAnalyser.frequencyBinCount);
 
-          // Monitorear nivel de audio cada 50ms (20 veces por segundo)
-          // 🚀 FULL DUPLEX: Ajuste dinámico de volúmenes - quien habla tiene más atención
-          this.bargeInCheckInterval = setInterval(() => {
-            try {
-              this.bargeInAnalyser.getByteTimeDomainData(dataArray);
-
-              // Calcular nivel promedio de audio del usuario
-              let sum = 0;
-              for (let i = 0; i < dataArray.length; i++) {
-                const normalized = (dataArray[i] / 128.0) - 1.0;
-                sum += Math.abs(normalized);
-              }
-              const average = sum / dataArray.length;
-
-              // Umbral ajustable: 0.12 = usuario hablando (más sensible para detectar antes)
-              const SPEAKING_THRESHOLD = 0.12;
-              const userIsSpeaking = average > SPEAKING_THRESHOLD;
-
-              // 🚀 ATENCIÓN DINÁMICA: Ajustar volúmenes según quién tiene el hilo de la conversación
-              if (userIsSpeaking && this.isSpeaking) {
-                // Usuario habla mientras la IA habla - dar atención al usuario
-                if (!this.isUserSpeaking) {
-                  this.isUserSpeaking = true;
-                  // Bajar volumen de la IA a 30% (atención al usuario)
-                  if (this.currentAudio) {
-                    if (!this.audioVolumeBeforeBargeIn) {
-                      this.audioVolumeBeforeBargeIn = this.currentAudio.volume;
-                    }
-                    this.currentAudio.volume = 0.3; // Bajar a 30% - atención al usuario
-                    console.log('[FULL DUPLEX] 🎤 Usuario habla - volumen IA: 0.3 (atención al usuario)');
-                  }
-                }
-              } else if (!userIsSpeaking && this.isUserSpeaking && this.isSpeaking) {
-                // Usuario calló, la IA sigue hablando - restaurar volumen de la IA
-                this.isUserSpeaking = false;
-                if (this.currentAudio && this.audioVolumeBeforeBargeIn !== undefined) {
-                  this.currentAudio.volume = this.audioVolumeBeforeBargeIn;
-                  console.log('[FULL DUPLEX] 🔊 Usuario calló - volumen IA restaurado a', this.audioVolumeBeforeBargeIn.toFixed(2));
-                  this.audioVolumeBeforeBargeIn = undefined;
-                }
-              } else if (!this.isSpeaking) {
-                // La IA no está hablando - resetear estado
-                this.isUserSpeaking = false;
-                this.audioVolumeBeforeBargeIn = undefined;
-              }
-            } catch (error) {
-              console.error('[BARGE-IN] Error en detección:', error);
-            }
-          }, 50); // Check cada 50ms para respuesta rápida
-
-          console.log('[BARGE-IN] ✅ Sistema de barge-in avanzado configurado');
+          // 🚀 PIPELINE CALL CENTER: Sistema de barge-in COMPLETAMENTE DESACTIVADO
+          // NO hay ajuste de volúmenes, NO hay pausas, NO hay cortes, NO hay barge-in
+          // El micrófono permanece SIEMPRE abierto, el audio NUNCA se pausa
+          // Conversación completamente fluida, como en call centers reales
+          // 
+          // El sistema de barge-in está completamente desactivado para evitar cualquier tipo de corte
+          // Ambos pueden hablar a la vez sin ninguna interferencia
+          console.log('[BARGE-IN] ⚠️ Sistema de barge-in COMPLETAMENTE DESACTIVADO - pipeline call center (sin cortes)');
+          
+          // Limpiar cualquier intervalo anterior si existe
+          if (this.bargeInCheckInterval) {
+            clearInterval(this.bargeInCheckInterval);
+            this.bargeInCheckInterval = null;
+          }
+          
+          // NO configurar intervalo de barge-in - sistema completamente fluido
+          // NO hay detección de voz del usuario, NO hay ajuste de volúmenes
+          // Conversación completamente natural, sin interferencias
         } catch (error) {
           console.error('[BARGE-IN] Error configurando barge-in:', error);
         }
@@ -2414,24 +2352,13 @@
           return;
         }
 
-        // Detener audio anterior solo si realmente hay uno reproduciéndose
-        // NO pausar si está casi terminando (para evitar cortes abruptos)
+        // 🚀 PIPELINE CALL CENTER: NO pausar audio anterior - permitir que termine naturalmente
+        // El audio anterior seguirá reproduciéndose mientras el nuevo se reproduce
+        // Esto permite conversación fluida sin cortes, como en call centers reales
         if (this.currentAudio && !this.currentAudio.paused) {
-          const timeRemaining = this.currentAudio.duration - this.currentAudio.currentTime;
-          if (timeRemaining > 0.5) { // Solo pausar si queda más de 0.5 segundos
-            console.log('[AUDIO] ⏸️ Pausando audio anterior (quedan', timeRemaining.toFixed(2), 'segundos)');
-            this.currentAudio.pause();
-            if (this.currentAudio._blobUrl) {
-              // Esperar un momento antes de revocar para evitar cortes
-              setTimeout(() => {
-                if (this.currentAudio && this.currentAudio._blobUrl) {
-                  URL.revokeObjectURL(this.currentAudio._blobUrl);
-                }
-              }, 100);
-            }
-          } else {
-            console.log('[AUDIO] ⏭️ Audio anterior casi terminado, esperando que termine naturalmente');
-          }
+          console.log('[AUDIO] 🔊 Nuevo audio recibido - audio anterior seguirá reproduciéndose (sin pausar)');
+          // NO pausar - dejar que ambos audios se reproduzcan (el anterior terminará naturalmente)
+          // Solo limpiar referencia después de que termine naturalmente
         }
 
         this.isSpeaking = true;
@@ -2550,10 +2477,11 @@
         audio.onended = () => {
           console.log('[AUDIO] ✅ Audio finalizado completamente');
 
-          // 🚀 FULL DUPLEX: No mutear el micrófono - permitir conversación fluida
-          // El servidor maneja el barge-in y envía stop_audio cuando detecta voz del usuario
+          // 🚀 PIPELINE CALL CENTER: Audio finalizado - micrófono SIEMPRE abierto
+          // NO hay barge-in, NO hay cortes, NO hay pausas
+          // El micrófono permanece abierto para conversación fluida continua
           this.isSpeaking = false;
-          console.log('[AUDIO] ✅ Audio finalizado - micrófono permanece abierto para full duplex');
+          console.log('[AUDIO] ✅ Audio finalizado - micrófono permanece abierto (pipeline call center)');
 
           // CRITICAL FIX: Wait 5 seconds before revoking to ensure audio fully finishes
           // This prevents cutting off the end of the audio and gives time for the buffer to clear
