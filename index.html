@@ -1608,7 +1608,7 @@
 
                         if (chunkIndex >= chunkSamples) {
                           const base64Audio = arrayBufferToBase64(chunkBuffer.buffer);
-                          ws.send(JSON.stringify({
+                          const audioMessage = {
                             route: 'audio',
                             action: 'stt',
                             payload: {
@@ -1617,9 +1617,22 @@
                               encoding: 'linear16',
                               sampleRate: targetSampleRate,
                               channels: 1,
-                              mimeType: 'audio/raw'
+                              mimeType: 'audio/raw',
+                              sessionId: this.sessionId // 🚀 PIPELINE ROBUSTO: Incluir sessionId
                             }
-                          }));
+                          };
+                          
+                          // 🚀 PIPELINE ROBUSTO: Almacenar en buffer para reenvío en caso de corte
+                          this.audioBuffer.push(audioMessage);
+                          if (this.audioBuffer.length > this.maxBufferSize) {
+                            this.audioBuffer.shift(); // Mantener solo últimos 2s
+                          }
+                          
+                          // Enviar si la conexión está abierta
+                          if (ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify(audioMessage));
+                          }
+                          
                           chunkBuffer = new Int16Array(chunkSamples);
                           chunkIndex = 0;
                         }
@@ -1755,6 +1768,27 @@
 
         ws.onopen = async () => {
           console.log('✅ WebSocket conectado (Enterprise Mode)', wsUrl);
+
+          // 🚀 PIPELINE ROBUSTO: Si es reconexión, enviar resume_session
+          if (this.reconnectAttempts > 0 && this.sessionId) {
+            console.log(`[MCP] 🔄 Reanudando sesión ${this.sessionId}...`);
+            ws.send(JSON.stringify({
+              route: 'conserje',
+              action: 'message',
+              payload: { 
+                type: 'resume_session', 
+                sessionId: this.sessionId,
+                message: 'Cliente reconectado - reanudando sesión' 
+              }
+            }));
+            // En reconexión, no reproducir ringtones, solo reanudar micrófono
+            setTimeout(() => {
+              if (this.sttAvailable === null) this.sttAvailable = true;
+              console.log('[MCP] 🎤 Reanudando captura de micrófono después de reconexión');
+              startMicrophoneCapture();
+            }, 500);
+            return;
+          }
 
           // 🚀 WEBRTC PIPELINE: Play ringtones AFTER connection is established
           console.log('[MCP] 🚀 Connection established - playing ringtones before greeting');
@@ -2075,8 +2109,52 @@
           alert('Error de conexión. Por favor, verifica que el servidor esté funcionando.');
         };
 
+        // 🚀 PIPELINE ROBUSTO: Buffer de reenvío para manejar cortes de red
+        this.audioBuffer = []; // Almacenar últimos 2s de audio (8 chunks de 250ms)
+        this.maxBufferSize = 8; // 2 segundos a 250ms por chunk
+        this.sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 3;
+        this.reconnectDelay = 1000; // 1 segundo inicial
+
         ws.onclose = (event) => {
           console.log('[MCP] WebSocket cerrado', { code: event.code, reason: event.reason, wasClean: event.wasClean });
+          
+          // 🚀 PIPELINE ROBUSTO: Intentar reconexión automática
+          if (this.reconnectAttempts < this.maxReconnectAttempts && this.activeCall === ws) {
+            this.reconnectAttempts++;
+            console.log(`[MCP] 🔄 Intentando reconexión ${this.reconnectAttempts}/${this.maxReconnectAttempts}...`);
+            
+            setTimeout(async () => {
+              try {
+                const cfg = await this.getMcpConfig();
+                const wsUrl = this.buildWebSocketUrl(cfg.MCP_SERVER_URL, cfg.MCP_TOKEN);
+                const newWs = new WebSocket(wsUrl);
+                
+                // Configurar nuevos handlers
+                this.setupWebSocketHandlers(newWs, cfg);
+                
+                // Reenviar buffer de audio almacenado
+                if (this.audioBuffer.length > 0) {
+                  console.log(`[MCP] 📦 Reenviando ${this.audioBuffer.length} chunks de audio almacenados...`);
+                  for (const audioChunk of this.audioBuffer) {
+                    if (newWs.readyState === WebSocket.OPEN) {
+                      newWs.send(JSON.stringify(audioChunk));
+                    }
+                  }
+                }
+                
+                this.activeCall = newWs;
+                this.reconnectAttempts = 0; // Reset en caso de éxito
+              } catch (error) {
+                console.error('[MCP] ❌ Error en reconexión:', error);
+              }
+            }, this.reconnectDelay * this.reconnectAttempts);
+            
+            return; // No limpiar recursos aún, esperar reconexión
+          }
+          
+          // Solo limpiar si no hay más intentos de reconexión
           clearSttCapabilitiesTimeout();
           this.sttAvailable = null;
           this.sttNoticeShown = false;
@@ -2086,6 +2164,8 @@
           this.activeCall = null;
           this.setHeroCallActive(false);
           this.chatLocked = false;
+          this.audioBuffer = []; // Limpiar buffer
+          this.reconnectAttempts = 0;
 
           // Rehabilitar input del chat cuando termina la llamada
           const input = document.getElementById('sandra-input');
@@ -2269,7 +2349,7 @@
         console.log('[AUDIO] ⚠️ clearAudio() llamado pero DESACTIVADO - pipeline call center (sin cortes)');
       }
 
-      // 🚀 ENTERPRISE: Barge-in avanzado - detectar voz del usuario para bajar volumen (no cortar)
+      // 🚀 PIPELINE ROBUSTO: Barge-in suave con reducción de volumen (no cortes)
       setupBargeInDetection(audioContext, stream) {
         if (!stream || !audioContext) {
           console.warn('[BARGE-IN] No se puede configurar: stream o audioContext no disponible');
@@ -2286,15 +2366,11 @@
           source.connect(this.bargeInAnalyser);
 
           const dataArray = new Uint8Array(this.bargeInAnalyser.frequencyBinCount);
+          const SPEAKING_THRESHOLD = -40; // dB - umbral para detectar que el usuario habla
+          const VOLUME_REDUCTION = 0.3; // Reducir volumen de IA a 30% cuando usuario habla
 
-          // 🚀 PIPELINE CALL CENTER: Sistema de barge-in COMPLETAMENTE DESACTIVADO
-          // NO hay ajuste de volúmenes, NO hay pausas, NO hay cortes, NO hay barge-in
-          // El micrófono permanece SIEMPRE abierto, el audio NUNCA se pausa
-          // Conversación completamente fluida, como en call centers reales
-          // 
-          // El sistema de barge-in está completamente desactivado para evitar cualquier tipo de corte
-          // Ambos pueden hablar a la vez sin ninguna interferencia
-          console.log('[BARGE-IN] ⚠️ Sistema de barge-in COMPLETAMENTE DESACTIVADO - pipeline call center (sin cortes)');
+          // 🚀 PIPELINE ROBUSTO: Barge-in suave - reducir volumen sin cortar
+          console.log('[BARGE-IN] ✅ Sistema de barge-in suave activado (reducción de volumen, sin cortes)');
           
           // Limpiar cualquier intervalo anterior si existe
           if (this.bargeInCheckInterval) {
@@ -2302,9 +2378,48 @@
             this.bargeInCheckInterval = null;
           }
           
-          // NO configurar intervalo de barge-in - sistema completamente fluido
-          // NO hay detección de voz del usuario, NO hay ajuste de volúmenes
-          // Conversación completamente natural, sin interferencias
+          // Configurar intervalo para detectar voz del usuario
+          this.bargeInCheckInterval = setInterval(() => {
+            try {
+              if (!this.bargeInAnalyser || !this.currentAudio) return;
+              
+              this.bargeInAnalyser.getByteFrequencyData(dataArray);
+              
+              // Calcular RMS (Root Mean Square) para medir potencia de audio
+              let sum = 0;
+              for (let i = 0; i < dataArray.length; i++) {
+                sum += dataArray[i] * dataArray[i];
+              }
+              const rms = Math.sqrt(sum / dataArray.length);
+              const db = 20 * Math.log10(rms + 1); // Convertir a dB
+              
+              // Si el usuario habla (RMS > umbral), reducir volumen de IA gradualmente
+              if (db > SPEAKING_THRESHOLD) {
+                if (!this.isUserSpeaking) {
+                  this.isUserSpeaking = true;
+                  // Guardar volumen original si no está guardado
+                  if (this.audioVolumeBeforeBargeIn === undefined) {
+                    this.audioVolumeBeforeBargeIn = this.currentAudio.volume || 1.0;
+                  }
+                  // Reducir volumen gradualmente
+                  this.currentAudio.volume = VOLUME_REDUCTION;
+                  console.log('[BARGE-IN] 🎤 Usuario hablando - reduciendo volumen de IA a', VOLUME_REDUCTION);
+                }
+              } else {
+                // Si el usuario calla, restaurar volumen gradualmente
+                if (this.isUserSpeaking) {
+                  this.isUserSpeaking = false;
+                  if (this.audioVolumeBeforeBargeIn !== undefined) {
+                    this.currentAudio.volume = this.audioVolumeBeforeBargeIn;
+                    console.log('[BARGE-IN] 🔇 Usuario calló - restaurando volumen de IA a', this.audioVolumeBeforeBargeIn);
+                  }
+                }
+              }
+            } catch (error) {
+              console.error('[BARGE-IN] Error en detección:', error);
+            }
+          }, 100); // Verificar cada 100ms para respuesta rápida
+          
         } catch (error) {
           console.error('[BARGE-IN] Error configurando barge-in:', error);
         }
