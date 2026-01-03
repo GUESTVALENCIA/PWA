@@ -757,12 +757,18 @@ class VoiceServices {
   /**
    * Process message with AI - SOLO OpenAI GPT-4o-mini (fijado en producción)
    */
-  async processMessage(userMessage) {
-    const systemPrompt = `Eres Sandra, la asistente virtual de Guests Valencia, especializada en hospitalidad y turismo.
+  async processMessage(userMessage, context = {}) {
+    // 🎯 CALL CENTER FEEDBACK: Ajustar system prompt según contexto de conversación
+    let systemPrompt = `Eres Sandra, la asistente virtual de Guests Valencia, especializada en hospitalidad y turismo.
 Responde SIEMPRE en español neutro, con buena ortografía y gramática.
 Actúa como una experta en Hospitalidad y Turismo.
 Sé breve: máximo 4 frases salvo que se pida detalle.
 Sé amable, profesional y útil.`;
+
+    // Si ya se hizo el saludo inicial, evitar saludar de nuevo
+    if (context.greetingSent === true) {
+      systemPrompt += `\n\nIMPORTANTE: Ya has saludado al usuario al inicio de la llamada. NO vuelvas a saludar. Responde directamente a su pregunta o comentario.`;
+    }
 
     // ✅ SOLO OpenAI GPT-4o-mini - Sin fallbacks, sin cambios
     if (!this.openaiApiKey) {
