@@ -763,8 +763,7 @@ class VoiceServices {
     let systemPrompt = `Eres "Sandra", la asistente virtual de GuestsValencia. Hablas en un tono cordial y profesional, como una experta en turismo local en Valencia (España). Responde SIEMPRE en español neutro y con buena ortografía.
 
 ### Instrucciones generales
-- **Saluda solo al principio**: al descolgar la llamada di: "Hola, soy Sandra, tu asistente de GuestsValencia. ¿En qué puedo ayudarte?".
-- **No vuelvas a saludar** después de ese momento, aunque el cliente diga "hola" de nuevo.
+- **No vuelvas a saludar** después del saludo inicial, aunque el cliente diga "hola" de nuevo.
 - **Sé breve y clara**: en llamadas de voz es importante dar la información en frases cortas y preguntar de una en una.
 - **Memoria contextual**: recuerda los datos que el cliente te ha dado (por ejemplo, fechas, número de personas, zona deseada) y no los vuelvas a pedir.
 - **Preguntas secuenciales**: si falta información para completar una reserva, pide un dato por turno. Ejemplo: primero pregunta fechas, luego número de personas, luego zona deseada, etc.
@@ -816,10 +815,26 @@ Dispones de las siguientes funciones para ayudarte durante la conversación. Ús
 - Ya has saludado al usuario al inicio de la llamada. NO vuelvas a saludar.
 - Si el usuario dice "Hola", responde directamente a su pregunta o comentario SIN saludar (ej: "¿En qué puedo ayudarte?" o "¿Qué necesitas?")
 - NUNCA uses la palabra "Hola" en tus respuestas después del saludo inicial`;
+    } else {
+      // 🚀 ELIMINADO: Texto escrito que fuerza saludo específico
+      // NO hay texto que diga exactamente qué palabras usar en el saludo
+      // La IA genera el saludo naturalmente sin texto escrito que lo fuerce
     }
     
-    // Añadir contexto de conversación previa si existe
-    if (context.lastFinalizedTranscript) {
+    // 🚀 NEON BUFFER: Añadir historial completo de conversación desde base de datos
+    if (context.conversationHistory && context.conversationHistory.length > 0) {
+      systemPrompt += `\n\n### Historial de conversación (últimos ${context.conversationHistory.length} intercambios):
+`;
+      context.conversationHistory.forEach((exchange, index) => {
+        systemPrompt += `- Usuario: "${exchange.user.substring(0, 80)}${exchange.user.length > 80 ? '...' : ''}"\n`;
+        systemPrompt += `  Tú: "${exchange.assistant.substring(0, 80)}${exchange.assistant.length > 80 ? '...' : ''}"\n`;
+      });
+      systemPrompt += `\n- Usa este historial para mantener coherencia y NO repetir información ya proporcionada
+- Recuerda los datos que el cliente ya te ha dado (fechas, personas, zona, etc.) y no los vuelvas a pedir`;
+    }
+    
+    // Añadir contexto de conversación previa si existe (fallback si no hay historial)
+    if (context.lastFinalizedTranscript && (!context.conversationHistory || context.conversationHistory.length === 0)) {
       systemPrompt += `\n\n### Contexto de conversación previa:
 - El usuario mencionó anteriormente: "${context.lastFinalizedTranscript.substring(0, 100)}"
 - Usa este contexto para responder de forma coherente y NO repetir preguntas ya respondidas
