@@ -1396,9 +1396,4 @@ async function handleInitialGreeting(ws, voiceServices) {
   }
 }
 
-  wss.on('connection', handleConnection);
-
-  return wss;
-};
-
 
