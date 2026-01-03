@@ -39,11 +39,6 @@ const __dirname = path.dirname(__filename);
 class VoiceServices {
   constructor() {
     this.deepgramApiKey = process.env.DEEPGRAM_API_KEY;
-    // ✅ CARTESIA REACTIVADO: Puede usarse independientemente de Deepgram
-    // Deepgram → Solo STT (transcripción)
-    // Cartesia → Solo TTS (texto a voz)
-    this.cartesiaApiKey = process.env.CARTESIA_API_KEY;
-    this.cartesiaVoiceId = process.env.CARTESIA_VOICE_ID || 'sandra';
     this.openaiApiKey = process.env.OPENAI_API_KEY;
     this.groqApiKey = process.env.GROQ_API_KEY;
     this.geminiApiKey = process.env.GEMINI_API_KEY;
@@ -453,138 +448,51 @@ class VoiceServices {
   }
 
   /**
-   * Generate voice using native local audio file (eliminates Cartesia latency)
-   */
-  /**
-   * Generate voice audio - supports both native audio and Deepgram TTS streaming
-   * @param {string} text - Text to synthesize (required for TTS, optional for native)
-   * @param {Object} options - Options { useNative: boolean, model: string, streaming: boolean }
-   * @returns {Promise<{type: 'native'|'tts'|'streaming', data: Buffer|string|WebSocket}>}
+   * Generate voice audio using Deepgram TTS REST API (simplified, stable pipeline)
+   * @param {string} text - Text to synthesize (required)
+   * @param {Object} options - Options { model: string }
+   * @returns {Promise<{type: 'tts', data: string, format: 'mp3', provider: 'deepgram'}>}
    */
   async generateVoice(text, options = {}) {
     // Handle legacy call signature (text, voiceId)
     if (typeof options === 'string' || options === null) {
-      options = { streaming: false, model: 'aura-2-agustina-es' }; // ✅ REST API por defecto - PENINSULAR
+      options = {};
     }
 
-    const {
-      useNative = false,
-      model = 'aura-2-diana-es', // 🔄 CAMBIO: Probando 'diana' para mayor seriedad/estabilidad
-      streaming = false,
-      provider = 'deepgram' // 🔄 FALLBACK: Volver a Deepgram por crédito disponible
-    } = options;
+    const model = options.model || 'aura-2-carina-es'; // ✅ ÚNICO MODELO: aura-2-carina-es (Peninsular, Voz Interactiva/IVR)
 
-    // Force Cartesia voice ID from env or hardcoded specific ID for Sandra
-    const cartesiaId = 'a34aec03-0f17-4fff-903f-d9458a8a92a6';
-    if (provider === 'cartesia') {
-      this.cartesiaVoiceId = cartesiaId;
-    }
-
-    // Option 1: Use native audio file (lowest latency)
-    if (useNative) {
-      try {
-        const nativeAudioPath = path.join(__dirname, '../../assets/audio/sandra-conversational.wav');
-        if (fs.existsSync(nativeAudioPath)) {
-          const audioBuffer = fs.readFileSync(nativeAudioPath);
-          logger.info('[TTS] ✅ Using native audio file (lowest latency)');
-          return {
-            type: 'native',
-            data: audioBuffer,
-            format: 'wav',
-            sampleRate: 24000
-          };
-        } else {
-          logger.warn('[TTS] ⚠️ Native audio file not found, falling back to TTS');
-        }
-      } catch (error) {
-        logger.error('[TTS] ❌ Error loading native audio:', error);
-      }
-    }
-
-    // 🚫 WEBSOCKET DESHABILITADO: Siempre falla con error 1008
-    // Option 2: Deepgram TTS WebSocket streaming (DESHABILITADO - usar solo REST API)
-    // El WebSocket de Deepgram TTS tiene problemas constantes:
-    // - Error 1008 (Policy Violation)
-    // - Modelo incorrecto (aura-asteria-en en lugar del solicitado)
-    // - Timeouts constantes
-    // SOLUCIÓN: Usar SOLO REST API que funciona perfectamente
-    // OPTION 2: Deepgram TTS WebSocket streaming (Re-enabled for Low Latency)
-    // Usar con precaución: Requiere sample_rate 24000
-    if (streaming && text && text.trim() !== '') {
-      try {
-        const ttsWs = await this.createTTSStreamingConnection(model);
-        this.sendTextToTTS(ttsWs, text);
-        this.flushTTS(ttsWs);
-        return {
-          type: 'streaming',
-          data: ttsWs,
-          format: 'mp3',
-          provider: 'deepgram'
-        };
-      } catch (wsError) {
-        logger.warn('[TTS] ⚠️ WebSocket streaming failed, falling back to REST API:', wsError);
-        // Fallback to REST API below
-      }
-    }
-
-    // Option 3: TTS REST API (Deepgram or Cartesia)
     if (!text || text.trim() === '') {
       throw new Error('Text is required for TTS generation');
     }
 
-    // Choose provider: 'auto' tries Deepgram first, then Cartesia
-    const useCartesia = provider === 'cartesia' ||
-      (provider === 'auto' && !this.deepgramApiKey && this.cartesiaApiKey) ||
-      (provider === 'auto' && this.deepgramApiKey && this.cartesiaApiKey && !streaming);
-
-    if (useCartesia && this.cartesiaApiKey) {
-      // Use Cartesia TTS (independent of Deepgram)
-      logger.info(`[TTS] 🎙️ Generating audio with Cartesia TTS for text: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
-
-      try {
-        const audioBase64 = await this._generateCartesiaTTS(text, this.cartesiaVoiceId);
-        logger.info('[TTS] ✅ Audio generated successfully with Cartesia TTS');
-        return {
-          type: 'tts',
-          data: audioBase64,
-          format: 'mp3',
-          provider: 'cartesia'
-        };
-      } catch (error) {
-        logger.error('[TTS] ❌ Cartesia TTS failed, falling back to Deepgram:', error);
-        // Fall through to Deepgram if Cartesia fails
-      }
+    if (!this.deepgramApiKey) {
+      throw new Error('Deepgram API key not configured. Set DEEPGRAM_API_KEY environment variable.');
     }
 
-    // Use Deepgram TTS REST API (default or fallback)
-    if (this.deepgramApiKey) {
-      logger.info(`[TTS] 🎙️ Generating audio with Deepgram TTS REST API for text: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
+    // ✅ SOLO REST API - Simple, estable, sin fallbacks
+    logger.info(`[TTS] 🎙️ Generating audio with Deepgram TTS REST API: model=${model}, text_length=${text.length}`);
 
-      try {
-        const audioBase64 = await this._generateDeepgramTTS(text, model);
-        logger.info('[TTS] ✅ Audio generated successfully with Deepgram TTS REST API');
-        return {
-          type: 'tts',
-          data: audioBase64,
-          format: 'mp3',
-          provider: 'deepgram'
-        };
-      } catch (error) {
-        logger.error('[TTS] ❌ Deepgram TTS failed:', error);
-        throw error;
-      }
+    try {
+      const audioBase64 = await this._generateDeepgramTTS(text, model);
+      logger.info('[TTS] ✅ Audio generated successfully with Deepgram TTS REST API');
+      return {
+        type: 'tts',
+        data: audioBase64,
+        format: 'mp3',
+        provider: 'deepgram'
+      };
+    } catch (error) {
+      logger.error('[TTS] ❌ Deepgram TTS failed:', error);
+      throw error;
     }
-
-    throw new Error('No TTS provider available. Configure DEEPGRAM_API_KEY or CARTESIA_API_KEY');
   }
 
   /**
    * Create Deepgram TTS WebSocket streaming connection
-   * Returns WebSocket for streaming PCM audio (linear16)
-   * @param {string} model - Deepgram voice model (aura-2-nestor-es, aura-2-carina-es, etc.)
-   * @returns {Promise<WebSocket>} WebSocket connection for TTS streaming
+   * ⚠️ DEPRECATED: WebSocket TTS removed - using REST API only for stability
+   * This method is kept for backward compatibility but will not be used
    */
-  async createTTSStreamingConnection(model = 'aura-2-agustina-es') {
+  async createTTSStreamingConnection(model = 'aura-2-carina-es') {
     if (!this.deepgramApiKey) {
       throw new Error('Deepgram API key not configured');
     }
@@ -729,18 +637,13 @@ class VoiceServices {
 
   /**
    * Generate TTS audio using Deepgram REST API
-   * ✅ CORREGIDO: Usa formato text/plain como muestra el curl oficial
+   * ✅ Formato text/plain según curl oficial de Deepgram
    * @private
    * @param {string} text - Text to synthesize
-   * @param {string} model - Deepgram voice model (default: aura-2-agustina-es)
+   * @param {string} model - Deepgram voice model (default: aura-2-celeste-es)
    * @returns {Promise<string>} Base64 encoded audio (MP3)
    */
-  async _generateDeepgramTTS(text, model = 'aura-2-agustina-es') {
-    // Deepgram TTS models for Spanish:
-    // FEMENINAS: aura-2-carina-es, aura-2-diana-es, aura-2-agustina-es, aura-2-silvia-es
-    // MASCULINAS: aura-2-nestor-es, aura-2-alvaro-es
-    // PENINSULARES (España): aura-2-agustina-es ⭐ DEFAULT, aura-2-carina-es, aura-2-diana-es, aura-2-silvia-es
-    // OTRAS: aura-2-celeste-es (Colombia), aura-2-estrella-es (México)
+  async _generateDeepgramTTS(text, model = 'aura-2-carina-es') {
     if (!this.deepgramApiKey) {
       throw new Error('Deepgram API key not configured');
     }
@@ -1037,14 +940,9 @@ Sé amable, profesional y útil.`;
    * Get welcome audio - DEPRECATED: Now uses Deepgram TTS dynamically
    * ⚠️ ESTE MÉTODO YA NO SE DEBE USAR - Todo audio debe generarse con Deepgram TTS
    */
-  /**
-   * Get welcome audio (Instant Native Welcome)
-   * Uses cached native file for zero-latency greeting.
-   */
   async getWelcomeAudio() {
-    logger.info('[TTS] ⚡ Getting instant native welcome audio...');
-    // Use the native file mode from generateVoice
-    return this.generateVoice(null, { useNative: true });
+    logger.warn('[TTS] ⚠️ getWelcomeAudio() is deprecated - use generateVoice() with text instead');
+    throw new Error('getWelcomeAudio() is deprecated - use generateVoice() with text instead');
   }
 }
 
