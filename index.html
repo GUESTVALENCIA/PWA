@@ -1798,6 +1798,37 @@
             return;
           }
 
+          // 🚀 FULL DUPLEX: Manejar señal de interrupción inmediata (Barge-in)
+          if (data.route === 'audio' && data.action === 'stop_audio') {
+            console.log('[MCP] 🛑 Recibida señal de interrupción stop_audio (Usuario hablando)');
+
+            // 1. Detener audio HTML5 actual si existe
+            if (this.currentAudio) {
+              try {
+                this.currentAudio.pause();
+                this.currentAudio.currentTime = 0;
+              } catch (_) { }
+              this.currentAudio = null;
+            }
+
+            // 2. Limpiar cola de audio
+            this.audioQueue = [];
+
+            // 3. Limpiar buffer de AudioWorklet si existe (Streaming)
+            if (this.audioWorkletNode) {
+              try {
+                this.audioWorkletNode.port.postMessage({ type: 'clear' });
+              } catch (_) { }
+            }
+
+            // 4. Resetear estado
+            this.isSpeaking = false;
+            this.awaitingResponse = false;
+            this.clearResponseWatchdog();
+
+            return;
+          }
+
           if (data.type === 'connection_established' && data.capabilities && typeof data.capabilities.stt === 'boolean') {
             this.sttAvailable = data.capabilities.stt;
             clearSttCapabilitiesTimeout();
