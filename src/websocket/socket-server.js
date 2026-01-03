@@ -24,7 +24,7 @@ const debugLog = (location, message, data, hypothesisId) => {
 const agentSubscriptions = new Map();
 // Agent WebSocket connections: Map<agentId, ws>
 const agentConnections = new Map();
-// Deepgram streaming connections: Map<agentId, { connection, isProcessing }>
+// Deepgram streaming connections: Map<agentId, { connection, isProcessing, greetingSent }>
 const deepgramConnections = new Map();
 // Voice Agent connections: Map<agentId, { agent, isProcessing }>
 const voiceAgentConnections = new Map();
@@ -716,7 +716,8 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
         lastInterimText: '',
         lastFinalizedTranscript: '', // Track last finalized transcript to prevent duplicates
         lastFinalizedTimestamp: 0, // Timestamp of last finalized transcript
-        processingTranscript: null // Currently processing transcript (to prevent race conditions)
+        processingTranscript: null, // Currently processing transcript (to prevent race conditions)
+        greetingSent: false // 🎯 CALL CENTER FEEDBACK: Flag para evitar saludos duplicados
       };
       deepgramConnections.set(agentId, deepgramData);
 
@@ -841,7 +842,13 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
           try {
             // Process with AI
             logger.info(`🤖 Processing transcript with AI: "${transcript.substring(0, 50)}${transcript.length > 50 ? '...' : ''}"`);
-            const aiResponse = await voiceServices.ai.processMessage(transcript);
+            
+            // 🎯 CALL CENTER FEEDBACK: Pasar contexto de conversación a la IA
+            const conversationContext = {
+              greetingSent: deepgramData?.greetingSent === true
+            };
+            
+            const aiResponse = await voiceServices.ai.processMessage(transcript, conversationContext);
 
             if (!aiResponse || aiResponse.trim().length === 0) {
               logger.error('[AI] Empty response received from AI');
@@ -1216,9 +1223,9 @@ async function generateNaturalGreeting(ws, voiceServices, agentId) {
 
     logger.info('👋 Generating natural greeting with AI (after ringtones)...');
 
-    // 🚀 NATURAL GREETING: Pedir a la IA que salude naturalmente (después de descolgar)
-    // Esto genera un saludo natural que coincide con el tono conversacional, no texto fijo
-    const greetingPrompt = 'La llamada ha sido descolgada después de los ringtones. Saluda al usuario de forma natural y amable.';
+    // 🚀 NATURAL GREETING: Prompt tipo call center - saludo breve y natural
+    // Call center feedback: Saludo breve, directo, amable pero no excesivamente formal
+    const greetingPrompt = 'Acabas de descolgar una llamada. Saluda al usuario de forma breve, natural y amable. No seas demasiado formal.';
     
     try {
       // La IA genera el saludo naturalmente (mismo sistema que las respuestas normales)
@@ -1248,6 +1255,14 @@ async function generateNaturalGreeting(ws, voiceServices, agentId) {
             isWelcome: true
           }
         }));
+        
+        // 🎯 CALL CENTER FEEDBACK: Marcar que ya se envió el saludo inicial
+        const deepgramData = deepgramConnections.get(agentId);
+        if (deepgramData) {
+          deepgramData.greetingSent = true;
+          logger.info(`[GREETING] ✅ Flag greetingSent activado para ${agentId}`);
+        }
+        
         logger.info('✅ Natural greeting sent (AI-generated, TTS)');
       } else {
         logger.error('[GREETING] ❌ Invalid TTS response format');
