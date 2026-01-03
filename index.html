@@ -1592,7 +1592,9 @@
                       if (!this.activeCall || ws.readyState !== WebSocket.OPEN) return;
                       if (this.sttAvailable === false) return;
 
-                      if (this.isMicrophoneMuted || this.isSpeaking || this.awaitingResponse) {
+                      // 🚀 FULL DUPLEX: Solo bloquear si el micrófono está explícitamente mutado
+                      // Permitir que el usuario hable mientras la IA habla (full duplex real)
+                      if (this.isMicrophoneMuted) {
                         chunkIndex = 0;
                         return;
                       }
@@ -1667,7 +1669,9 @@
                     if (!event.data || event.data.size <= 0) return;
                     if (!this.activeCall || ws.readyState !== WebSocket.OPEN) return;
                     if (this.sttAvailable === false) return;
-                    if (this.isMicrophoneMuted || this.isSpeaking || this.awaitingResponse) return;
+                    // 🚀 FULL DUPLEX: Solo bloquear si el micrófono está explícitamente mutado
+                    // Permitir que el usuario hable mientras la IA habla (full duplex real)
+                    if (this.isMicrophoneMuted) return;
 
                     // Convertir audio a base64 y enviar como JSON
                     const reader = new FileReader();
@@ -1852,10 +1856,13 @@
               } catch (_) { }
             }
 
-            // 4. Resetear estado
+            // 4. Resetear estado (pero NO mutear el micrófono - full duplex)
+            // El micrófono permanece abierto para que el usuario pueda seguir hablando
             this.isSpeaking = false;
             this.awaitingResponse = false;
             this.clearResponseWatchdog();
+            
+            console.log('[MCP] ✅ stop_audio procesado - micrófono permanece abierto para full duplex');
 
             return;
           }
@@ -1919,12 +1926,9 @@
           // 🚀 FASE 1: Manejar finalización de TTS streaming
           if (data.route === 'audio' && data.action === 'tts_complete') {
             console.log('[MCP] ✅ TTS streaming completado');
-            // 🚀 ENTERPRISE ECHO CANCELLATION: Debounce mute release (600ms)
-            console.log('[AUDIO-STREAM] ⏳ Debouncing mic mute (600ms)...');
-            setTimeout(() => {
-              this.isSpeaking = false;
-              console.log('[AUDIO-STREAM] 🎤 Microphone Unmuted (Debounce complete)');
-            }, 600);
+            // 🚀 FULL DUPLEX: No mutear el micrófono - permitir conversación fluida
+            this.isSpeaking = false;
+            console.log('[AUDIO-STREAM] ✅ TTS completado - micrófono permanece abierto para full duplex');
             return;
           }
 
@@ -2529,13 +2533,10 @@
         audio.onended = () => {
           console.log('[AUDIO] ✅ Audio finalizado completamente');
 
-          // 🚀 ENTERPRISE ECHO CANCELLATION: Debounce mute release (600ms)
-          // Maintain Mic Mute for 600ms AFTER audio ends to prevent "hearing self"
-          console.log('[AUDIO] ⏳ Debouncing mic mute (600ms)...');
-          setTimeout(() => {
-            this.isSpeaking = false;
-            console.log('[AUDIO] 🎤 Microphone Unmuted (Debounce complete)');
-          }, 600);
+          // 🚀 FULL DUPLEX: No mutear el micrófono - permitir conversación fluida
+          // El servidor maneja el barge-in y envía stop_audio cuando detecta voz del usuario
+          this.isSpeaking = false;
+          console.log('[AUDIO] ✅ Audio finalizado - micrófono permanece abierto para full duplex');
 
           // CRITICAL FIX: Wait 5 seconds before revoking to ensure audio fully finishes
           // This prevents cutting off the end of the audio and gives time for the buffer to clear
