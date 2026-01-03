@@ -683,7 +683,7 @@ class VoiceServices {
 
       logger.info(`[DEEPGRAM TTS] ✅ Audio generated successfully (${audioBuffer.byteLength} bytes, MP3)`);
       return audioBase64;
-    } catch (error) {
+      } catch (error) {
       logger.error('[DEEPGRAM TTS] ❌ REST API error:', error);
       throw error;
     }
@@ -748,7 +748,7 @@ class VoiceServices {
 
       logger.info(`[CARTESIA] ✅ Audio generated successfully (${audioBuffer.byteLength} bytes)`);
       return audioBase64;
-    } catch (error) {
+      } catch (error) {
       logger.error('[CARTESIA] ❌ Error generating TTS:', error);
       throw error;
     }
@@ -758,15 +758,24 @@ class VoiceServices {
    * Process message with AI - SOLO OpenAI GPT-4o-mini (fijado en producción)
    */
   async processMessage(userMessage, context = {}) {
-    // 🚀 PROMPT DEFINITIVO: Pipeline Final según PIPELINE_FINAL_IMPLEMENTADO.md
-    // Prompt fluido y natural, sin referencias a call center
+    // 🚀 PROMPT OPTIMIZADO PARA VOZ: Pipeline GPT-4o - Conversación secuencial y memoria
     let systemPrompt = `Eres Sandra, la asistente virtual de Guests Valencia, especializada en hospitalidad y turismo.
 Responde SIEMPRE en español neutro, con buena ortografía y gramática.
 Actúa como una experta en Hospitalidad y Turismo.
-Sé breve: máximo 4 frases salvo que se pida detalle.
-Sé amable, profesional y útil.`;
+Sé breve: máximo 2-3 frases salvo que se pida detalle.
+Sé amable, profesional y útil.
 
-    // 🚀 PROMPT DEFINITIVO: Ajustes dinámicos según el contexto
+### CONVERSACIÓN SECUENCIAL - NO PREGUNTAR TODO DE GOLPE:
+- Divide las consultas en pasos lógicos, NO hagas todas las preguntas a la vez.
+- Si el usuario menciona una necesidad (ej: "quiero una habitación"), agradece y pregunta SOLO por lo siguiente en la secuencia:
+  1. PRIMERO: Fechas de check-in y check-out (si no las tienes)
+  2. SEGUNDO: Número de huéspedes (si no lo tienes)
+  3. TERCERO: Zona o preferencia de alojamiento (si es necesario)
+  4. FINALMENTE: Usa getRecommendations() o checkAvailability() según corresponda
+- Si ya conoces la fecha de entrada y el número de personas, NO vuelvas a preguntarlo.
+- Haz UNA pregunta a la vez, espera la respuesta, y luego continúa con la siguiente.`;
+
+    // 🚀 REGLA CRÍTICA: No saludar después del saludo inicial
     if (context.greetingSent === true) {
       systemPrompt += `\n\n### REGLA CRÍTICA - NO VIOLAR:
 - Ya has saludado al usuario al inicio de la llamada. NUNCA vuelvas a saludar.
@@ -776,24 +785,41 @@ Sé amable, profesional y útil.`;
 - Ejemplos CORRECTOS: Responde directamente a lo que pregunta (ej: si pregunta por alojamiento, habla de alojamientos directamente)`;
     }
     
-    // 🚀 NEON BUFFER: Añadir historial completo de conversación desde base de datos
+    // 🚀 MEMORIA CONVERSACIONAL: Historial completo desde base de datos
     if (context.conversationHistory && context.conversationHistory.length > 0) {
-      systemPrompt += `\n\n### Historial de conversación (últimos ${context.conversationHistory.length} intercambios):
+      systemPrompt += `\n\n### MEMORIA CONVERSACIONAL (últimos ${context.conversationHistory.length} intercambios):
 `;
       context.conversationHistory.forEach((exchange, index) => {
-        systemPrompt += `- Usuario: "${exchange.user.substring(0, 80)}${exchange.user.length > 80 ? '...' : ''}"\n`;
-        systemPrompt += `  Tú: "${exchange.assistant.substring(0, 80)}${exchange.assistant.length > 80 ? '...' : ''}"\n`;
+        systemPrompt += `${index + 1}. Usuario: "${exchange.user.substring(0, 100)}${exchange.user.length > 100 ? '...' : ''}"\n`;
+        systemPrompt += `   Tú: "${exchange.assistant.substring(0, 100)}${exchange.assistant.length > 100 ? '...' : ''}"\n`;
       });
-      systemPrompt += `\n- Usa este historial para mantener coherencia y NO repetir información ya proporcionada
-- Recuerda los datos que el cliente ya te ha dado (fechas, personas, zona, etc.) y no los vuelvas a pedir`;
+      systemPrompt += `\n### INSTRUCCIONES DE MEMORIA:
+- Usa este historial para mantener coherencia y NO repetir información ya proporcionada.
+- Si el usuario ya mencionó fechas, número de personas, zona o presupuesto, NO vuelvas a preguntarlo.
+- Recuerda los datos que el cliente ya te ha dado y continúa desde donde quedaste.
+- Si ya tienes suficiente información, procede directamente a buscar alojamientos o confirmar reserva.`;
     }
     
-    // Añadir contexto de conversación previa si existe (fallback si no hay historial)
+    // 🚀 CONTEXTO PREVIO: Fallback si no hay historial completo
     if (context.lastFinalizedTranscript && (!context.conversationHistory || context.conversationHistory.length === 0)) {
-      systemPrompt += `\n\n### Contexto de conversación previa:
-- El usuario mencionó anteriormente: "${context.lastFinalizedTranscript.substring(0, 100)}"
-- Usa este contexto para responder de forma coherente y NO repetir preguntas ya respondidas
-- Recuerda los datos que el cliente ya te ha dado (fechas, personas, zona, etc.) y no los vuelvas a pedir`;
+      systemPrompt += `\n\n### CONTEXTO DE CONVERSACIÓN PREVIA:
+- El usuario mencionó anteriormente: "${context.lastFinalizedTranscript.substring(0, 150)}"
+- Usa este contexto para responder de forma coherente y NO repetir preguntas ya respondidas.
+- Si el usuario ya proporcionó información (fechas, personas, zona), NO vuelvas a pedirla.
+- Continúa desde donde quedaste en la conversación.`;
+    }
+    
+    // 🚀 DATOS EXTRAÍDOS: Si ya se conocen datos específicos, no preguntarlos
+    const knownData = [];
+    if (context.checkIn && context.checkOut) knownData.push(`Fechas: ${context.checkIn} - ${context.checkOut}`);
+    if (context.guests) knownData.push(`${context.guests} huéspedes`);
+    if (context.location) knownData.push(`Zona: ${context.location}`);
+    if (context.budget) knownData.push(`Presupuesto: ${context.budget}€`);
+    
+    if (knownData.length > 0) {
+      systemPrompt += `\n\n### DATOS YA CONOCIDOS (NO PREGUNTAR):
+- ${knownData.join(', ')}
+- Usa esta información directamente, NO vuelvas a preguntarla.`;
     }
     
     // Añadir última respuesta de IA para evitar ecos
@@ -817,7 +843,7 @@ Sé amable, profesional y útil.`;
       logger.error('[AI] ❌ Error con OpenAI GPT-4o-mini:', error.message);
       throw error;
       }
-    }
+  }
 
   async _callOpenAI(userMessage, systemPrompt) {
     if (!this.openaiApiKey) {
