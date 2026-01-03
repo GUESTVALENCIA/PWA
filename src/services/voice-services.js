@@ -469,9 +469,9 @@ class VoiceServices {
 
     const {
       useNative = false,
-      model = 'aura-2-agustina-es',
+      model = 'aura-2-diana-es', // 🔄 CAMBIO: Probando 'diana' para mayor seriedad/estabilidad
       streaming = false,
-      provider = 'cartesia' // ✅ DEFAULT: cartesia (Calidad superior, acento perfecto)
+      provider = 'deepgram' // 🔄 FALLBACK: Volver a Deepgram por crédito disponible
     } = options;
 
     // Force Cartesia voice ID from env or hardcoded specific ID for Sandra
