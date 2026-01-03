@@ -971,26 +971,6 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
               throw new Error(`TTS failed: ${ttsError.message}`);
             }
 
-            // Helper function for REST API fallback
-            async function handleTTSFallback(text, clientWs) {
-              try {
-                const fallbackAudio = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-agustina-es' });
-                if (fallbackAudio.type === 'tts') {
-                  clientWs.send(JSON.stringify({
-                    route: 'audio',
-                    action: 'tts',
-                    payload: {
-                      audio: fallbackAudio.data,
-                      format: 'mp3',
-                      text: text,
-                      language: 'es'
-                    }
-                  }));
-                }
-              } catch (error) {
-                logger.error('[TTS] ❌ Fallback also failed:', error);
-              }
-            }
           } catch (error) {
             logger.error('[DEEPGRAM] Error processing transcript with AI:', {
               error: error.message,
@@ -1304,36 +1284,6 @@ async function handleAudioTTS(payload, ws, voiceServices) {
         message: error.message
       }
     }));
-  }
-}
-
-/**
- * Handle initial greeting - Generate greeting in real-time using Deepgram TTS
- * 🚀 ENTERPRISE: Saludo generado en tiempo real (no pregrabado) para experiencia natural
- */
-// Helper function for REST API fallback
-async function handleGreetingFallback(text, clientWs, voiceServices) {
-  try {
-    const fallbackAudio = await voiceServices.generateVoice(text, { streaming: false, model: 'aura-2-agustina-es' });
-    if (fallbackAudio.type === 'tts') {
-      clientWs.send(JSON.stringify({
-        route: 'audio',
-        action: 'tts',
-        payload: {
-          audio: fallbackAudio.data,
-          format: 'mp3',
-          text: text,
-          isWelcome: true
-        }
-      }));
-      logger.info('✅ Initial greeting sent (REST API fallback)');
-    } else {
-      logger.error('[TTS] ❌ Fallback returned unexpected type:', fallbackAudio.type);
-      throw new Error('Fallback returned unexpected audio type');
-    }
-  } catch (error) {
-    logger.error('[TTS] ❌ Greeting fallback also failed:', error);
-    throw error;
   }
 }
 
