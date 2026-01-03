@@ -960,9 +960,10 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
           const endsWithPunctuation = /[.!?]$/.test(transcriptNormalized.trim());
           const isIncomplete = !endsWithPunctuation && transcriptWords.length < 6;
           
-          // 3. Filtrar solo saludos (después del saludo inicial)
+          // 3. Filtrar solo saludos (después del saludo inicial) - 🚀 PIPELINE FINAL: Filtro mejorado
+          // Detecta saludos solos o seguidos de puntuación/comas, incluso con repeticiones
           const isOnlyGreeting = deepgramData?.greetingSent === true && 
-            /^(hola|buenos días|buenas tardes|buenas noches|hey|hi)[\s,\.!]*$/i.test(transcriptLower);
+            /^(hola|buenos días|buenas tardes|buenas noches|hey|hi|buenas)[\s,\.!]*(\s*(hola|buenas|buenos días|buenas tardes|buenas noches)[\s,\.!]*)*$/i.test(transcriptLower);
           
           // 4. Filtrar fragmentos que son claramente incompletos (palabras sueltas o frases muy cortas)
           const isFragment = transcriptWords.length <= 2 && transcriptNormalized.trim().length < 25;
@@ -1609,9 +1610,11 @@ async function processInterimTranscript(interimText, ws, voiceServices, agentId,
 
     logger.debug(`[BUFFER INTELIGENTE] 🧠 Procesando transcripción interim: "${interimText.substring(0, 50)}..."`);
 
-    // 🎯 CALL CENTER FEEDBACK: Pasar contexto de conversación
+    // 🚀 PIPELINE FINAL: Pasar contexto completo de conversación
     const conversationContext = {
-      greetingSent: deepgramData?.greetingSent === true
+      greetingSent: deepgramData?.greetingSent === true,
+      lastFinalizedTranscript: deepgramData?.lastFinalizedTranscript || null,
+      lastAIResponse: deepgramData?.lastAIResponse || null
     };
 
     // Generar respuesta de IA (sin bloquear, puede ser cancelada)
@@ -1661,17 +1664,18 @@ async function generateNaturalGreeting(ws, voiceServices, agentId) {
 
     logger.info('👋 Generating natural greeting with AI (after ringtones)...');
 
-        // 🚀 NATURAL GREETING: Prompt tipo call center - saludo breve y natural
-        // Call center feedback: Saludo breve, directo, amable pero no excesivamente formal
-        const greetingPrompt = 'Acabas de descolgar una llamada. Saluda al usuario de forma breve, natural y amable. No seas demasiado formal.';
+        // 🚀 PIPELINE FINAL: Saludo natural y fluido, generado por IA
+        // El saludo debe sonar natural, no como lectura de un guion
+        // La IA genera el saludo basándose en su personalidad, no en un texto fijo
+        const greetingPrompt = 'Acabas de descolgar una llamada. Eres Sandra, la asistente de Guests Valencia. Saluda al usuario de forma breve, natural y amable. Máximo 5 palabras.';
         
-        // ⏱️ LATENCIA: Agregar margen después de ringtones antes de generar saludo
-        // El usuario reporta que el saludo sale muy pegado a la llamada
-        await new Promise(resolve => setTimeout(resolve, 500)); // 500ms de margen
+        // ⏱️ PIPELINE FINAL: Latencia mínima - máximo 1 segundo desde que se cuelga hasta que saluda
+        // Los ringtones ya se reprodujeron, ahora generamos el saludo inmediatamente
+        // No hay delay adicional - el saludo debe generarse y enviarse lo más rápido posible
         
         try {
           // La IA genera el saludo naturalmente (mismo sistema que las respuestas normales)
-          const naturalGreeting = await voiceServices.ai.processMessage(greetingPrompt);
+          const naturalGreeting = await voiceServices.ai.processMessage(greetingPrompt, { greetingSent: false });
       
       if (!naturalGreeting || naturalGreeting.trim().length === 0) {
         logger.warn('[GREETING] IA no generó saludo, continuando sin saludo');
