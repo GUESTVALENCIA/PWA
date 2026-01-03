@@ -786,7 +786,7 @@ Sé amable, profesional y útil.`;
     }
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
+    const timeout = setTimeout(() => controller.abort(), 8000); // 🚀 REAL-TIME: 8s timeout (reducido de 30s para tiempo real)
 
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -823,7 +823,7 @@ Sé amable, profesional y útil.`;
     } catch (error) {
       clearTimeout(timeout);
       if (error.name === 'AbortError') {
-        throw new Error('OpenAI: Request timeout (30s)');
+        throw new Error('OpenAI: Request timeout (8s)');
       }
       throw error;
     }
