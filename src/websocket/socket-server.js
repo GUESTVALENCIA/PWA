@@ -540,12 +540,9 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices) {
 
       case 'conserje':
         if (action === 'message' && payload?.type === 'ready') {
-          // 🚀 WEBRTC PIPELINE: Cliente terminó de reproducir ringtones, ahora enviar saludo
-          logger.info(`[WEBSOCKET] Cliente ${agentId} listo después de ringtones - enviando saludo con Carina`);
-          // Enviar saludo DESPUÉS de los ringtones (conexión ya estabilizada, latencia cero)
-          handleInitialGreeting(ws, voiceServices).catch((error) => {
-            logger.error(`[WEBSOCKET] Error enviando saludo después de ringtones para ${agentId}:`, error);
-          });
+          // 🚀 REAL-TIME PIPELINE: NO enviar saludo - esperar a que el usuario hable
+          // Después de ringtones: 1 segundo de silencio, luego el usuario habla y Sandra responde naturalmente
+          logger.info(`[WEBSOCKET] Cliente ${agentId} listo después de ringtones - esperando audio del usuario (sin saludo predeterminado)`);
           // Enviar confirmación de que el servidor está listo para recibir audio
           ws.send(JSON.stringify({
             route: 'conserje',
@@ -1200,61 +1197,7 @@ async function handleAudioTTS(payload, ws, voiceServices) {
   }
 }
 
-/**
- * Handle initial greeting (AUTOMÁTICO AL SUBIR WEBSOCKET)
- * Envía saludo generado por TTS para consistencia de voz (misma personalidad).
- */
-async function handleInitialGreeting(ws, voiceServices) {
-  try {
-    if (!voiceServices || !voiceServices.generateVoice) {
-      logger.error('Voice services not available for greeting');
-      return;
-    }
-
-    logger.info('👋 Generating initial greeting in real-time (Deepgram TTS)...');
-
-    // 🚀 ENTERPRISE: SALUDO UNIFICADO (MISMA PERSONALIDAD)
-    // El usuario exige consistencia: NO usar voz nativa.
-    // Usar Deepgram Aura "Agustina" (peninsular) para todo.
-    const greetingText = 'Hola, soy Sandra, tu asistente de Guests Valencia, ¿en qué puedo ayudarle hoy?';
-
-    logger.info(`🎙️ Generating greeting audio: "${greetingText}"`);
-
-    try {
-      // Usar Deepgram REST API (aura-2-carina-es) - Peninsular, Voz Interactiva/IVR
-      const greetingAudio = await voiceServices.generateVoice(greetingText, {
-        model: 'aura-2-carina-es'
-      });
-
-      if (greetingAudio.type === 'tts' && greetingAudio.data) {
-        logger.info('[TTS] ✅ Greeting generated with Aura Carina (Consistency OK)');
-        ws.send(JSON.stringify({
-          route: 'audio',
-          action: 'tts',
-          payload: {
-            audio: greetingAudio.data,
-            format: 'mp3',
-            text: greetingText,
-            isWelcome: true
-          }
-        }));
-        logger.info('✅ Initial greeting sent (REST API)');
-      } else {
-        throw new Error('Invalid TTS response format');
-      }
-    } catch (err) {
-      logger.error('[TTS] ❌ Greeting generation failed:', err);
-      // Fallback silencioso o notificar error al cliente si es crítico
-      ws.send(JSON.stringify({
-        route: 'error',
-        action: 'message',
-        payload: { error: 'Greeting failed', details: err.message }
-      }));
-    }
-
-  } catch (error) {
-    logger.error('Error generating initial greeting:', error);
-  }
-}
-
+// ✅ ELIMINADO: handleInitialGreeting - No se envía saludo predeterminado
+// El sistema ahora es completamente natural: después de ringtones, 1 segundo de silencio,
+// luego el usuario habla y Sandra responde naturalmente (real-time)
 
