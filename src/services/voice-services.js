@@ -450,7 +450,7 @@ class VoiceServices {
   /**
    * Generate voice audio using Deepgram TTS REST API (simplified, stable pipeline)
    * @param {string} text - Text to synthesize (required)
-   * @param {Object} options - Options { model: string }
+   * @param {Object} options - Options { model: string, speed: number, volume: number }
    * @returns {Promise<{type: 'tts', data: string, format: 'mp3', provider: 'deepgram'}>}
    */
   async generateVoice(text, options = {}) {
@@ -460,6 +460,8 @@ class VoiceServices {
     }
 
     const model = options.model || 'aura-2-carina-es'; // ✅ ÚNICO MODELO: aura-2-carina-es (Peninsular, Voz Interactiva/IVR)
+    const speed = options.speed !== undefined ? options.speed : 0.95; // 🎚️ Velocidad reducida en 0.05 (medio punto)
+    const volume = options.volume !== undefined ? options.volume : 0.9; // 🔊 Volumen reducido en 0.1 (1 punto)
 
     if (!text || text.trim() === '') {
       throw new Error('Text is required for TTS generation');
@@ -470,10 +472,10 @@ class VoiceServices {
     }
 
     // ✅ SOLO REST API - Simple, estable, sin fallbacks
-    logger.info(`[TTS] 🎙️ Generating audio with Deepgram TTS REST API: model=${model}, text_length=${text.length}`);
+    logger.info(`[TTS] 🎙️ Generating audio with Deepgram TTS REST API: model=${model}, text_length=${text.length}, speed=${speed}, volume=${volume}`);
 
     try {
-      const audioBase64 = await this._generateDeepgramTTS(text, model);
+      const audioBase64 = await this._generateDeepgramTTS(text, model, { speed, volume });
       logger.info('[TTS] ✅ Audio generated successfully with Deepgram TTS REST API');
       return {
         type: 'tts',
@@ -640,10 +642,11 @@ class VoiceServices {
    * ✅ Formato text/plain según curl oficial de Deepgram
    * @private
    * @param {string} text - Text to synthesize
-   * @param {string} model - Deepgram voice model (default: aura-2-celeste-es)
+   * @param {string} model - Deepgram voice model (default: aura-2-carina-es)
+   * @param {Object} options - Options { speed: number, volume: number }
    * @returns {Promise<string>} Base64 encoded audio (MP3)
    */
-  async _generateDeepgramTTS(text, model = 'aura-2-carina-es') {
+  async _generateDeepgramTTS(text, model = 'aura-2-carina-es', options = {}) {
     if (!this.deepgramApiKey) {
       throw new Error('Deepgram API key not configured');
     }
@@ -654,12 +657,20 @@ class VoiceServices {
 
     try {
       // ✅ FORMATO CORRECTO según curl oficial de Deepgram:
-      // POST https://api.deepgram.com/v1/speak?model=aura-2-agustina-es
+      // POST https://api.deepgram.com/v1/speak?model=aura-2-agustina-es&speed=0.95&volume=0.9
       // Headers: Authorization: Token ... , Content-Type: text/plain
       // Body: texto directamente (NO JSON)
-      const url = `https://api.deepgram.com/v1/speak?model=${encodeURIComponent(model)}`;
+      const speed = options.speed !== undefined ? options.speed : 0.95; // 🎚️ Velocidad reducida (medio punto)
+      const volume = options.volume !== undefined ? options.volume : 0.9; // 🔊 Volumen reducido (1 punto)
+      
+      const urlParams = new URLSearchParams({
+        model: model,
+        speed: speed.toString(),
+        volume: volume.toString()
+      });
+      const url = `https://api.deepgram.com/v1/speak?${urlParams.toString()}`;
 
-      logger.info(`[DEEPGRAM TTS] 🎙️ Requesting TTS: model=${model}, text_length=${text.length}`);
+      logger.info(`[DEEPGRAM TTS] 🎙️ Requesting TTS: model=${model}, text_length=${text.length}, speed=${speed}, volume=${volume}`);
       logger.debug(`[DEEPGRAM TTS] URL: ${url}`);
 
       const response = await fetch(url, {
@@ -767,11 +778,12 @@ Sé amable, profesional y útil.`;
 
     // Si ya se hizo el saludo inicial, evitar saludar de nuevo
     if (context.greetingSent === true) {
-      systemPrompt += `\n\nIMPORTANTE: Ya has saludado al usuario al inicio de la llamada. 
-- NUNCA vuelvas a saludar (NO digas "Hola", "Buenos días", "Buenas tardes", etc.)
-- NO repitas saludos aunque el usuario diga "Hola" o "Buenos días"
-- Responde directamente a su pregunta o comentario sin saludar
-- Si el usuario solo dice "Hola" o saludos, responde brevemente sin saludar de nuevo (ej: "¿En qué puedo ayudarte?")`;
+      systemPrompt += `\n\n🚫 PROHIBIDO SALUDAR: Ya has saludado al usuario al inicio de la llamada. 
+- NUNCA vuelvas a decir "Hola", "¡Hola!", "Buenos días", "Buenas tardes", "Buenas noches", "Hey", "Hi" o cualquier saludo
+- NO empieces tus respuestas con saludos, incluso si el usuario dice "Hola"
+- Si el usuario dice "Hola", responde directamente a su pregunta o comentario SIN saludar (ej: "¿En qué puedo ayudarte?" o "¿Qué necesitas?")
+- Si el usuario solo dice "Hola" sin más, responde brevemente sin saludar (ej: "¿En qué puedo ayudarte?")
+- NUNCA uses la palabra "Hola" en tus respuestas después del saludo inicial`;
     }
 
     // ✅ SOLO OpenAI GPT-4o-mini - Sin fallbacks, sin cambios
