@@ -450,7 +450,7 @@ class VoiceServices {
   /**
    * Generate voice audio using Deepgram TTS REST API (simplified, stable pipeline)
    * @param {string} text - Text to synthesize (required)
-   * @param {Object} options - Options { model: string, speed: number, volume: number }
+   * @param {Object} options - Options { model: string }
    * @returns {Promise<{type: 'tts', data: string, format: 'mp3', provider: 'deepgram'}>}
    */
   async generateVoice(text, options = {}) {
@@ -460,8 +460,6 @@ class VoiceServices {
     }
 
     const model = options.model || 'aura-2-carina-es'; // ✅ ÚNICO MODELO: aura-2-carina-es (Peninsular, Voz Interactiva/IVR)
-    const speed = options.speed !== undefined ? options.speed : 0.95; // 🎚️ Velocidad reducida en 0.05 (medio punto)
-    const volume = options.volume !== undefined ? options.volume : 0.9; // 🔊 Volumen reducido en 0.1 (1 punto)
 
     if (!text || text.trim() === '') {
       throw new Error('Text is required for TTS generation');
@@ -472,10 +470,10 @@ class VoiceServices {
     }
 
     // ✅ SOLO REST API - Simple, estable, sin fallbacks
-    logger.info(`[TTS] 🎙️ Generating audio with Deepgram TTS REST API: model=${model}, text_length=${text.length}, speed=${speed}, volume=${volume}`);
+    logger.info(`[TTS] 🎙️ Generating audio with Deepgram TTS REST API: model=${model}, text_length=${text.length}`);
 
     try {
-      const audioBase64 = await this._generateDeepgramTTS(text, model, { speed, volume });
+      const audioBase64 = await this._generateDeepgramTTS(text, model);
       logger.info('[TTS] ✅ Audio generated successfully with Deepgram TTS REST API');
       return {
         type: 'tts',
@@ -643,10 +641,9 @@ class VoiceServices {
    * @private
    * @param {string} text - Text to synthesize
    * @param {string} model - Deepgram voice model (default: aura-2-carina-es)
-   * @param {Object} options - Options { speed: number, volume: number }
    * @returns {Promise<string>} Base64 encoded audio (MP3)
    */
-  async _generateDeepgramTTS(text, model = 'aura-2-carina-es', options = {}) {
+  async _generateDeepgramTTS(text, model = 'aura-2-carina-es') {
     if (!this.deepgramApiKey) {
       throw new Error('Deepgram API key not configured');
     }
@@ -657,20 +654,12 @@ class VoiceServices {
 
     try {
       // ✅ FORMATO CORRECTO según curl oficial de Deepgram:
-      // POST https://api.deepgram.com/v1/speak?model=aura-2-agustina-es&speed=0.95&volume=0.9
+      // POST https://api.deepgram.com/v1/speak?model=aura-2-agustina-es
       // Headers: Authorization: Token ... , Content-Type: text/plain
       // Body: texto directamente (NO JSON)
-      const speed = options.speed !== undefined ? options.speed : 0.95; // 🎚️ Velocidad reducida (medio punto)
-      const volume = options.volume !== undefined ? options.volume : 0.9; // 🔊 Volumen reducido (1 punto)
-      
-      const urlParams = new URLSearchParams({
-        model: model,
-        speed: speed.toString(),
-        volume: volume.toString()
-      });
-      const url = `https://api.deepgram.com/v1/speak?${urlParams.toString()}`;
+      const url = `https://api.deepgram.com/v1/speak?model=${encodeURIComponent(model)}`;
 
-      logger.info(`[DEEPGRAM TTS] 🎙️ Requesting TTS: model=${model}, text_length=${text.length}, speed=${speed}, volume=${volume}`);
+      logger.info(`[DEEPGRAM TTS] 🎙️ Requesting TTS: model=${model}, text_length=${text.length}`);
       logger.debug(`[DEEPGRAM TTS] URL: ${url}`);
 
       const response = await fetch(url, {
@@ -808,7 +797,7 @@ Sé amable, profesional y útil.`;
     }
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000); // 🚀 REAL-TIME: 4s timeout (optimizado para latencia mínima)
+    const timeout = setTimeout(() => controller.abort(), 2500); // 🚀 REAL-TIME: 2.5s timeout (reducido para respuestas más rápidas)
 
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -844,9 +833,9 @@ Sé amable, profesional y útil.`;
       return data.choices[0].message.content;
     } catch (error) {
       clearTimeout(timeout);
-      if (error.name === 'AbortError') {
-        throw new Error('OpenAI: Request timeout (8s)');
-      }
+          if (error.name === 'AbortError') {
+            throw new Error('OpenAI: Request timeout (2.5s)');
+          }
       throw error;
     }
   }
