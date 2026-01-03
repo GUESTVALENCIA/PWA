@@ -26,6 +26,8 @@ const agentSubscriptions = new Map();
 const agentConnections = new Map();
 // Deepgram streaming connections: Map<agentId, { connection, isProcessing, greetingSent }>
 const deepgramConnections = new Map();
+// 🚀 GPT-4o: Mapa de sesiones por sessionId para mantener estado entre reconexiones
+const sessionMap = new Map(); // Map<sessionId, { agentId, greetingSent, lastTranscript, createdAt }>
 // Voice Agent connections: Map<agentId, { agent, isProcessing }>
 const voiceAgentConnections = new Map();
 // Track agents where STT is not available (prevents error spam)
@@ -549,29 +551,68 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices) {
             logger.error(`[WEBSOCKET] Error generando saludo natural para ${agentId}:`, error);
           });
         } else if (action === 'message' && payload?.type === 'resume_session') {
-          // 🚀 PIPELINE ROBUSTO: Reanudar sesión después de reconexión
+          // 🚀 GPT-4o: Reanudar sesión después de reconexión usando sessionId
           const sessionId = payload.sessionId;
-          logger.info(`[WEBSOCKET] 🔄 Reanudando sesión ${sessionId} para ${agentId}`);
+          logger.info(`[PIPELINE ROBUSTO] 🔄 Reanudando sesión ${sessionId} para ${agentId}`);
           
-          // Buscar contexto de sesión existente
+          // 🚀 GPT-4o: Buscar sesión existente por sessionId (no solo por agentId)
+          const existingSession = sessionMap.get(sessionId);
           const deepgramData = deepgramConnections.get(agentId);
-          if (deepgramData && deepgramData.greetingSent) {
-            // Ya se envió el saludo, no enviar de nuevo
-            logger.info(`[WEBSOCKET] ✅ Sesión ${sessionId} reanudada - saludo ya enviado, continuando conversación`);
-            ws.send(JSON.stringify({
-              route: 'conserje',
-              action: 'message',
-              payload: {
-                type: 'session_resumed',
-                sessionId: sessionId,
-                greetingSent: true
-              }
-            }));
+          
+          if (existingSession) {
+            // Sesión existente encontrada - restaurar estado
+            logger.info(`[PIPELINE ROBUSTO] ✅ Sesión ${sessionId} encontrada - restaurando estado`, {
+              greetingSent: existingSession.greetingSent,
+              lastTranscript: existingSession.lastTranscript?.substring(0, 50),
+              createdAt: existingSession.createdAt
+            });
+            
+            // Restaurar greetingSent en deepgramData si existe
+            if (deepgramData) {
+              deepgramData.greetingSent = existingSession.greetingSent;
+              deepgramData.sessionId = sessionId;
+            }
+            
+            // Actualizar agentId en la sesión (puede cambiar en reconexión)
+            existingSession.agentId = agentId;
+            existingSession.lastReconnectedAt = new Date().toISOString();
+            
+            // NO enviar saludo si ya se envió
+            if (existingSession.greetingSent) {
+              logger.info(`[PIPELINE ROBUSTO] ✅ Sesión ${sessionId} reanudada - saludo ya enviado, continuando conversación`);
+              ws.send(JSON.stringify({
+                route: 'conserje',
+                action: 'message',
+                payload: {
+                  type: 'session_resumed',
+                  sessionId: sessionId,
+                  greetingSent: true,
+                  message: 'Sesión reanudada - continuando conversación'
+                }
+              }));
+              return; // No enviar saludo
+            }
           } else {
-            // Primera conexión o sesión nueva, enviar saludo
-            logger.info(`[WEBSOCKET] ✅ Sesión ${sessionId} nueva - enviando saludo`);
+            // Nueva sesión - crear entrada
+            logger.info(`[PIPELINE ROBUSTO] 🆕 Sesión ${sessionId} nueva - creando entrada`);
+            sessionMap.set(sessionId, {
+              agentId: agentId,
+              greetingSent: false,
+              lastTranscript: null,
+              createdAt: new Date().toISOString(),
+              lastReconnectedAt: null
+            });
+            
+            if (deepgramData) {
+              deepgramData.sessionId = sessionId;
+            }
+          }
+          
+          // Si llegamos aquí y greetingSent es false, enviar saludo
+          if (!existingSession || !existingSession.greetingSent) {
+            logger.info(`[PIPELINE ROBUSTO] 👋 Enviando saludo para sesión ${sessionId}`);
             generateNaturalGreeting(ws, voiceServices, agentId).catch((error) => {
-              logger.error(`[WEBSOCKET] Error generando saludo natural para ${agentId}:`, error);
+              logger.error(`[PIPELINE ROBUSTO] ❌ Error generando saludo natural para ${agentId}:`, error);
             });
           }
           
@@ -579,7 +620,12 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices) {
           ws.send(JSON.stringify({
             route: 'conserje',
             action: 'message',
-            payload: { type: 'session_resumed', sessionId: sessionId, greetingSent: deepgramData?.greetingSent || false }
+            payload: { 
+              type: 'session_resumed', 
+              sessionId: sessionId, 
+              greetingSent: existingSession?.greetingSent || false,
+              message: 'Servidor listo para recibir audio'
+            }
           }));
         } else {
           ws.send(JSON.stringify({
@@ -615,7 +661,32 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices) {
  * Maintains persistent connection per client for real-time transcription
  */
 async function handleAudioSTT(payload, ws, voiceServices, agentId) {
-  const { audio, format, mimeType, encoding, sampleRate, channels } = payload;
+  const { audio, format, mimeType, encoding, sampleRate, channels, sessionId } = payload;
+  
+  // 🚀 GPT-4o: Si hay sessionId, actualizar sessionMap y deepgramData
+  if (sessionId) {
+    logger.debug(`[PIPELINE ROBUSTO] 📥 Audio recibido con sessionId: ${sessionId}`);
+    
+    // Buscar o crear sesión
+    let session = sessionMap.get(sessionId);
+    if (!session) {
+      logger.info(`[PIPELINE ROBUSTO] 🆕 Creando nueva sesión en sessionMap: ${sessionId}`);
+      session = {
+        agentId: agentId,
+        greetingSent: false,
+        lastTranscript: null,
+        createdAt: new Date().toISOString(),
+        lastReconnectedAt: null
+      };
+      sessionMap.set(sessionId, session);
+    } else {
+      // Actualizar agentId si cambió (reconexión)
+      if (session.agentId !== agentId) {
+        logger.info(`[PIPELINE ROBUSTO] 🔄 Actualizando agentId en sesión ${sessionId}: ${session.agentId} → ${agentId}`);
+        session.agentId = agentId;
+      }
+    }
+  }
 
   // #region agent log
   debugLog('socket-server.js:584', 'Audio STT payload received', { encoding, sampleRate, channels, format, audioLength: audio?.length }, 'A');
@@ -723,7 +794,18 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
     }
     
     if (!deepgramData || !deepgramData.connection) {
-      logger.info(`[DEEPGRAM] 🔌 Creating new streaming connection for ${agentId}`);
+      logger.info(`[PIPELINE ROBUSTO] 🔌 Creating new streaming connection for ${agentId}${sessionId ? ` (sessionId: ${sessionId})` : ''}`);
+      
+      // 🚀 GPT-4o: Si hay sessionId y existe sesión, restaurar greetingSent
+      if (sessionId) {
+        const session = sessionMap.get(sessionId);
+        if (session && session.greetingSent) {
+          logger.info(`[PIPELINE ROBUSTO] ✅ Restaurando greetingSent=true desde sessionMap para ${sessionId}`);
+          if (deepgramData) {
+            deepgramData.greetingSent = true;
+          }
+        }
+      }
 
       // ✅ Configuración según JSON Deepgram Playground
       const resolvedEncoding = (typeof encoding === 'string' && encoding.trim()) ? encoding.trim() : 'linear16';
@@ -1592,7 +1674,16 @@ async function generateNaturalGreeting(ws, voiceServices, agentId) {
         const deepgramData = deepgramConnections.get(agentId);
         if (deepgramData) {
           deepgramData.greetingSent = true;
-          logger.info(`[GREETING] ✅ Flag greetingSent activado para ${agentId}`);
+          logger.info(`[PIPELINE ROBUSTO] ✅ Flag greetingSent activado para ${agentId}`);
+          
+          // 🚀 GPT-4o: Actualizar sessionMap si existe sessionId
+          if (deepgramData.sessionId) {
+            const session = sessionMap.get(deepgramData.sessionId);
+            if (session) {
+              session.greetingSent = true;
+              logger.info(`[PIPELINE ROBUSTO] ✅ SessionMap actualizado para ${deepgramData.sessionId}`);
+            }
+          }
         }
         
         logger.info('✅ Natural greeting sent (AI-generated, TTS)');
