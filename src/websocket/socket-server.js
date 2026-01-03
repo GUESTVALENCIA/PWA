@@ -1667,86 +1667,58 @@ async function processInterimTranscript(interimText, ws, voiceServices, agentId,
  */
 async function generateNaturalGreeting(ws, voiceServices, agentId) {
   try {
-    if (!voiceServices || !voiceServices.ai || !voiceServices.generateVoice) {
-      logger.error('Voice services not available for natural greeting');
+    if (!voiceServices || !voiceServices.generateVoice) {
+      logger.error('Voice services not available for greeting');
       return;
     }
 
-    logger.info('👋 Generating natural greeting with AI (after ringtones)...');
+    // 🚀 SALUDO AUTOMÁTICO: Sin condicionar al modelo - simplemente disparar voz automáticamente
+    // Saludo predefinido simple y directo - NO usar IA para evitar condicionamiento y repeticiones
+    const greetingText = 'Hola, soy Sandra. ¿En qué puedo ayudarte?';
+    
+    logger.info(`[GREETING] 🔊 Disparando saludo automático: "${greetingText}"`);
 
-        // 🚀 PROMPT DEFINITIVO: Pipeline Final según PIPELINE_FINAL_IMPLEMENTADO.md
-        // Prompt del saludo optimizado: "Máximo 5 palabras" para respuestas más rápidas
-        const greetingPrompt = 'Acabas de descolgar una llamada. Eres Sandra, la asistente de Guests Valencia. Saluda al usuario de forma breve, natural y amable. Máximo 5 palabras.';
+    // ⏱️ LATENCIA MÍNIMA: Generar TTS directamente sin pasar por IA (máximo 1 segundo)
+    const greetingAudio = await voiceServices.generateVoice(greetingText, {
+      model: 'aura-2-carina-es'
+    });
+
+    if (greetingAudio.type === 'tts' && greetingAudio.data) {
+      logger.info('[GREETING] ✅ Audio del saludo generado con TTS');
+      ws.send(JSON.stringify({
+        route: 'audio',
+        action: 'tts',
+        payload: {
+          audio: greetingAudio.data,
+          format: 'mp3',
+          text: greetingText,
+          isWelcome: true
+        }
+      }));
+
+      // 🎯 Marcar que ya se envió el saludo inicial
+      const deepgramData = deepgramConnections.get(agentId);
+      if (deepgramData) {
+        deepgramData.greetingSent = true;
+        logger.info(`[PIPELINE ROBUSTO] ✅ Flag greetingSent activado para ${agentId}`);
         
-        // ⏱️ PIPELINE FINAL: Latencia mínima - máximo 1 segundo desde que se cuelga hasta que saluda
-        // Los ringtones ya se reprodujeron, ahora generamos el saludo inmediatamente
-        // No hay delay adicional - el saludo debe generarse y enviarse lo más rápido posible
-        
-        try {
-          // La IA genera el saludo naturalmente (mismo sistema que las respuestas normales)
-          const naturalGreeting = await voiceServices.ai.processMessage(greetingPrompt, { greetingSent: false });
-        
-        // ⏱️ PIPELINE FINAL: Latencia mínima - máximo 1 segundo desde que se cuelga hasta que saluda
-        // Los ringtones ya se reprodujeron, ahora generamos el saludo inmediatamente
-        // No hay delay adicional - el saludo debe generarse y enviarse lo más rápido posible
-        
-        try {
-          // La IA genera el saludo naturalmente (mismo sistema que las respuestas normales)
-          const naturalGreeting = await voiceServices.ai.processMessage(greetingPrompt, { greetingSent: false });
-      
-      if (!naturalGreeting || naturalGreeting.trim().length === 0) {
-        logger.warn('[GREETING] IA no generó saludo, continuando sin saludo');
-        return;
-      }
-
-      logger.info(`[GREETING] ✅ Saludo natural generado por IA: "${naturalGreeting.substring(0, 50)}..."`);
-
-      // Generar audio del saludo usando TTS (misma voz, mismo tono que respuestas normales)
-      const greetingAudio = await voiceServices.generateVoice(naturalGreeting, {
-        model: 'aura-2-carina-es'
-      });
-
-      if (greetingAudio.type === 'tts' && greetingAudio.data) {
-        logger.info('[GREETING] ✅ Audio del saludo natural generado con TTS');
-    ws.send(JSON.stringify({
-      route: 'audio',
-      action: 'tts',
-      payload: {
-            audio: greetingAudio.data,
-        format: 'mp3',
-            text: naturalGreeting,
-        isWelcome: true
-      }
-    }));
-
-        // 🎯 CALL CENTER FEEDBACK: Marcar que ya se envió el saludo inicial
-        const deepgramData = deepgramConnections.get(agentId);
-        if (deepgramData) {
-          deepgramData.greetingSent = true;
-          logger.info(`[PIPELINE ROBUSTO] ✅ Flag greetingSent activado para ${agentId}`);
-          
-          // 🚀 GPT-4o: Actualizar sessionMap si existe sessionId
-          if (deepgramData.sessionId) {
-            const session = sessionMap.get(deepgramData.sessionId);
-            if (session) {
-              session.greetingSent = true;
-              logger.info(`[PIPELINE ROBUSTO] ✅ SessionMap actualizado para ${deepgramData.sessionId}`);
-            }
+        // Actualizar sessionMap si existe sessionId
+        if (deepgramData.sessionId) {
+          const session = sessionMap.get(deepgramData.sessionId);
+          if (session) {
+            session.greetingSent = true;
+            logger.info(`[PIPELINE ROBUSTO] ✅ SessionMap actualizado para ${deepgramData.sessionId}`);
           }
         }
-        
-        logger.info('✅ Natural greeting sent (AI-generated, TTS)');
-      } else {
-        logger.error('[GREETING] ❌ Invalid TTS response format');
       }
-    } catch (err) {
-      logger.error('[GREETING] ❌ Error generando saludo natural:', err);
-      // No enviar error al cliente - simplemente continuar sin saludo
-      // El usuario puede hablar directamente
+      
+      logger.info('✅ Saludo automático enviado (sin condicionar modelo)');
+    } else {
+      logger.error('[GREETING] ❌ Invalid TTS response format');
     }
-
   } catch (error) {
-    logger.error('Error generating natural greeting:', error);
+    logger.error('[GREETING] ❌ Error generando saludo automático:', error);
+    // No enviar error al cliente - simplemente continuar sin saludo
   }
 }
 
