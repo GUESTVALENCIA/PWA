@@ -1784,8 +1784,11 @@
                           };
                           
                           // 🚀 PIPELINE ROBUSTO: Almacenar en buffer para reenvío en caso de corte
-                          // 🚀 LIMPIEZA: Solo agregar al buffer si no está lleno o si es un chunk nuevo
-                          if (this.audioBuffer.length < this.maxBufferSize) {
+                          // 🚀 OPTIMIZACIÓN: Solo mantener buffer si la conexión está estable
+                          // Si la conexión está abierta y funcionando, mantener buffer mínimo (últimos 4 chunks = 1 segundo)
+                          const bufferTargetSize = (ws.readyState === WebSocket.OPEN) ? 4 : this.maxBufferSize;
+                          
+                          if (this.audioBuffer.length < bufferTargetSize) {
                             this.audioBuffer.push(audioMessage);
                           } else {
                             // Buffer lleno: reemplazar el más antiguo (FIFO)
@@ -1805,9 +1808,13 @@
                           // Enviar si la conexión está abierta
                           if (ws.readyState === WebSocket.OPEN) {
                             ws.send(JSON.stringify(audioMessage));
-                            console.log(`[PIPELINE ROBUSTO] 📤 Audio enviado (buffer: ${this.audioBuffer.length}/${this.maxBufferSize} chunks)`);
+                            // 🚀 OPTIMIZACIÓN: Solo log cada 10 chunks para reducir spam en consola
+                            if (!this._lastBufferLog || (Date.now() - this._lastBufferLog) > 2500) {
+                              console.log(`[PIPELINE ROBUSTO] 📤 Audio enviado (buffer: ${this.audioBuffer.length}/${bufferTargetSize} chunks)`);
+                              this._lastBufferLog = Date.now();
+                            }
                           } else {
-                            // 🚀 LIMPIEZA: Si la conexión no está abierta, no enviar pero mantener en buffer
+                            // 🚀 LIMPIEZA: Si la conexión no está abierta, no enviar pero mantener en buffer completo
                             console.warn(`[PIPELINE ROBUSTO] ⚠️ WebSocket no está abierto (readyState: ${ws.readyState}), chunk guardado en buffer`);
                           }
                           
@@ -2209,18 +2216,24 @@
 
 	            console.error('[MCP] ❌ Error del servidor:', rawErrorText);
 
-	            try {
-	              this.addMessage(userErrorText, 'system');
-	            } catch (_) { }
-
-	            this.clearResponseWatchdog();
-	            this.awaitingResponse = false;
-
-            // Si falta Deepgram, detener streaming para evitar spam de errores
-            if (isDeepgramNotConfigured) {
-              this.hangupCall('stt_unavailable');
-            }
-            return;
+	            // 🚀 MEJORA: No bloquear la conversación por errores del servidor
+	            // Solo mostrar error si es crítico (Deepgram no configurado)
+	            // Otros errores (como neonService) son del backend y no deberían detener la llamada
+	            if (isDeepgramNotConfigured) {
+	              try {
+	                this.addMessage(userErrorText, 'system');
+	              } catch (_) { }
+	              this.clearResponseWatchdog();
+	              this.awaitingResponse = false;
+	              this.hangupCall('stt_unavailable');
+	              return;
+	            } else {
+	              // 🚀 ERRORES NO CRÍTICOS: Log pero continuar la conversación
+	              // El servidor puede tener errores internos pero la conexión sigue activa
+	              console.warn('[MCP] ⚠️ Error del servidor (no crítico), continuando conversación:', rawErrorText);
+	              // NO detener la llamada, solo loggear el error
+	              return;
+	            }
           }
 
           // Transcripción (interim) - NO mostrar visualmente, solo para uso interno
