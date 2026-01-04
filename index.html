@@ -782,12 +782,18 @@
         }
       }
 
-      async sendMessage(message, role = 'hospitality', model = 'groq') {
+      async sendMessage(message, role = 'hospitality', model = 'groq', conversationHistory = [], sessionId = null) {
         try {
           const response = await fetch(`${this.baseUrl}/sandra/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message, role, model })
+            body: JSON.stringify({ 
+              message, 
+              role, 
+              model,
+              conversationHistory: conversationHistory,
+              sessionId: sessionId
+            })
           });
 
           if (!response.ok) {
@@ -850,6 +856,9 @@
           searchCriteria: null,
           clientInfo: null
         };
+        
+        // 🚀 CHAT CONVERSACIONAL: Historial de conversación para contexto
+        this.conversationHistory = []; // Array de {user: string, assistant: string}
         
         // 🚀 PIPELINE COMPLETO: Buffer inteligente mejorado
         this.audioBuffer = [];
@@ -1041,6 +1050,13 @@
 
           const text = input.value.trim();
           if (!text) return;
+          
+          // 🚀 CHAT CONVERSACIONAL: Inicializar sessionId si no existe
+          if (!this.sessionId) {
+            this.sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+            console.log(`[CHAT] 🆔 Nueva sesión de chat creada: ${this.sessionId}`);
+          }
+          
           this.addMessage(text, 'user');
           input.value = '';
 
@@ -1055,9 +1071,23 @@
 
           this.showTyping(true);
           try {
-            const response = await this.gateway.sendMessage(text);
+            // 🚀 CHAT CONVERSACIONAL: Enviar historial de conversación y sessionId
+            const response = await this.gateway.sendMessage(text, 'hospitality', 'groq', this.conversationHistory, this.sessionId);
             this.showTyping(false);
             this.addMessage(response, 'bot');
+            
+            // 🚀 CHAT CONVERSACIONAL: Actualizar historial de conversación
+            this.conversationHistory.push({
+              user: text,
+              assistant: response
+            });
+            
+            // Limitar historial a últimos 10 intercambios para no sobrecargar
+            if (this.conversationHistory.length > 10) {
+              this.conversationHistory = this.conversationHistory.slice(-10);
+            }
+            
+            console.log(`[CHAT] ✅ Historial actualizado (${this.conversationHistory.length} intercambios)`);
           } catch (error) {
             this.showTyping(false);
             this.addMessage("Lo siento, tuve un problema. Inténtalo de nuevo.", 'bot');
