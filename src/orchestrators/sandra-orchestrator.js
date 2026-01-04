@@ -159,6 +159,17 @@ class SandraOrchestrator {
       
       logger.info(`[SANDRA ORCHESTRATOR] 📦 Encontrados ${serviceFiles.length} servicios en IA-SANDRA`);
       
+      // Servicios que requieren Electron (solo para aplicaciones de escritorio)
+      // Estos servicios NO deben cargarse en servidores Node.js (como Render)
+      const electronOnlyServices = ['live-updater'];
+      
+      // Detectar si estamos en un entorno Electron
+      // En Render (servidor Node.js), process.versions.electron será undefined
+      // En la aplicación Electron de escritorio, process.versions.electron existirá
+      const isElectron = typeof process !== 'undefined' && 
+                        process.versions && 
+                        typeof process.versions.electron !== 'undefined';
+      
       // Cargar servicios dinámicamente (CommonJS)
       // Nota: La mayoría de servicios de IA-SANDRA usan CommonJS (module.exports)
       for (const file of serviceFiles) {
@@ -168,6 +179,12 @@ class SandraOrchestrator {
           
           // Saltar negotiation-service (ya se carga en initializeNegotiationPipeline)
           if (serviceName === 'negotiation-service') {
+            continue;
+          }
+          
+          // Omitir servicios Electron en entornos de servidor (no Electron)
+          if (electronOnlyServices.includes(serviceName) && !isElectron) {
+            logger.debug(`[SANDRA ORCHESTRATOR] ⏭️  Omitiendo servicio Electron '${serviceName}' (entorno servidor)`);
             continue;
           }
           
@@ -182,17 +199,47 @@ class SandraOrchestrator {
             }
             logger.info(`[SANDRA ORCHESTRATOR] ✅ Servicio cargado: ${serviceName}`);
           } catch (commonJsError) {
+            // Detectar si el error es por falta de electron-updater u otras dependencias Electron
+            const isElectronError = commonJsError.message && (
+              commonJsError.message.includes('electron-updater') ||
+              commonJsError.message.includes('electron') ||
+              commonJsError.message.includes('Cannot find module')
+            );
+            
+            if (isElectronError && !isElectron) {
+              // Error esperado: servicio Electron en entorno servidor
+              logger.debug(`[SANDRA ORCHESTRATOR] ⏭️  Servicio '${serviceName}' requiere Electron (omitido en servidor)`);
+              continue;
+            }
+            
             // Fallback a ES Module si falla CommonJS
             try {
               const module = await import(`file://${servicePath}`);
               this.services[serviceName] = module.default || module;
               logger.info(`[SANDRA ORCHESTRATOR] ✅ Servicio cargado (ES Module): ${serviceName}`);
             } catch (esModuleError) {
-              logger.warn(`[SANDRA ORCHESTRATOR] ⚠️ Error cargando servicio ${file}:`, commonJsError.message);
+              // Solo loguear como WARN si no es un error esperado de Electron
+              if (!isElectronError || isElectron) {
+                logger.warn(`[SANDRA ORCHESTRATOR] ⚠️ Error cargando servicio ${file}:`, commonJsError.message);
+              } else {
+                logger.debug(`[SANDRA ORCHESTRATOR] ⏭️  Servicio '${serviceName}' requiere Electron (omitido)`);
+              }
             }
           }
         } catch (error) {
-          logger.warn(`[SANDRA ORCHESTRATOR] ⚠️ Error cargando servicio ${file}:`, error.message);
+          // Detectar si el error es por falta de electron-updater u otras dependencias Electron
+          const isElectronError = error.message && (
+            error.message.includes('electron-updater') ||
+            error.message.includes('electron') ||
+            error.message.includes('Cannot find module')
+          );
+          
+          if (isElectronError && !isElectron) {
+            // Error esperado: servicio Electron en entorno servidor
+            logger.debug(`[SANDRA ORCHESTRATOR] ⏭️  Servicio '${path.basename(file, path.extname(file))}' requiere Electron (omitido en servidor)`);
+          } else {
+            logger.warn(`[SANDRA ORCHESTRATOR] ⚠️ Error cargando servicio ${file}:`, error.message);
+          }
         }
       }
       
