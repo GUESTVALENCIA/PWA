@@ -55,11 +55,18 @@ class ToolVerifier {
       // Verificar schema
       try {
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'tool-verifier.js:52',message:'Before getToolParameters call',data:{toolName,hasGetToolParameters:typeof this.toolHandler?.getToolParameters==='function',hasGetToolsSchema:typeof this.toolHandler?.getToolsSchema==='function',toolHandlerType:typeof this.toolHandler},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'tool-verifier.js:52',message:'Before getToolParameters call',data:{toolName,hasGetToolParameters:typeof this.toolHandler?.getToolParameters==='function',hasGetToolsSchema:typeof this.toolHandler?.getToolsSchema==='function',toolHandlerType:typeof this.toolHandler,toolHandlerMethods:Object.getOwnPropertyNames(this.toolHandler||{}).filter(m=>typeof this.toolHandler[m]==='function')},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
         // #endregion
+        
+        // Verificación defensiva: asegurar que el método existe
+        if (!this.toolHandler || typeof this.toolHandler.getToolParameters !== 'function') {
+          const availableMethods = this.toolHandler ? Object.getOwnPropertyNames(this.toolHandler).filter(m => typeof this.toolHandler[m] === 'function') : [];
+          throw new Error(`getToolParameters no está disponible. Métodos disponibles: ${availableMethods.join(', ')}`);
+        }
+        
         const schema = this.toolHandler.getToolParameters(toolName);
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'tool-verifier.js:55',message:'After getToolParameters call',data:{toolName,schemaExists:!!schema,hasProperties:!!(schema?.properties),propertiesCount:Object.keys(schema?.properties||{}).length},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'tool-verifier.js:60',message:'After getToolParameters call',data:{toolName,schemaExists:!!schema,hasProperties:!!(schema?.properties),propertiesCount:Object.keys(schema?.properties||{}).length},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
         // #endregion
         if (schema && schema.properties) {
           results.withSchemas++;
@@ -68,7 +75,7 @@ class ToolVerifier {
         }
       } catch (error) {
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'tool-verifier.js:61',message:'Error in getToolParameters',data:{toolName,errorMessage:error.message,errorStack:error.stack?.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'tool-verifier.js:68',message:'Error in getToolParameters',data:{toolName,errorMessage:error.message,errorStack:error.stack?.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
         // #endregion
         results.errors.push(`Error obteniendo schema de '${toolName}': ${error.message}`);
       }
