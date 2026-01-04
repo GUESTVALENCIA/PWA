@@ -1173,7 +1173,8 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                 historyLength: conversationHistory.length
               });
               
-              aiResponse = await voiceServices.ai.processMessage(transcript, conversationContext);
+              // 🚀 FASE 1.4: Pasar toolHandler para function calling
+              aiResponse = await voiceServices.ai.processMessage(transcript, conversationContext, toolHandler);
             }
 
             if (!aiResponse || aiResponse.trim().length === 0) {
@@ -1404,7 +1405,7 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                 deepgramData.pendingAIRequest = controller;
                 
                 // Procesar transcripción interim anticipadamente
-                processInterimTranscript(interimTrimmed, ws, voiceServices, agentId, deepgramData, controller).catch(err => {
+                processInterimTranscript(interimTrimmed, ws, voiceServices, agentId, deepgramData, controller, toolHandler).catch(err => {
                   if (err.name !== 'AbortError') {
                     logger.debug('[DETECCIÓN ANTICIPADA] Error procesando interim:', err.message);
                   }
@@ -1718,7 +1719,8 @@ async function processInterimTranscript(interimText, ws, voiceServices, agentId,
     };
 
     // Generar respuesta de IA (sin bloquear, puede ser cancelada)
-    const aiResponse = await voiceServices.ai.processMessage(interimText, conversationContext);
+    // 🚀 FASE 1.4: Pasar toolHandler para function calling
+    const aiResponse = await voiceServices.ai.processMessage(interimText, conversationContext, toolHandler);
 
     // Verificar si fue cancelada
     if (abortController?.signal?.aborted) {
