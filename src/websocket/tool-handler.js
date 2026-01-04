@@ -570,62 +570,149 @@ class ToolHandler {
   }
 
   /**
-   * Handler: get_live_pricing_bridge - Precios BridgeData
+   * Handler MEJORADO: get_live_pricing_bridge - Precios con comparación OTA
    */
   async handlePricing(args, sessionId, ws) {
     const { propertyId, checkIn, checkOut } = args;
 
     try {
-      // Usar BridgeDataService y PriceCalendarService
-      if (!this.services.bridgeDataService || !this.services.priceCalendarService) {
-        logger.warn('[TOOL HANDLER] ⚠️ BridgeDataService o PriceCalendarService no disponibles');
+      // Verificar servicios disponibles
+      const hasPriceCalendar = !!this.services.priceCalendarService;
+      const hasBridgeData = !!this.services.bridgeDataService;
+      const hasNeon = !!this.services.neonService;
+
+      if (!hasPriceCalendar && !hasBridgeData) {
+        logger.warn('[TOOL HANDLER] ⚠️ Servicios de precios no disponibles');
         return {
           status: 'error',
-          error: 'Servicios de precios no disponibles'
+          error: 'Servicios de precios no configurados'
         };
       }
 
-      // Si hay fechas, calcular precio para el rango
+      // Si hay fechas, calcular precio completo
       if (checkIn && checkOut) {
-        const priceInfo = await this.services.priceCalendarService.getPriceForDateRange(
-          propertyId,
-          checkIn,
-          checkOut
-        );
+        let ourPrice = null;
+        let otaPrice = null;
+        let priceInfo = null;
 
-        if (!priceInfo) {
+        // 1. Obtener nuestro precio con descuentos
+        if (hasPriceCalendar) {
+          try {
+            priceInfo = await this.services.priceCalendarService.getPriceForDateRange(
+              propertyId,
+              checkIn,
+              checkOut
+            );
+
+            if (priceInfo) {
+              ourPrice = priceInfo.totalPriceWithDiscount;
+            }
+          } catch (error) {
+            logger.warn('[TOOL HANDLER] Error calculando precio interno:', error.message);
+          }
+        }
+
+        // 2. Obtener precio OTA desde BridgeData (gancho comparativo)
+        if (hasBridgeData) {
+          try {
+            const otaData = await this.services.bridgeDataService.getAvailabilityFromCache(
+              propertyId,
+              checkIn,
+              checkOut
+            );
+
+            if (otaData && otaData.pricing) {
+              otaPrice = otaData.pricing.totalPrice || otaData.pricing.pricePerNight;
+            }
+          } catch (error) {
+            logger.debug('[TOOL HANDLER] Precio OTA no disponible (continuando):', error.message);
+          }
+        }
+
+        // 3. Si no hay precio interno, intentar desde Neon DB
+        if (!ourPrice && hasNeon) {
+          try {
+            const property = await this.services.neonService.getPropertyAvailability(propertyId, checkIn);
+            if (property && property.price_with_discount) {
+              ourPrice = property.price_with_discount;
+            }
+          } catch (error) {
+            logger.debug('[TOOL HANDLER] Precio desde DB no disponible:', error.message);
+          }
+        }
+
+        if (!ourPrice) {
           return {
             status: 'error',
-            error: 'No se pudo calcular el precio'
+            error: 'No se pudo calcular el precio para las fechas especificadas'
           };
         }
 
+        // Calcular ahorro si hay precio OTA
+        let savings = null;
+        let savingsPercent = null;
+        if (otaPrice && otaPrice > ourPrice) {
+          savings = otaPrice - ourPrice;
+          savingsPercent = Math.round((savings / otaPrice) * 100);
+        }
+
+        const nights = priceInfo?.nights || this._calculateNights(checkIn, checkOut);
+        const pricePerNight = Math.round(ourPrice / nights);
+
         return {
           status: 'available',
-          price: priceInfo.totalPriceWithDiscount,
+          price: ourPrice,
           currency: 'EUR',
           provider: 'PriceCalendar',
-          nights: priceInfo.nights,
-          averagePricePerNight: Math.round(priceInfo.totalPriceWithDiscount / priceInfo.nights),
-          discount: priceInfo.averageDiscount,
+          nights: nights,
+          averagePricePerNight: pricePerNight,
+          discount: priceInfo?.averageDiscount || 0,
           checkIn: checkIn,
-          checkOut: checkOut
+          checkOut: checkOut,
+          // Gancho comparativo
+          otaPrice: otaPrice,
+          savings: savings,
+          savingsPercent: savingsPercent,
+          message: savings 
+            ? `Precio OTA: ${otaPrice}€ | Nuestro precio: ${ourPrice}€ (Ahorro: ${savings}€ - ${savingsPercent}%)`
+            : `Precio: ${ourPrice}€ (${pricePerNight}€/noche)`
         };
       }
 
-      // Si no hay fechas, retornar precio base (simulado por ahora)
-      // En el futuro, usar BridgeDataService para obtener precio OTA
-      const basePrice = await this.services.priceCalendarService.getBasePrice(
-        propertyId,
-        new Date().toISOString().split('T')[0]
-      );
+      // Si no hay fechas, retornar precio base
+      let basePrice = null;
+      const today = new Date().toISOString().split('T')[0];
+
+      if (hasPriceCalendar) {
+        try {
+          basePrice = await this.services.priceCalendarService.getBasePrice(propertyId, today);
+        } catch (error) {
+          logger.debug('[TOOL HANDLER] Error obteniendo precio base:', error.message);
+        }
+      }
+
+      if (!basePrice && hasNeon) {
+        try {
+          const property = await this.services.neonService.getPropertyAvailability(propertyId, today);
+          basePrice = property?.price_with_discount || property?.price_base;
+        } catch (error) {
+          logger.debug('[TOOL HANDLER] Error desde DB:', error.message);
+        }
+      }
+
+      if (!basePrice) {
+        return {
+          status: 'error',
+          error: 'No se pudo obtener precio base. Especifica fechas para precio exacto.'
+        };
+      }
 
       return {
         status: 'available',
         price: basePrice,
         currency: 'EUR',
         provider: 'PriceCalendar',
-        message: 'Precio base (especifica fechas para precio exacto)'
+        message: `Precio base: ${basePrice}€/noche (especifica fechas para precio exacto con descuentos)`
       };
     } catch (error) {
       logger.error('[TOOL HANDLER] Error obteniendo precio:', error);
@@ -633,6 +720,21 @@ class ToolHandler {
         status: 'error',
         error: error.message
       };
+    }
+  }
+
+  /**
+   * Calcular número de noches entre dos fechas
+   */
+  _calculateNights(checkIn, checkOut) {
+    try {
+      const start = new Date(checkIn);
+      const end = new Date(checkOut);
+      const diffTime = Math.abs(end - start);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays > 0 ? diffDays : 1;
+    } catch (error) {
+      return 1;
     }
   }
 }

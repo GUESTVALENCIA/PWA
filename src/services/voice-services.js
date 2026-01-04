@@ -786,7 +786,27 @@ Sé amable, profesional y útil.
   * Late check-out gratuito hasta las 12:00
   * Kit de bienvenida con productos locales
 - En fechas festivas, los descuentos son menores para proteger el margen.
-- Usa técnicas de venta (beneficios y extras) cuando no puedas negociar más el precio.`;
+- Usa técnicas de venta (beneficios y extras) cuando no puedas negociar más el precio.
+
+### HERRAMIENTAS DE PRECIOS Y PAGOS:
+
+**3. get_live_pricing_bridge(propertyId, checkIn?, checkOut?)** - Consulta precios:
+   - Obtiene precio con descuento OTA aplicado
+   - Compara con precio de mercado (OTA) si está disponible
+   - Muestra ahorro si nuestro precio es menor
+   - checkIn/checkOut opcionales (si no hay, retorna precio base)
+
+**4. initiate_secure_voice_payment(amount, propertyName, propertyId?, checkIn?, checkOut?)** - Pago seguro:
+   - Inicia terminal de pago PayPal seguro
+   - amount: Monto total en EUR
+   - propertyName: Nombre de la propiedad
+   - propertyId, checkIn, checkOut: Opcionales para guardar en reserva
+
+### CUÁNDO USAR TOOLS DE PRECIOS:
+- Si el usuario pregunta "¿Cuánto cuesta?" → usa get_live_pricing_bridge()
+- Si el usuario dice "Quiero reservar" o "Quiero pagar" → usa initiate_secure_voice_payment()
+- SIEMPRE menciona el precio antes de iniciar el pago
+- Si hay ahorro vs OTA, menciónalo: "El precio en Booking es X€, con nosotros es Y€ (ahorro de Z€)"`;
 
     // 🚀 REGLA CRÍTICA: No saludar después del saludo inicial
     if (context.greetingSent === true) {
