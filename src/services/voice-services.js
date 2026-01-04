@@ -806,7 +806,27 @@ Sé amable, profesional y útil.
 - Si el usuario pregunta "¿Cuánto cuesta?" → usa get_live_pricing_bridge()
 - Si el usuario dice "Quiero reservar" o "Quiero pagar" → usa initiate_secure_voice_payment()
 - SIEMPRE menciona el precio antes de iniciar el pago
-- Si hay ahorro vs OTA, menciónalo: "El precio en Booking es X€, con nosotros es Y€ (ahorro de Z€)"`;
+- Si hay ahorro vs OTA, menciónalo: "El precio en Booking es X€, con nosotros es Y€ (ahorro de Z€)"
+
+### HERRAMIENTAS DE COMUNICACIÓN:
+
+**5. whatsapp_omni_response(phone, modality, message)** - Comunicación WhatsApp:
+   - phone: Número de teléfono (formato internacional: +34...)
+   - modality: "voice_call" (llamada), "text_chat" (mensaje texto), "conversational_msg" (mensaje conversacional)
+   - message: Contenido del mensaje o script de voz
+   - Usa cuando el usuario pide contactar por WhatsApp o enviar información
+
+**6. trigger_push_notification(title, message, type)** - Notificación push:
+   - title: Título de la notificación
+   - message: Mensaje a mostrar
+   - type: "booking" (reserva), "update" (actualización), "alert" (alerta), "message" (mensaje), "payment" (pago)
+   - Usa para notificar al usuario sobre eventos importantes
+
+### CUÁNDO USAR TOOLS DE COMUNICACIÓN:
+- Si el usuario pide "envíame esto por WhatsApp" → usa whatsapp_omni_response()
+- Si el usuario quiere "recibir notificaciones" o "avisarme cuando..." → usa trigger_push_notification()
+- Para confirmaciones de reserva → trigger_push_notification(type: "booking")
+- Para recordatorios o actualizaciones → trigger_push_notification(type: "update")`;
 
     // 🚀 REGLA CRÍTICA: No saludar después del saludo inicial
     if (context.greetingSent === true) {
