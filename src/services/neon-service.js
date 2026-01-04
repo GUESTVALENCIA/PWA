@@ -244,6 +244,26 @@ class NeonService {
           await this.safeCreateIndex('idx_properties_location', 'properties', 'location');
           await this.safeCreateIndex('idx_properties_last_updated', 'properties', 'last_updated DESC');
           
+          // Agregar campos nuevos si no existen (migración segura)
+          try {
+            await this.sql(`
+              DO $$ 
+              BEGIN
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                               WHERE table_name='properties' AND column_name='is_available') THEN
+                  ALTER TABLE properties ADD COLUMN is_available BOOLEAN DEFAULT true;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                               WHERE table_name='properties' AND column_name='last_checked') THEN
+                  ALTER TABLE properties ADD COLUMN last_checked TIMESTAMP;
+                END IF;
+              END $$;
+            `);
+            await this.safeCreateIndex('idx_properties_available', 'properties', 'is_available');
+          } catch (alterError) {
+            logger.debug('[NEON] Campos is_available/last_checked ya existen o error en migración:', alterError.message);
+          }
+          
           logger.info('✅ Properties table created/verified');
         } catch (tableError) {
           logger.warn('⚠️ Error creating properties table (may already exist):', tableError.message);
