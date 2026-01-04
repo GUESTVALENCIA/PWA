@@ -48,6 +48,8 @@ import ReviewService from './src/services/review-service.js';
 import UnificationService from './src/services/unification-service.js';
 import ImplementationService from './src/services/implementation-service.js';
 import ContextBuilder from './src/services/context-builder.js';
+import UIControlService from './src/services/ui-control-service.js';
+import ToolHandler from './src/websocket/tool-handler.js';
 
 // 🚀 SANDRA ORCHESTRATOR - Unificación con IA-SANDRA
 import SandraOrchestrator from './src/orchestrators/sandra-orchestrator.js';
@@ -324,7 +326,7 @@ async function startup() {
     debugLog('server.js:235', 'Before initWebSocketServer call', { voiceServicesIsNull: voiceServices === null, hasVoiceServices: !!voiceServices, willPassToInit: true }, 'E');
     // #endregion
     logger.info('Initializing WebSocket server with all services...');
-    initWebSocketServer(wss, stateManager, systemEventEmitter, neonService, voiceServices);
+    initWebSocketServer(wss, stateManager, systemEventEmitter, neonService, voiceServices, toolHandler, uiControlService);
     logger.info('✅ WebSocket server initialized');
 
     // 10. Iniciar servidor HTTP

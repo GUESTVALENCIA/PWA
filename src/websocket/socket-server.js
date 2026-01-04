@@ -49,7 +49,7 @@ const sttErrorAgents = new Set();
  */
 // Socket Server - Full Duplex Optimized v1.1
 
-export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonService, voiceServices = null) {
+export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonService, voiceServices = null, toolHandler = null, uiControlService = null) {
   // #region agent log
   debugLog('socket-server.js:18', 'initWebSocketServer called', { voiceServicesIsNull: voiceServices === null, hasVoiceServices: !!voiceServices, hasDeepgram: !!voiceServices?.deepgram, hasAI: !!voiceServices?.ai, hasWelcomeAudio: !!voiceServices?.getWelcomeAudio }, 'E');
   // #endregion
@@ -112,7 +112,7 @@ export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonS
     ws.on('message', (message) => {
       try {
         const data = JSON.parse(message);
-        handleMessage(data, agentId, ws, wss, neonService, systemEventEmitter, voiceServices);
+        handleMessage(data, agentId, ws, wss, neonService, systemEventEmitter, voiceServices, toolHandler, uiControlService);
       } catch (error) {
         logger.error('WebSocket message parsing error:', error);
         ws.send(JSON.stringify({
@@ -245,10 +245,10 @@ export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonS
 /**
  * Handle incoming WebSocket message
  */
-function handleMessage(data, agentId, ws, wss, neonService, systemEventEmitter, voiceServices) {
+function handleMessage(data, agentId, ws, wss, neonService, systemEventEmitter, voiceServices, toolHandler = null, uiControlService = null) {
   // Soporte para formato route/action (sistema de voz)
   if (data.route && data.action) {
-    handleVoiceMessage(data, agentId, ws, voiceServices).catch(error => {
+    handleVoiceMessage(data, agentId, ws, voiceServices, toolHandler, uiControlService).catch(error => {
       logger.error('Error in handleVoiceMessage:', error);
     });
     return;
@@ -502,7 +502,7 @@ function broadcastToProjectSubscribers(wss, projectId, message) {
 /**
  * Handle voice system messages (route/action format)
  */
-async function handleVoiceMessage(data, agentId, ws, voiceServices) {
+async function handleVoiceMessage(data, agentId, ws, voiceServices, toolHandler = null, uiControlService = null) {
   const { route, action, payload } = data;
 
   // #region agent log
