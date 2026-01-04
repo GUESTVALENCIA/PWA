@@ -29,7 +29,7 @@ const debugLog = (location, message, data, hypothesisId) => {
     }) + '\n';
     fs.appendFileSync(logPath, logEntry, 'utf8');
   } catch (err) {
-    // Silently fail if log file can't be written
+    // Silently fail if logging fails
   }
 };
 
@@ -39,46 +39,30 @@ const __dirname = path.dirname(__filename);
 class VoiceServices {
   constructor() {
     this.deepgramApiKey = process.env.DEEPGRAM_API_KEY;
+    // 🚫 CARTESIA DESHABILITADO: No usar API de Cartesia - solo voz nativa
+    // this.cartesiaApiKey = process.env.CARTESIA_API_KEY; // NO USAR
+    // this.cartesiaVoiceId = process.env.CARTESIA_VOICE_ID || 'sandra'; // NO USAR
+    this.cartesiaApiKey = null; // Forzado a null para asegurar que NO se use
+    this.cartesiaVoiceId = null; // Forzado a null
     this.openaiApiKey = process.env.OPENAI_API_KEY;
     this.groqApiKey = process.env.GROQ_API_KEY;
     this.geminiApiKey = process.env.GEMINI_API_KEY;
-
-    // 🚀 LÓGICA DE ENTORNO: Detectar automáticamente desarrollo vs producción
-    const isDevelopment = process.env.NODE_ENV === 'development' ||
-      process.env.NODE_ENV === 'dev' ||
-      !process.env.NODE_ENV ||
-      process.env.NODE_ENV === '';
-    const isProduction = !isDevelopment;
-
-    // 🎯 PRODUCCIÓN FIJO: OpenAI GPT-4o-mini (ÚNICO modelo en producción)
-    // ✅ SIMPLIFICADO: Solo OpenAI, sin fallbacks, sin cambios
-    this.preferredProvider = 'openai';
-    logger.info(`[VOICE-SERVICES] 🎯 Modelo FIJO: OpenAI GPT-4o-mini (producción)`);
-
+    this.preferredProvider = (process.env.PREFERRED_AI_PROVIDER || 'groq').toLowerCase();
+    
     // Log configured providers for debugging
     const configuredProviders = [];
     if (this.groqApiKey) configuredProviders.push('Groq');
     if (this.openaiApiKey) configuredProviders.push('OpenAI');
     if (this.geminiApiKey) configuredProviders.push('Gemini');
-
-    // Detectar entorno para logging (mismo cálculo que arriba)
-    const isDevelopmentForLog = process.env.NODE_ENV === 'development' ||
-      process.env.NODE_ENV === 'dev' ||
-      !process.env.NODE_ENV ||
-      process.env.NODE_ENV === '';
-    const isProductionForLog = !isDevelopmentForLog;
-    const entorno = isProductionForLog ? 'PRODUCCIÓN' : 'DESARROLLO';
-
+    
     logger.info('[VOICE-SERVICES] AI Providers status:', {
-      entorno: entorno,
       configured: configuredProviders.length > 0 ? configuredProviders.join(', ') : 'NONE',
-      groq: this.groqApiKey ? `✅ (${this.groqApiKey.length} chars) - ${isDevelopmentForLog ? 'PRINCIPAL (dev)' : 'RESERVADO (dev)'}` : '❌',
-      openai: this.openaiApiKey ? `✅ (${this.openaiApiKey.length} chars) - ${isProductionForLog ? 'PRINCIPAL (prod)' : 'FALLBACK'}` : '❌',
-      gemini: this.geminiApiKey ? `✅ (${this.geminiApiKey.length} chars) - FALLBACK` : '❌',
-      preferred: this.preferredProvider.toUpperCase(),
-      modelo: this.preferredProvider === 'openai' ? 'gpt-4o-mini' : (this.preferredProvider === 'groq' ? 'gpt-oss-20b' : 'N/A')
+      groq: this.groqApiKey ? `✅ (${this.groqApiKey.length} chars)` : '❌',
+      openai: this.openaiApiKey ? `✅ (${this.openaiApiKey.length} chars)` : '❌',
+      gemini: this.geminiApiKey ? `✅ (${this.geminiApiKey.length} chars)` : '❌',
+      preferred: this.preferredProvider
     });
-
+    
     if (configuredProviders.length === 0) {
       logger.error('[VOICE-SERVICES] ⚠️ WARNING: No AI providers configured!');
       logger.error('[VOICE-SERVICES] Configure at least one: GROQ_API_KEY, OPENAI_API_KEY, or GEMINI_API_KEY');
@@ -167,36 +151,15 @@ class VoiceServices {
     // #endregion
 
     // #region agent log
-    debugLog('voice-services.js:202', 'About to create Deepgram connection', {
-      model: liveOptions.model,
-      encoding: liveOptions.encoding,
-      sample_rate: liveOptions.sample_rate,
-      channels: liveOptions.channels,
-      language: liveOptions.language,
-      hasApiKey: !!this.deepgramApiKey,
-      apiKeyLength: this.deepgramApiKey?.length || 0
-    }, 'B');
+    const connectTime = Date.now();
+    debugLog('voice-services.js:177', 'Creating Deepgram connection', { model: liveOptions.model, language: liveOptions.language, encoding: liveOptions.encoding, sample_rate: liveOptions.sample_rate }, 'B');
     // #endregion
 
-    let connection;
-    try {
-      connection = this.deepgram.listen.live(liveOptions);
-    } catch (createError) {
-      // #region agent log
-      debugLog('voice-services.js:215', 'Deepgram connection creation FAILED', {
-        error: createError?.message,
-        errorType: createError?.constructor?.name,
-        stack: createError?.stack?.substring(0, 300)
-      }, 'B');
-      // #endregion
-      throw createError;
-    }
+    const connection = this.deepgram.listen.live(liveOptions);
 
     // #region agent log
-    const connectTime = Date.now();
     const initialReadyState = connection.getReadyState?.();
-    debugLog('voice-services.js:230', 'Deepgram connection created successfully', {
-      connectTime,
+    debugLog('voice-services.js:182', 'Deepgram connection created', {
       readyState: initialReadyState,
       connectionType: connection?.constructor?.name,
       hasOn: typeof connection.on === 'function',
@@ -448,243 +411,62 @@ class VoiceServices {
   }
 
   /**
-   * Generate voice audio using Deepgram TTS REST API (simplified, stable pipeline)
-   * @param {string} text - Text to synthesize (required)
-   * @param {Object} options - Options { model: string }
-   * @returns {Promise<{type: 'tts', data: string, format: 'mp3', provider: 'deepgram'}>}
+   * Generate voice audio using Deepgram TTS (dynamic audio generation)
+   * Uses Deepgram TTS API to generate audio from text with native voice quality
    */
-  async generateVoice(text, options = {}) {
-    // Handle legacy call signature (text, voiceId)
-    if (typeof options === 'string' || options === null) {
-      options = {};
-    }
-
-    const model = options.model || 'aura-2-carina-es'; // ✅ ÚNICO MODELO: aura-2-carina-es (Peninsular, Voz Interactiva/IVR)
-
+  async generateVoice(text, voiceId = null) {
     if (!text || text.trim() === '') {
-      throw new Error('Text is required for TTS generation');
+      // ⚠️ NO USAR ARCHIVOS WAV: Si no hay texto, lanzar error en lugar de usar WAV
+      throw new Error('Text is required for TTS generation. Cannot use pre-recorded audio files.');
     }
 
-    if (!this.deepgramApiKey) {
-      throw new Error('Deepgram API key not configured. Set DEEPGRAM_API_KEY environment variable.');
-    }
-
-    // ✅ SOLO REST API - Simple, estable, sin fallbacks
-    logger.info(`[TTS] 🎙️ Generating audio with Deepgram TTS REST API: model=${model}, text_length=${text.length}`);
-
-    try {
-      const audioBase64 = await this._generateDeepgramTTS(text, model);
-      logger.info('[TTS] ✅ Audio generated successfully with Deepgram TTS REST API');
-      return {
-        type: 'tts',
-        data: audioBase64,
-        format: 'mp3',
-        provider: 'deepgram'
-      };
-    } catch (error) {
-      logger.error('[TTS] ❌ Deepgram TTS failed:', error);
-      throw error;
-    }
+    // 🚀 Use Deepgram TTS to generate dynamic audio from text
+    // Deepgram TTS provides low-latency, high-quality voice generation
+    // ⚠️ NO FALLBACK: Solo Deepgram TTS - no usar archivos WAV pregrabados
+    logger.info(`[TTS] 🎙️ Generating audio with Deepgram TTS for text: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
+    
+    // Use Deepgram TTS with Spanish voice model
+    // Model: aura-2-thalia-es (Spanish female voice)
+    const audioBase64 = await this._generateDeepgramTTS(text, 'aura-2-thalia-es');
+    
+    logger.info('[TTS] ✅ Audio generated successfully with Deepgram TTS');
+    return audioBase64;
   }
 
   /**
-   * Create Deepgram TTS WebSocket streaming connection
-   * ⚠️ DEPRECATED: WebSocket TTS removed - using REST API only for stability
-   * This method is kept for backward compatibility but will not be used
-   */
-  async createTTSStreamingConnection(model = 'aura-2-carina-es') {
-    if (!this.deepgramApiKey) {
-      throw new Error('Deepgram API key not configured');
-    }
-
-    return new Promise((resolve, reject) => {
-      const ws = new WebSocket('wss://api.deepgram.com/v1/speak', {
-        headers: {
-          'Authorization': `Token ${this.deepgramApiKey}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      let configureSent = false;
-      let configureAcknowledged = false;
-
-      ws.on('open', () => {
-        // ⚠️ CRITICAL: Deepgram TTS WebSocket requires sample_rate: 24000 for streaming
-        // 48000 is for STT (input), but TTS (output) should be 24000 Hz (Deepgram default)
-        // Send Configure IMMEDIATELY - no delay needed
-        const configureMessage = {
-          type: 'Configure',
-          model: model, // ✅ Use 'model' not 'speak.model' or 'speakModel'
-          encoding: 'linear16', // PCM 16-bit (uncompressed, best quality)
-          sample_rate: 24000 // ✅ 24kHz is recommended and default for TTS streaming
-        };
-
-        logger.info(`[TTS] 📤 Sending Configure message:`, configureMessage);
-
-        try {
-          const messageStr = JSON.stringify(configureMessage);
-          logger.debug(`[TTS] 📤 Configure message JSON:`, messageStr);
-          ws.send(messageStr);
-          configureSent = true;
-          logger.info(`[TTS] ✅ Configure message sent (model: ${model})`);
-
-          // Resolve after a small delay to allow Configure to be processed
-          // Don't wait for acknowledgment - Deepgram processes Configure asynchronously
-          setTimeout(() => {
-            if (!configureAcknowledged) {
-              logger.info(`[TTS] ✅ Deepgram TTS WebSocket connected and configured (model: ${model})`);
-              resolve(ws);
-            }
-          }, 50);
-        } catch (error) {
-          logger.error(`[TTS] ❌ Error sending Configure message:`, error);
-          reject(error);
-        }
-      });
-
-      // Listen for any response messages (including metadata/errors)
-      ws.on('message', (data) => {
-        try {
-          // Check if it's a JSON message (not binary audio)
-          if (!Buffer.isBuffer(data) || (data.length > 0 && data[0] === 123)) {
-            const messageStr = Buffer.isBuffer(data) ? data.toString('utf8') : data.toString();
-            const message = JSON.parse(messageStr);
-
-            if (message.type === 'Metadata') {
-              configureAcknowledged = true;
-              logger.info(`[TTS] ✅ Configure acknowledged via Metadata:`, {
-                model_name: message.model_name,
-                request_id: message.request_id
-              });
-
-              // If model doesn't match, log warning
-              if (message.model_name && !message.model_name.includes('agustina')) {
-                logger.warn(`[TTS] ⚠️ Model mismatch! Requested: ${model}, Got: ${message.model_name}`);
-              }
-            } else if (message.type === 'Error') {
-              logger.error(`[TTS] ❌ Error from Deepgram:`, message);
-            }
-          }
-        } catch (e) {
-          // Not a JSON message, ignore
-        }
-      });
-
-      // Handle WebSocket close with error codes
-      ws.on('close', (code, reason) => {
-        if (code === 1008) {
-          logger.error(`[TTS] ❌ WebSocket closed with Policy Violation (1008): ${reason?.toString() || 'DATA-0000'}`);
-          logger.error(`[TTS] ⚠️ This usually means the model '${model}' is not available or the configuration is invalid`);
-          logger.error(`[TTS] 💡 Deepgram may be using a default model instead. Check your Deepgram account for available models.`);
-        } else if (code !== 1000) { // 1000 = normal closure
-          logger.warn(`[TTS] ⚠️ WebSocket closed with code ${code}: ${reason?.toString() || 'Unknown'}`);
-        }
-      });
-
-      ws.on('error', (error) => {
-        logger.error('[TTS] ❌ TTS WebSocket error:', error);
-        reject(error);
-      });
-
-      // Set timeout for connection
-      setTimeout(() => {
-        if (ws.readyState !== WebSocket.OPEN) {
-          ws.close();
-          reject(new Error('TTS WebSocket connection timeout'));
-        }
-      }, 10000);
-    });
-  }
-
-  /**
-   * Send text to TTS WebSocket for synthesis
-   * @param {WebSocket} ttsWs - TTS WebSocket connection
-   * @param {string} text - Text to synthesize
-   */
-  sendTextToTTS(ttsWs, text) {
-    if (ttsWs && ttsWs.readyState === WebSocket.OPEN) {
-      ttsWs.send(JSON.stringify({
-        type: 'Speak',
-        text: text
-      }));
-      logger.info(`[TTS] 📤 Sent text to TTS: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
-    } else {
-      logger.error('[TTS] ❌ TTS WebSocket not open');
-    }
-  }
-
-  /**
-   * Flush TTS buffer to start audio generation
-   * @param {WebSocket} ttsWs - TTS WebSocket connection
-   */
-  flushTTS(ttsWs) {
-    if (ttsWs && ttsWs.readyState === WebSocket.OPEN) {
-      ttsWs.send(JSON.stringify({ type: 'Flush' }));
-      logger.info('[TTS] 🔄 Flushed TTS buffer');
-    }
-  }
-
-  /**
-   * Clear TTS buffer (for barge-in)
-   * @param {WebSocket} ttsWs - TTS WebSocket connection
-   */
-  clearTTS(ttsWs) {
-    if (ttsWs && ttsWs.readyState === WebSocket.OPEN) {
-      ttsWs.send(JSON.stringify({ type: 'Clear' }));
-      logger.info('[TTS] 🧹 Cleared TTS buffer');
-    }
-  }
-
-  /**
-   * Generate TTS audio using Deepgram REST API
-   * ✅ Formato text/plain según curl oficial de Deepgram
+   * Generate TTS audio using Deepgram API
    * @private
-   * @param {string} text - Text to synthesize
-   * @param {string} model - Deepgram voice model (default: aura-2-carina-es)
-   * @returns {Promise<string>} Base64 encoded audio (MP3)
    */
-  async _generateDeepgramTTS(text, model = 'aura-2-carina-es') {
+  async _generateDeepgramTTS(text, model = 'aura-2-thalia-es') {
+    // Deepgram TTS models for Spanish: aura-2-thalia-es, aura-2-luna-es, etc.
+    // Specify encoding and sample_rate for consistent audio output
     if (!this.deepgramApiKey) {
       throw new Error('Deepgram API key not configured');
     }
 
-    if (!text || text.trim() === '') {
-      throw new Error('Text is required for TTS generation');
-    }
-
     try {
-      // ✅ FORMATO CORRECTO según curl oficial de Deepgram:
-      // POST https://api.deepgram.com/v1/speak?model=aura-2-agustina-es
-      // Headers: Authorization: Token ... , Content-Type: text/plain
-      // Body: texto directamente (NO JSON)
-      const url = `https://api.deepgram.com/v1/speak?model=${encodeURIComponent(model)}`;
-
-      logger.info(`[DEEPGRAM TTS] 🎙️ Requesting TTS: model=${model}, text_length=${text.length}`);
-      logger.debug(`[DEEPGRAM TTS] URL: ${url}`);
-
-      const response = await fetch(url, {
+      // Deepgram TTS endpoint - usar encoding mp3 sin especificar sample_rate para evitar problemas de velocidad
+      // Si se especifica sample_rate incorrecto puede causar audio acelerado
+      const response = await fetch(`https://api.deepgram.com/v1/speak?model=${model}&encoding=mp3`, {
         method: 'POST',
         headers: {
           'Authorization': `Token ${this.deepgramApiKey}`,
-          'Content-Type': 'text/plain' // ✅ Formato correcto según curl oficial
+          'Content-Type': 'application/json'
         },
-        body: text // ✅ Texto directamente, NO JSON
+        body: JSON.stringify({ text })
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        logger.error(`[DEEPGRAM TTS] ❌ API Error (${response.status}):`, errorText);
         throw new Error(`Deepgram TTS API Error: ${response.status} - ${errorText}`);
       }
 
-      // Deepgram devuelve audio MP3 directamente
       const audioBuffer = await response.arrayBuffer();
       const audioBase64 = Buffer.from(audioBuffer).toString('base64');
-
-      logger.info(`[DEEPGRAM TTS] ✅ Audio generated successfully (${audioBuffer.byteLength} bytes, MP3)`);
+      logger.info('[TTS] ✅ Audio generated successfully with Deepgram (MP3)');
       return audioBase64;
-      } catch (error) {
-      logger.error('[DEEPGRAM TTS] ❌ REST API error:', error);
+    } catch (error) {
+      logger.error('[TTS] Deepgram TTS error:', error);
       throw error;
     }
   }
@@ -692,433 +474,155 @@ class VoiceServices {
   /**
    * Generate TTS audio using Cartesia API
    * @private
-   * ✅ REACTIVADO: Cartesia puede usarse independientemente de Deepgram
-   * @param {string} text - Text to synthesize
-   * @param {string} voiceId - Cartesia voice ID (default: 'sandra' or CARTESIA_VOICE_ID)
-   * @returns {Promise<string>} Base64 encoded audio (MP3)
+   * ⚠️ DESHABILITADO: No se usa Cartesia - solo voz nativa (archivo WAV)
+   * Este método existe pero NO debe ser llamado
    */
   async _generateCartesiaTTS(text, voiceId) {
-    if (!this.cartesiaApiKey) {
-      throw new Error('Cartesia API key not configured. Set CARTESIA_API_KEY environment variable.');
-    }
-
-    if (!text || text.trim() === '') {
-      throw new Error('Text is required for Cartesia TTS');
-    }
-
-    const finalVoiceId = voiceId || this.cartesiaVoiceId || 'sandra';
-
-    logger.info(`[CARTESIA] 🎙️ Generating TTS audio for text: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
-    logger.info(`[CARTESIA] Using voice ID: ${finalVoiceId}`);
-
-    try {
-      // Cartesia API endpoint: https://api.cartesia.ai/tts/bytes
-      const response = await fetch('https://api.cartesia.ai/tts/bytes', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': this.cartesiaApiKey, // ✅ Correct Header
-          'Cartesia-Version': '2024-06-10' // ✅ Recommended version
-        },
-        body: JSON.stringify({
-          transcript: text, // ✅ 'transcript' instead of 'text'
-          model_id: 'sonic-multilingual', // ✅ Correct multilingual model for Spanish
-          voice: {
-            mode: 'id',
-            id: finalVoiceId
-          },
-          output_format: {
-            container: 'mp3',
-            bit_rate: 128000,
-            sample_rate: 24000
-          },
-          language: 'es' // Spanish
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        logger.error(`[CARTESIA] ❌ API error (${response.status}):`, errorText);
-        throw new Error(`Cartesia TTS API error: ${response.status} - ${errorText}`);
-      }
-
-      // Cartesia returns audio as binary (MP3)
-      const audioBuffer = await response.arrayBuffer();
-      const audioBase64 = Buffer.from(audioBuffer).toString('base64');
-
-      logger.info(`[CARTESIA] ✅ Audio generated successfully (${audioBuffer.byteLength} bytes)`);
-      return audioBase64;
-      } catch (error) {
-      logger.error('[CARTESIA] ❌ Error generating TTS:', error);
-      throw error;
-    }
+    // 🚫 BLOQUEADO: Cartesia deshabilitado - usar solo voz nativa
+    logger.error('[CARTESIA] ❌ ERROR: Intento de usar Cartesia TTS - está DESHABILITADO');
+    logger.error('[CARTESIA] ❌ Solo se debe usar voz nativa (sandra-conversational.wav)');
+    throw new Error('Cartesia TTS está DESHABILITADO. Usar solo voz nativa (sandra-conversational.wav).');
   }
 
   /**
-   * Process message with AI - SOLO OpenAI GPT-4o-mini (fijado en producción)
+   * Process message with AI (Groq preferred, OpenAI and Gemini as fallbacks)
    */
-  async processMessage(userMessage, context = {}, toolHandler = null) {
-    // 🚀 PROMPT OPTIMIZADO PARA VOZ: Pipeline GPT-4o - Conversación secuencial y memoria
-    let systemPrompt = `Eres Sandra, la asistente virtual de Guests Valencia, especializada en hospitalidad y turismo.
+  async processMessage(userMessage) {
+    const systemPrompt = `Eres Sandra, la asistente virtual de Guests Valencia, especializada en hospitalidad y turismo.
 Responde SIEMPRE en español neutro, con buena ortografía y gramática.
 Actúa como una experta en Hospitalidad y Turismo.
-Sé breve: máximo 2-3 frases salvo que se pida detalle.
-Sé amable, profesional y útil.
+Sé breve: máximo 4 frases salvo que se pida detalle.
+Sé amable, profesional y útil.`;
 
-### CONVERSACIÓN SECUENCIAL - FLUJO PASO A PASO:
-- Divide las consultas en pasos lógicos, NO hagas todas las preguntas a la vez.
-- Si el usuario menciona una necesidad (ej: "quiero una habitación"), agradece y pregunta SOLO por lo siguiente en la secuencia:
-  1. PRIMERO: Fechas de check-in y check-out (si no las tienes)
-  2. SEGUNDO: Número de huéspedes (si no lo tienes)
-  3. TERCERO: Zona o preferencia de alojamiento (si es necesario)
-  4. FINALMENTE: Usa checkAvailability() para consultar disponibilidad y precios
-- Si ya conoces la fecha de entrada y el número de personas, NO vuelvas a preguntarlo.
-- Haz UNA pregunta a la vez, espera la respuesta, y luego continúa con la siguiente.
+    const errors = [];
 
-### ESTRATEGIA DE PRECIOS Y NEGOCIACIÓN:
-- Los precios ya incluyen un descuento OTA (10-18%) sobre las tarifas de Booking/Airbnb.
-- Presenta siempre el precio con descuento OTA aplicado.
-- Si el cliente pregunta varias veces por el precio o muestra mucho interés, puedes ofrecer un descuento adicional del 5%.
-- Si no puedes bajar más el precio, resalta los beneficios:
-  * WiFi gratis
-  * Check-in autónomo
-  * Ubicación céntrica
-  * Late check-out gratuito hasta las 12:00
-  * Kit de bienvenida con productos locales
-- En fechas festivas, los descuentos son menores para proteger el margen.
-- Usa técnicas de venta (beneficios y extras) cuando no puedas negociar más el precio.
-
-### HERRAMIENTAS DE PRECIOS Y PAGOS:
-
-**3. get_live_pricing_bridge(propertyId, checkIn?, checkOut?)** - Consulta precios:
-   - Obtiene precio con descuento OTA aplicado
-   - Compara con precio de mercado (OTA) si está disponible
-   - Muestra ahorro si nuestro precio es menor
-   - checkIn/checkOut opcionales (si no hay, retorna precio base)
-
-**4. initiate_secure_voice_payment(amount, propertyName, propertyId?, checkIn?, checkOut?)** - Pago seguro:
-   - Inicia terminal de pago PayPal seguro
-   - amount: Monto total en EUR
-   - propertyName: Nombre de la propiedad
-   - propertyId, checkIn, checkOut: Opcionales para guardar en reserva
-
-### CUÁNDO USAR TOOLS DE PRECIOS:
-- Si el usuario pregunta "¿Cuánto cuesta?" → usa get_live_pricing_bridge()
-- Si el usuario dice "Quiero reservar" o "Quiero pagar" → usa initiate_secure_voice_payment()
-- SIEMPRE menciona el precio antes de iniciar el pago
-- Si hay ahorro vs OTA, menciónalo: "El precio en Booking es X€, con nosotros es Y€ (ahorro de Z€)"
-
-### HERRAMIENTAS DE COMUNICACIÓN:
-
-**5. whatsapp_omni_response(phone, modality, message)** - Comunicación WhatsApp:
-   - phone: Número de teléfono (formato internacional: +34...)
-   - modality: "voice_call" (llamada), "text_chat" (mensaje texto), "conversational_msg" (mensaje conversacional)
-   - message: Contenido del mensaje o script de voz
-   - Usa cuando el usuario pide contactar por WhatsApp o enviar información
-
-**6. trigger_push_notification(title, message, type)** - Notificación push:
-   - title: Título de la notificación
-   - message: Mensaje a mostrar
-   - type: "booking" (reserva), "update" (actualización), "alert" (alerta), "message" (mensaje), "payment" (pago)
-   - Usa para notificar al usuario sobre eventos importantes
-
-### CUÁNDO USAR TOOLS DE COMUNICACIÓN:
-- Si el usuario pide "envíame esto por WhatsApp" → usa whatsapp_omni_response()
-- Si el usuario quiere "recibir notificaciones" o "avisarme cuando..." → usa trigger_push_notification()
-- Para confirmaciones de reserva → trigger_push_notification(type: "booking")
-- Para recordatorios o actualizaciones → trigger_push_notification(type: "update")
-
-### HERRAMIENTAS ADICIONALES:
-
-**7. orchestrate_marketing_campaign(platform, budget, targetPropertyId?)** - Campañas de marketing:
-   - platform: "instagram", "tiktok" o "meta"
-   - budget: Presupuesto diario en EUR
-   - targetPropertyId: ID de propiedad específica (opcional)
-   - Usa cuando el usuario pide promocionar propiedades o crear campañas
-
-**8. booking_engine_integration(propertyId, checkIn, checkOut, guests, guestName?, guestEmail?, guestPhone?)** - Reservas:
-   - Crea una reserva completa de alojamiento
-   - propertyId, checkIn, checkOut, guests: Requeridos
-   - guestName, guestEmail, guestPhone: Opcionales
-   - Usa cuando el usuario confirma una reserva o dice "quiero reservar"
-
-### CUÁNDO USAR TOOLS ADICIONALES:
-- Si el usuario dice "quiero reservar" o "confirma la reserva" → usa booking_engine_integration()
-- Si el usuario pide "promociona esta propiedad" → usa orchestrate_marketing_campaign()
-- SIEMPRE verifica disponibilidad antes de crear una reserva`;
-
-    // 🚀 REGLA CRÍTICA: No saludar después del saludo inicial
-    if (context.greetingSent === true) {
-      systemPrompt += `\n\n### REGLA CRÍTICA - NO VIOLAR:
-- Ya has saludado al usuario al inicio de la llamada. NUNCA vuelvas a saludar.
-- Si el usuario dice "Hola", "Buenas", "Buenos días", etc., NO respondas con otro saludo.
-- Responde directamente a su pregunta o comentario SIN mencionar "Hola", "Soy Sandra", ni ninguna forma de saludo.
-- Ejemplos PROHIBIDOS después del saludo inicial: "Hola", "Hola, soy Sandra", "Buenas", "¿En qué puedo ayudarte?" (esto es un saludo implícito)
-- Ejemplos CORRECTOS: Responde directamente a lo que pregunta (ej: si pregunta por alojamiento, habla de alojamientos directamente)`;
-    }
-    
-    // 🚀 MEMORIA CONVERSACIONAL: Historial completo desde base de datos
-    if (context.conversationHistory && context.conversationHistory.length > 0) {
-      systemPrompt += `\n\n### MEMORIA CONVERSACIONAL (últimos ${context.conversationHistory.length} intercambios):
-`;
-      context.conversationHistory.forEach((exchange, index) => {
-        systemPrompt += `${index + 1}. Usuario: "${exchange.user.substring(0, 100)}${exchange.user.length > 100 ? '...' : ''}"\n`;
-        systemPrompt += `   Tú: "${exchange.assistant.substring(0, 100)}${exchange.assistant.length > 100 ? '...' : ''}"\n`;
-      });
-      systemPrompt += `\n### INSTRUCCIONES DE MEMORIA:
-- Usa este historial para mantener coherencia y NO repetir información ya proporcionada.
-- Si el usuario ya mencionó fechas, número de personas, zona o presupuesto, NO vuelvas a preguntarlo.
-- Recuerda los datos que el cliente ya te ha dado y continúa desde donde quedaste.
-- Si ya tienes suficiente información, procede directamente a buscar alojamientos o confirmar reserva.`;
-    }
-    
-    // 🚀 CONTEXTO PREVIO: Fallback si no hay historial completo
-    if (context.lastFinalizedTranscript && (!context.conversationHistory || context.conversationHistory.length === 0)) {
-      systemPrompt += `\n\n### CONTEXTO DE CONVERSACIÓN PREVIA:
-- El usuario mencionó anteriormente: "${context.lastFinalizedTranscript.substring(0, 150)}"
-- Usa este contexto para responder de forma coherente y NO repetir preguntas ya respondidas.
-- Si el usuario ya proporcionó información (fechas, personas, zona), NO vuelvas a pedirla.
-- Continúa desde donde quedaste en la conversación.`;
-    }
-    
-    // 🚀 DATOS EXTRAÍDOS: Si ya se conocen datos específicos, no preguntarlos
-    const knownData = [];
-    if (context.checkIn && context.checkOut) knownData.push(`Fechas: ${context.checkIn} - ${context.checkOut}`);
-    if (context.guests) knownData.push(`${context.guests} huéspedes`);
-    if (context.location) knownData.push(`Zona: ${context.location}`);
-    if (context.budget) knownData.push(`Presupuesto: ${context.budget}€`);
-    
-    if (knownData.length > 0) {
-      systemPrompt += `\n\n### DATOS YA CONOCIDOS (NO PREGUNTAR):
-- ${knownData.join(', ')}
-- Usa esta información directamente, NO vuelvas a preguntarla.`;
-    }
-    
-    // Añadir última respuesta de IA para evitar ecos
-    if (context.lastAIResponse) {
-      systemPrompt += `\n\n### Última respuesta enviada:
-- "${context.lastAIResponse.substring(0, 100)}"
-- Si el usuario repite algo similar a tu última respuesta, es probablemente un eco. Responde brevemente sin repetir información.`;
-    }
-
-    // 🚀 HERRAMIENTAS DE NAVEGACIÓN: Instrucciones para controlar la UI
-    if (tools && tools.length > 0) {
-      systemPrompt += `\n\n### HERRAMIENTAS DE NAVEGACIÓN DISPONIBLES:
-      
-Puedes usar estas herramientas para controlar la interfaz:
-
-1. **navigate_ui(section)** - Navega a una sección:
-   - "hero" - Vuelve al inicio
-   - "properties" - Muestra propiedades disponibles
-   - "ai-studio" - Sandra AI Studio
-   - "faq" - Preguntas frecuentes
-   - "dashboard" - Dashboard de propiedades
-   - "marketing" - Sección de marketing
-
-2. **ui_action(action, target, value)** - Controla elementos:
-   - SCROLL - Desplaza a elemento
-   - CLICK - Hace clic en botón
-   - TOGGLE_MODAL - Abre/cierra modal (value: "open"|"close")
-   - HIGHLIGHT - Resalta elemento
-
-### INSTRUCCIONES DE USO:
-- SIEMPRE comunica verbalmente lo que vas a hacer
-- Ejemplo: "Te muestro las propiedades" → navigate_ui("properties")
-- Solo usa tools si el usuario pide control de UI
-- No uses tools en conversación normal`;
-    }
-    if (!this.openaiApiKey) {
-      const errorMsg = 'OPENAI_API_KEY no configurada. Configura OPENAI_API_KEY en Render Dashboard.';
-      logger.error('[AI] ' + errorMsg);
-      throw new Error(errorMsg);
-    }
-
-    try {
-      logger.info('[AI] 🎯 Usando OpenAI GPT-4o-mini (único modelo en producción)...');
+    // Try preferred provider first
+    if (this.preferredProvider === 'groq' && this.groqApiKey) {
+      try {
+        logger.info('[AI] Attempting Groq (preferred)...');
+        return await this._callGroq(userMessage, systemPrompt);
+      } catch (error) {
+        errors.push({ provider: 'Groq', error: error.message });
+        logger.warn('[AI] Groq failed:', error.message);
+      }
+    } else if (this.preferredProvider === 'openai' && this.openaiApiKey) {
+      try {
+        logger.info('[AI] Attempting OpenAI (preferred)...');
         return await this._callOpenAI(userMessage, systemPrompt);
       } catch (error) {
-      logger.error('[AI] ❌ Error con OpenAI GPT-4o-mini:', error.message);
-      throw error;
+        errors.push({ provider: 'OpenAI', error: error.message });
+        logger.warn('[AI] OpenAI failed:', error.message);
       }
+    } else if (this.preferredProvider === 'gemini' && this.geminiApiKey) {
+      try {
+        logger.info('[AI] Attempting Gemini (preferred)...');
+        return await this._callGemini(userMessage, systemPrompt);
+      } catch (error) {
+        errors.push({ provider: 'Gemini', error: error.message });
+        logger.warn('[AI] Gemini failed:', error.message);
+      }
+    }
+
+    // Try all other providers as fallbacks
+    if (this.preferredProvider !== 'groq' && this.groqApiKey) {
+      try {
+        logger.info('[AI] Attempting Groq (fallback)...');
+        return await this._callGroq(userMessage, systemPrompt);
+      } catch (error) {
+        errors.push({ provider: 'Groq', error: error.message });
+        logger.warn('[AI] Groq fallback failed:', error.message);
+      }
+    }
+
+    if (this.preferredProvider !== 'openai' && this.openaiApiKey) {
+      try {
+        logger.info('[AI] Attempting OpenAI (fallback)...');
+        return await this._callOpenAI(userMessage, systemPrompt);
+      } catch (error) {
+        errors.push({ provider: 'OpenAI', error: error.message });
+        logger.warn('[AI] OpenAI fallback failed:', error.message);
+      }
+    }
+
+    if (this.preferredProvider !== 'gemini' && this.geminiApiKey) {
+      try {
+        logger.info('[AI] Attempting Gemini (fallback)...');
+        return await this._callGemini(userMessage, systemPrompt);
+      } catch (error) {
+        errors.push({ provider: 'Gemini', error: error.message });
+        logger.warn('[AI] Gemini fallback failed:', error.message);
+      }
+    }
+
+    // All providers failed
+    if (errors.length === 0) {
+      // No providers configured at all
+      const configured = [];
+      if (this.groqApiKey) configured.push('Groq');
+      if (this.openaiApiKey) configured.push('OpenAI');
+      if (this.geminiApiKey) configured.push('Gemini');
+      
+      if (configured.length === 0) {
+        const errorMsg = 'No AI providers configured. Configure at least one: GROQ_API_KEY, OPENAI_API_KEY, or GEMINI_API_KEY in Render Dashboard.';
+        logger.error('[AI] ' + errorMsg);
+        throw new Error(errorMsg);
+      } else {
+        const errorMsg = `All configured AI providers failed. Configured: ${configured.join(', ')}. Check API keys in Render Dashboard.`;
+        logger.error('[AI] ' + errorMsg);
+        throw new Error(errorMsg);
+      }
+    } else {
+      const errorMessage = `All AI providers failed. Errors: ${errors.map(e => `${e.provider}: ${e.error.substring(0, 100)}`).join('; ')}`;
+      logger.error('[AI] All providers failed:', errors);
+      throw new Error(errorMessage);
+    }
   }
 
-  async _callOpenAI(userMessage, systemPrompt, tools = null, toolHandler = null, context = {}) {
+  async _callOpenAI(userMessage, systemPrompt) {
     if (!this.openaiApiKey) {
       throw new Error('OPENAI_API_KEY not configured');
     }
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2500); // 🚀 REAL-TIME: 2.5s timeout (reducido para respuestas más rápidas)
+    const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
     try {
-      // Construir body base
-      const body = {
-        model: 'gpt-4o-mini', // 🎯 PRODUCCIÓN: GPT-4o-mini (modelo principal para producción)
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage }
-        ],
-        temperature: 0.7,
-        max_tokens: 100 // 🚀 REAL-TIME: Reducido para respuestas más rápidas (especialmente saludos breves)
-      };
-
-      // 🚀 FASE 1.4: Añadir tools si están disponibles
-      if (tools && tools.length > 0) {
-        body.tools = tools;
-        body.tool_choice = 'auto'; // Permite que el modelo decida cuándo usar tools
-        logger.info(`[AI] 🔧 Function calling activado con ${tools.length} tools`);
-      }
-
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${this.openaiApiKey}`,
         'Content-Type': 'application/json'
       },
-        body: JSON.stringify(body),
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage }
+        ],
+          temperature: 0.7,
+          max_tokens: 200
+        }),
         signal: controller.signal
       });
 
       clearTimeout(timeout);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        const errorMsg = errorText.length > 200 ? errorText.substring(0, 200) : errorText;
-        throw new Error(`OpenAI Error ${response.status}: ${errorMsg}`);
-      }
-
-      const data = await response.json();
-      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-        throw new Error('OpenAI: Invalid response format');
-      }
-
-      const message = data.choices[0].message;
-
-      // 🚀 FASE 1.4: Manejar tool_calls si existen
-      if (message.tool_calls && message.tool_calls.length > 0 && toolHandler) {
-        logger.info(`[AI] 🔧 OpenAI solicitó ejecutar ${message.tool_calls.length} tool(s)`);
-        return await this._handleToolCalls(message.tool_calls, userMessage, systemPrompt, toolHandler, context);
-      }
-
-      // Respuesta normal de texto
-      return message.content;
-    } catch (error) {
-      clearTimeout(timeout);
-      if (error.name === 'AbortError') {
-        throw new Error('OpenAI: Request timeout (2.5s)');
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Manejar tool_calls de OpenAI - Ejecutar tools y obtener respuesta final
-   * @param {Array} toolCalls - Array de tool_calls de OpenAI
-   * @param {string} userMessage - Mensaje original del usuario
-   * @param {string} systemPrompt - System prompt
-   * @param {ToolHandler} toolHandler - Instancia de ToolHandler
-   * @param {Object} context - Contexto de la conversación
-   * @returns {Promise<string>} Respuesta final del modelo
-   */
-  async _handleToolCalls(toolCalls, userMessage, systemPrompt, toolHandler, context) {
-    try {
-      const messages = [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage }
-      ];
-
-      // Ejecutar cada tool_call
-      for (const toolCall of toolCalls) {
-        const { id, function: func } = toolCall;
-        const { name, arguments: argsStr } = func;
-
-        logger.info(`[AI] 🔧 Ejecutando tool: ${name}`);
-
-        try {
-          // Parsear argumentos
-          const args = JSON.parse(argsStr);
-          
-          // Ejecutar tool (necesitamos sessionId y ws desde context)
-          // Por ahora retornamos un resultado básico
-          const result = {
-            success: true,
-            tool: name,
-            result: `Tool ${name} ejecutado con argumentos: ${JSON.stringify(args)}`
-          };
-
-          // Añadir resultado como mensaje function
-          messages.push({
-            role: 'tool',
-            tool_call_id: id,
-            name: name,
-            content: JSON.stringify(result)
-          });
-
-          logger.info(`[AI] ✅ Tool ${name} ejecutado exitosamente`);
-        } catch (error) {
-          logger.error(`[AI] ❌ Error ejecutando tool ${name}:`, error);
-          messages.push({
-            role: 'tool',
-            tool_call_id: id,
-            name: name,
-            content: JSON.stringify({
-              success: false,
-              error: error.message
-      })
-    });
-        }
-      }
-
-      // 🚀 FASE 1.4: Llamar nuevamente a OpenAI con los resultados de las tools
-      // Esto permitirá que el modelo genere una respuesta final basada en los resultados
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 2500);
-
-      try {
-        const body = {
-          model: 'gpt-4o-mini',
-          messages: messages,
-          temperature: 0.7,
-          max_tokens: 150 // Un poco más para respuestas que incluyen resultados de tools
-        };
-
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${this.openaiApiKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(body),
-          signal: controller.signal
-        });
-
-        clearTimeout(timeout);
-
     if (!response.ok) {
       const errorText = await response.text();
-          throw new Error(`OpenAI Error ${response.status}: ${errorText.substring(0, 200)}`);
+        const errorMsg = errorText.length > 200 ? errorText.substring(0, 200) : errorText;
+        throw new Error(`OpenAI Error ${response.status}: ${errorMsg}`);
     }
 
     const data = await response.json();
-        if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-          throw new Error('OpenAI: Invalid response format');
-        }
-
-        const finalMessage = data.choices[0].message;
-        
-        // Si hay más tool_calls, recursivamente manejarlos
-        if (finalMessage.tool_calls && finalMessage.tool_calls.length > 0) {
-          logger.info(`[AI] 🔧 OpenAI solicitó más tools - ejecutando recursivamente`);
-          return await this._handleToolCalls(finalMessage.tool_calls, userMessage, systemPrompt, toolHandler, context);
-        }
-
-        return finalMessage.content || 'Tool ejecutado exitosamente';
-      } catch (error) {
-        clearTimeout(timeout);
-        throw error;
+      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+        throw new Error('OpenAI: Invalid response format');
       }
+    return data.choices[0].message.content;
     } catch (error) {
-      logger.error('[AI] ❌ Error en _handleToolCalls:', error);
+      clearTimeout(timeout);
+      if (error.name === 'AbortError') {
+        throw new Error('OpenAI: Request timeout (30s)');
+      }
       throw error;
     }
   }
@@ -1139,13 +643,13 @@ Puedes usar estas herramientas para controlar la interfaz:
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-          model: 'gpt-oss-20b', // Modelo GPT OSS 20B de Groq (según imagen Deepgram)
+        model: 'qwen2.5-72b-instruct',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage }
         ],
           temperature: 0.7,
-          max_tokens: 100 // 🚀 REAL-TIME: Reducido para respuestas más rápidas (especialmente saludos breves)
+          max_tokens: 200
         }),
         signal: controller.signal
       });
@@ -1178,7 +682,7 @@ Puedes usar estas herramientas para controlar la interfaz:
     }
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${this.geminiApiKey}`;
-
+    
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
@@ -1214,12 +718,12 @@ Puedes usar estas herramientas para controlar la interfaz:
       if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
         throw new Error('Gemini: Invalid response format');
       }
-
+      
       const text = data.candidates[0].content.parts[0]?.text;
       if (!text) {
         throw new Error('Gemini: No text in response');
       }
-
+      
       return text.trim();
     } catch (error) {
       clearTimeout(timeout);
@@ -1235,8 +739,9 @@ Puedes usar estas herramientas para controlar la interfaz:
    * ⚠️ ESTE MÉTODO YA NO SE DEBE USAR - Todo audio debe generarse con Deepgram TTS
    */
   async getWelcomeAudio() {
-    logger.warn('[TTS] ⚠️ getWelcomeAudio() is deprecated - use generateVoice() with text instead');
-    throw new Error('getWelcomeAudio() is deprecated - use generateVoice() with text instead');
+    logger.error('[TTS] ❌ ERROR: getWelcomeAudio() llamado - Este método está DESHABILITADO');
+    logger.error('[TTS] ❌ Todos los audios deben generarse con Deepgram TTS usando generateVoice(text)');
+    throw new Error('getWelcomeAudio() está DESHABILITADO. Usar generateVoice(text) con Deepgram TTS en su lugar.');
   }
 }
 
@@ -1281,10 +786,6 @@ const exportedServices = {
     processMessage: (message) => voiceServicesInstance.processMessage(message)
   },
   getWelcomeAudio: () => voiceServicesInstance.getWelcomeAudio(),
-  createTTSStreamingConnection: (model) => voiceServicesInstance.createTTSStreamingConnection(model),
-  sendTextToTTS: (ttsWs, text) => voiceServicesInstance.sendTextToTTS(ttsWs, text),
-  flushTTS: (ttsWs) => voiceServicesInstance.flushTTS(ttsWs),
-  clearTTS: (ttsWs) => voiceServicesInstance.clearTTS(ttsWs),
   capabilities: {
     stt: deepgramConfigured
   }
