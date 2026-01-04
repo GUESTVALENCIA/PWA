@@ -13,6 +13,9 @@ import IPGeolocationService from '../services/ip-geolocation-service.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DEBUG_LOG_PATH = path.join(__dirname, '../../.cursor/debug.log');
+
+// Inicializar servicio de geolocalización IP
+const ipGeolocationService = new IPGeolocationService();
 const debugLog = (location, message, data, hypothesisId) => {
   try {
     const logEntry = { location, message, data, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId };
