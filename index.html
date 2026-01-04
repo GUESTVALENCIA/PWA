@@ -849,6 +849,7 @@
 
       async init() {
         this.createWidgetUI();
+        this.ensureVisibility();
         this.bindEvents();
         // 🚀 FASE 1: Inicializar AudioWorklet para reproducción PCM
         await this.setupAudioWorklet();
@@ -856,24 +857,36 @@
         // El cliente solo reproduce el audio recibido del servidor (NO usa SpeechSynthesis)
       }
 
+      ensureVisibility() {
+        const widgetRoot = document.getElementById('sandra-widget-root');
+        if (widgetRoot) {
+          // Forzar visibilidad con estilos !important (como widget inyectable)
+          widgetRoot.style.setProperty('display', 'block', 'important');
+          widgetRoot.style.setProperty('visibility', 'visible', 'important');
+          widgetRoot.style.setProperty('opacity', '1', 'important');
+          widgetRoot.style.setProperty('z-index', '99999', 'important');
+          widgetRoot.style.setProperty('position', 'fixed', 'important');
+          widgetRoot.style.setProperty('pointer-events', 'auto', 'important');
+          widgetRoot.classList.remove('hidden');
+        }
+      }
+
       createWidgetUI() {
-        // #region agent log
-        console.log('[WIDGET DEBUG] createWidgetUI entry', { bodyExists: !!document.body, existingRootExists: !!document.getElementById('sandra-widget-root') });
-        fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.html:859',message:'createWidgetUI entry',data:{bodyExists:!!document.body,existingRootExists:!!document.getElementById('sandra-widget-root')},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
+        // Evitar duplicados - verificar si el widget ya existe
+        if (document.getElementById('sandra-widget-root')) {
+          console.warn('⚠️ Widget ya existe, no se creará duplicado');
+          return;
+        }
+
         // Eliminar el div placeholder oculto si existe
         const existingRoot = document.getElementById('sandra-widget-root');
-        // #region agent log
-        console.log('[WIDGET DEBUG] After existingRoot check', { existingRoot: !!existingRoot, hasHiddenClass: existingRoot?.classList.contains('hidden'), willRemove: existingRoot && existingRoot.classList.contains('hidden') });
-        fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.html:863',message:'After existingRoot check',data:{existingRoot:!!existingRoot,hasHiddenClass:existingRoot?.classList.contains('hidden'),willRemove:existingRoot && existingRoot.classList.contains('hidden')},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
         if (existingRoot && existingRoot.classList.contains('hidden')) {
           console.log('[WIDGET DEBUG] Removing hidden placeholder');
           existingRoot.remove();
         }
 
         const widgetHTML = `
-          <div id="sandra-widget-root" class="fixed bottom-4 right-4 z-50 font-sans">
+          <div id="sandra-widget-root" class="fixed bottom-4 right-4 z-50 font-sans" style="display: block !important; visibility: visible !important; opacity: 1 !important; z-index: 99999 !important; position: fixed !important; pointer-events: auto !important;">
             <button id="sandra-toggle-btn" class="w-14 h-14 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xl hover:scale-105 transition-transform flex items-center justify-center group overflow-hidden border-2 border-white/20">
               <span class="text-2xl group-hover:hidden">💬</span>
               <img src="assets/images/sandra-avatar.png" onerror="this.style.display='none'" class="hidden group-hover:block w-full h-full object-cover rounded-full">
@@ -949,40 +962,14 @@
           </div>`;
 
         document.body.insertAdjacentHTML('beforeend', widgetHTML);
-        // #region agent log
+        
+        // Verificar que el widget se creó correctamente
         const widgetRootAfter = document.getElementById('sandra-widget-root');
         const toggleBtn = document.getElementById('sandra-toggle-btn');
-        const computedStyle = widgetRootAfter ? getComputedStyle(widgetRootAfter) : null;
-        const debugData = {
-          widgetRootExists: !!widgetRootAfter,
-          toggleBtnExists: !!toggleBtn,
-          widgetRootVisible: computedStyle ? computedStyle.display !== 'none' : false,
-          widgetRootZIndex: computedStyle ? computedStyle.zIndex : 'N/A',
-          widgetRootPosition: computedStyle ? computedStyle.position : 'N/A',
-          widgetRootBottom: computedStyle ? computedStyle.bottom : 'N/A',
-          widgetRootRight: computedStyle ? computedStyle.right : 'N/A',
-          widgetRootVisibility: computedStyle ? computedStyle.visibility : 'N/A',
-          widgetRootOpacity: computedStyle ? computedStyle.opacity : 'N/A'
-        };
-        console.log('[WIDGET DEBUG] After widgetHTML insertion', debugData);
-        fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.html:942',message:'After widgetHTML insertion',data:debugData,timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
-        
-        // Asegurar que el widget sea visible (forzar estilos si es necesario)
-        if (widgetRootAfter) {
-          // Remover clase hidden si existe por alguna razón
-          widgetRootAfter.classList.remove('hidden');
-          // Forzar visibilidad con estilos inline como fallback
-          if (computedStyle && computedStyle.display === 'none') {
-            console.warn('[WIDGET DEBUG] Widget está oculto, forzando visibilidad...');
-            widgetRootAfter.style.display = 'block';
-            widgetRootAfter.style.visibility = 'visible';
-            widgetRootAfter.style.opacity = '1';
-          }
-          // Asegurar z-index alto
-          if (computedStyle && parseInt(computedStyle.zIndex) < 50) {
-            widgetRootAfter.style.zIndex = '9999';
-          }
+        if (widgetRootAfter && toggleBtn) {
+          console.log('✅ Widget creado correctamente');
+        } else {
+          console.error('❌ Error: Widget no se creó correctamente', { widgetRootAfter: !!widgetRootAfter, toggleBtn: !!toggleBtn });
         }
       }
 
@@ -2931,27 +2918,40 @@
       }
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      // #region agent log
-      console.log('[WIDGET DEBUG] DOMContentLoaded - creating SandraWidget', { bodyReady: !!document.body, documentReady: document.readyState });
-      fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.html:2890',message:'DOMContentLoaded - creating SandraWidget',data:{bodyReady:!!document.body,documentReady:document.readyState},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
+    // Initialize widget (con lógica de widget inyectable)
+    function initSandraWidget() {
       try {
-        console.log('[WIDGET DEBUG] Creating new SandraWidget instance...');
-        const widget = new SandraWidget();
-        // #region agent log
-        const widgetRootAfter = document.getElementById('sandra-widget-root');
-        const toggleBtnAfter = document.getElementById('sandra-toggle-btn');
-        console.log('[WIDGET DEBUG] SandraWidget created', { widgetCreated: !!widget, widgetRootExists: !!widgetRootAfter, toggleBtnExists: !!toggleBtnAfter });
-        fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.html:2893',message:'SandraWidget created',data:{widgetCreated:!!widget,widgetRootExists:!!widgetRootAfter,toggleBtnExists:!!toggleBtnAfter},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
+        console.log('🚀 Inicializando SandraWidget...');
+        
+        // Prevenir múltiples inicializaciones
+        if (window.sandraWidgetInstance) {
+          console.warn('⚠️ Widget ya inicializado, saltando...');
+          return;
+        }
+        
+        // Limpiar duplicados si existen
+        const existingRoots = document.querySelectorAll('#sandra-widget-root');
+        if (existingRoots.length > 1) {
+          console.warn(`⚠️ Encontrados ${existingRoots.length} widgets. Eliminando duplicados...`);
+          for (let i = 1; i < existingRoots.length; i++) {
+            existingRoots[i].remove();
+          }
+        }
+        
+        window.sandraWidgetInstance = new SandraWidget();
+        console.log('✅ SandraWidget inicializado correctamente (instancia única)');
       } catch (error) {
-        // #region agent log
-        console.error('[WIDGET DEBUG] SandraWidget creation error', error);
-        fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.html:2896',message:'SandraWidget creation error',data:{error:error.message,stack:error.stack?.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
-        console.error('[WIDGET] Error creando SandraWidget:', error);
+        console.error('❌ Error al inicializar SandraWidget:', error);
       }
+    }
+    
+    // Intentar inicializar cuando el DOM esté listo o ya esté listo
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initSandraWidget);
+    } else {
+      // DOM ya está listo, inicializar inmediatamente
+      initSandraWidget();
+    }
       
       // 🚀 FASE 2: Inicializar sistema de comandos UI
       window.UICommandSystem = {
