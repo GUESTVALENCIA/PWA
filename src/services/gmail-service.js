@@ -37,22 +37,27 @@ class GmailService {
 
   /**
    * Leer correos de reservas desde Gmail
-   * @param {string} fromEmail - Email del remitente (ej: notifications@booking.com)
+   * Busca correos de Booking.com o Airbnb
+   * @param {string} fromEmail - Email del remitente (opcional, por defecto busca booking.com OR airbnb.com)
    * @param {number} maxResults - Máximo de correos a leer
    */
-  async readReservationEmails(fromEmail = 'notifications@booking.com', maxResults = 10) {
+  async readReservationEmails(fromEmail = null, maxResults = 10) {
     if (!this.enabled) {
       logger.warn('[GMAIL] ⚠️ Gmail no configurado');
       return [];
     }
 
     try {
+      // Buscar correos de Booking o Airbnb si no se especifica remitente
+      const searchQuery = fromEmail 
+        ? `from:${fromEmail}` 
+        : 'from:booking.com OR from:airbnb.com OR from:notifications@booking.com';
+      
+      logger.info(`[GMAIL] 📧 Buscando correos: ${searchQuery}...`);
+      
       // TODO: Implementar llamada real a Gmail API
       // Por ahora, simulación
-      logger.info(`[GMAIL] 📧 Leyendo correos de ${fromEmail}...`);
-      
-      // Simulación de correos de reserva
-      const emails = await this.fetchEmailsFromGmail(fromEmail, maxResults);
+      const emails = await this.fetchEmailsFromGmail(searchQuery, maxResults);
       
       const processed = [];
       for (const email of emails) {
@@ -156,31 +161,51 @@ class GmailService {
 
   /**
    * Enviar respuesta automática al huésped
+   * Incluye enlace a PWA y dirección a Sandra para continuar conversación
    */
   async sendAutoResponse(reservationData) {
     try {
-      // TODO: Implementar envío real de email
-      const responseText = `
-¡Hola ${reservationData.name}!
+      // Detectar si el email incluye preguntas
+      const hasQuestions = reservationData.emailBody && (
+        reservationData.emailBody.includes('?') ||
+        reservationData.emailBody.toLowerCase().includes('cómo') ||
+        reservationData.emailBody.toLowerCase().includes('dónde') ||
+        reservationData.emailBody.toLowerCase().includes('puedo')
+      );
+
+      let responseText = `¡Hola ${reservationData.name}!
 
 Gracias por tu reserva. Estamos encantados de tenerte como huésped.
 
 📅 Fechas: ${reservationData.checkIn} - ${reservationData.checkOut}
-👥 Huéspedes: ${reservationData.guests}
+👥 Huéspedes: ${reservationData.guests}`;
+
+      if (hasQuestions) {
+        responseText += `
+
+He visto que tienes algunas preguntas. Te respondo brevemente aquí, pero puedes continuar la conversación con Sandra, nuestra asistente virtual, para más detalles.`;
+      }
+
+      responseText += `
 
 🔗 Accede a tu reserva y gestiona tu estancia:
 https://pwa-chi-six.vercel.app/reservation/${reservationData.emailId}
 
-💬 ¿Tienes preguntas? Habla con Sandra, nuestra asistente virtual:
+💬 ¿Tienes más preguntas? Habla con Sandra, nuestra asistente virtual:
 https://pwa-chi-six.vercel.app
+
+Sandra puede ayudarte con:
+- Información sobre el check-in
+- Recomendaciones de la zona
+- Respuestas a tus preguntas
+- Gestión de tu reserva
 
 ¡Te esperamos pronto!
 
-Equipo Guests Valencia
-      `.trim();
+Equipo Guests Valencia`;
 
       logger.info(`[GMAIL] 📧 Respuesta automática preparada para ${reservationData.email}`);
-      // TODO: Enviar email real
+      // TODO: Enviar email real usando Gmail API
       
       return true;
     } catch (error) {

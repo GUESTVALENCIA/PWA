@@ -1,6 +1,7 @@
 /**
- * BridgeData Service - Consulta disponibilidad de propiedades
+ * BridgeData Service - Consulta SOLO disponibilidad de propiedades
  * Microservicio para consultar y actualizar disponibilidad desde BridgeData/PMS
+ * NOTA: NO maneja precios, solo disponibilidad (is_available)
  */
 
 import logger from '../utils/logger.js';
@@ -29,11 +30,12 @@ class BridgeDataService {
   }
 
   /**
-   * Consultar disponibilidad de una propiedad desde BridgeData
+   * Consultar SOLO disponibilidad de una propiedad desde BridgeData
+   * NOTA: NO retorna precios, solo disponibilidad (is_available)
    * @param {string} propertyId - ID de la propiedad
    * @param {string} checkIn - Fecha check-in (YYYY-MM-DD)
    * @param {string} checkOut - Fecha check-out (YYYY-MM-DD)
-   * @returns {Promise<Object>} Disponibilidad y precio
+   * @returns {Promise<Object>} Solo disponibilidad (sin precios)
    */
   async checkAvailability(propertyId, checkIn, checkOut) {
     try {
@@ -43,32 +45,28 @@ class BridgeDataService {
       if (cached && this.isCacheValid(cached.last_checked)) {
         logger.debug(`[BRIDGE DATA] ✅ Disponibilidad desde cache para ${propertyId}`);
         return {
-          available: cached.available,
-          price: cached.price,
-          currency: cached.currency || 'EUR',
+          available: cached.is_available !== undefined ? cached.is_available : cached.available,
           source: 'cache',
           lastChecked: cached.last_checked
         };
       }
 
-      // 2. Si no hay cache válido, consultar BridgeData API
+      // 2. Si no hay cache válido, consultar BridgeData API (SOLO disponibilidad)
       const freshData = await this.fetchFromBridgeData(propertyId, checkIn, checkOut);
       
-      // 3. Actualizar cache en Neon DB
+      // 3. Actualizar cache en Neon DB (SOLO is_available, NO precios)
       if (freshData) {
         await this.neonService.updatePropertyAvailability({
           property_id: propertyId,
           check_in: checkIn,
           check_out: checkOut,
-          available: freshData.available,
-          price: freshData.price,
-          currency: freshData.currency || 'EUR',
+          is_available: freshData.available,
           last_checked: new Date().toISOString()
         });
       }
 
       return {
-        ...freshData,
+        available: freshData.available,
         source: 'bridge_data',
         lastChecked: new Date().toISOString()
       };
@@ -79,9 +77,7 @@ class BridgeDataService {
       const cached = await this.neonService.getPropertyAvailability(propertyId, checkIn, checkOut);
       if (cached) {
         return {
-          available: cached.available,
-          price: cached.price,
-          currency: cached.currency || 'EUR',
+          available: cached.is_available !== undefined ? cached.is_available : cached.available,
           source: 'cache_stale',
           lastChecked: cached.last_checked,
           warning: 'Datos de cache, puede estar desactualizado'
@@ -93,7 +89,8 @@ class BridgeDataService {
   }
 
   /**
-   * Consultar BridgeData API directamente
+   * Consultar BridgeData API directamente (SOLO disponibilidad)
+   * NOTA: NO retorna precios, solo is_available
    */
   async fetchFromBridgeData(propertyId, checkIn, checkOut) {
     // TODO: Implementar llamada real a BridgeData API
@@ -105,7 +102,7 @@ class BridgeDataService {
     }
 
     try {
-      // Implementación real de API call
+      // Implementación real de API call (SOLO disponibilidad)
       const response = await fetch(`${this.bridgeDataUrl}/properties/${propertyId}/availability`, {
         method: 'POST',
         headers: {
@@ -123,10 +120,9 @@ class BridgeDataService {
       }
 
       const data = await response.json();
+      // SOLO retornar disponibilidad, NO precios
       return {
-        available: data.available || false,
-        price: data.price || 0,
-        currency: data.currency || 'EUR',
+        available: data.available || data.is_available || false,
         property_id: propertyId
       };
     } catch (error) {
@@ -137,30 +133,15 @@ class BridgeDataService {
   }
 
   /**
-   * Datos simulados para desarrollo/testing
+   * Datos simulados para desarrollo/testing (SOLO disponibilidad)
    */
   getSimulatedAvailability(propertyId, checkIn, checkOut) {
-    // Simular disponibilidad basada en fechas
-    const checkInDate = new Date(checkIn);
-    const checkOutDate = new Date(checkOut);
-    const nights = Math.ceil((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24));
-    
-    // Precios base por propiedad
-    const basePrices = {
-      'cabanal': 80,
-      'montanejos': 120,
-      'default': 100
-    };
-
-    const basePrice = basePrices[propertyId.toLowerCase()] || basePrices.default;
-    const totalPrice = basePrice * nights;
-
+    // Simular disponibilidad (siempre true por ahora)
+    // En producción, esto vendría de BridgeData/PMS
     return {
       available: true, // Simular siempre disponible
-      price: totalPrice,
-      currency: 'EUR',
-      property_id: propertyId,
-      nights: nights
+      property_id: propertyId
+      // NO incluir precios aquí
     };
   }
 
