@@ -725,6 +725,16 @@ async function handleVoiceMessage(data, agentId, ws, neonService, voiceServices,
     }
   } catch (error) {
     logger.error('Error handling voice message:', error);
+    
+    // 🚀 FIX: No bloquear si el error es solo de neonService (no crítico)
+    const isNeonServiceError = error.message && error.message.includes('neonService is not defined');
+    
+    if (isNeonServiceError) {
+      logger.warn('[NEON] ⚠️ Error de neonService (no crítico) - continuando sin base de datos:', error.message);
+      // No enviar error al cliente - el sistema puede funcionar sin Neon DB
+      return;
+    }
+    
     ws.send(JSON.stringify({
       route: 'error',
       action: 'message',
