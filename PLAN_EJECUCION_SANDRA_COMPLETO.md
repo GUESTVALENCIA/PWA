@@ -23,25 +23,44 @@
 
 #### Herramientas Identificadas:
 
-**UI Control:**
+**UI Control (Navegación por Voz):**
 - `ui_action` - Control de scroll, clicks, toggle modales, highlight
-- `navigate_ui` - Navegación suave a secciones
+  - Acciones: SCROLL, CLICK, TOGGLE_MODAL, HIGHLIGHT
+  - Parámetros: action, target, value (opcional)
+- `navigate_ui` - Navegación suave a secciones mediante comandos de voz
+  - Secciones: 'hero', 'properties', 'ai-studio', 'faq', 'dashboard', 'marketing'
+  - Parámetros: section
 
 **Geolocalización:**
 - `get_current_location` - GPS para recomendaciones cercanas
+  - ⚠️ REQUIERE REEMPLAZO: Actualmente usa navigator.geolocation, cambiar a APIs públicas
 
-**Pagos:**
+**Pagos (Voz):**
 - `initiate_secure_voice_payment` - Terminal PayPal VPOS durante llamada
+  - Parámetros: amount, propertyName
 
-**Comunicaciones:**
+**Comunicaciones (Voz Omnicanal):**
 - `whatsapp_omni_response` - WhatsApp Business (voice_call, text_chat, conversational_msg)
-- `trigger_push_notification` - Notificaciones push en pantalla
+  - Modalidades: voice_call, text_chat, conversational_msg
+  - Parámetros: phone, modality, message
+- `trigger_push_notification` - Notificaciones push en pantalla (Toast)
+  - Tipos: booking, update, alert, message
+  - Parámetros: title, message, type
 
-**Marketing:**
+**Marketing (Voz):**
 - `orchestrate_marketing_campaign` - Campañas en Instagram, TikTok, Meta
+  - Plataformas: instagram, tiktok, meta
+  - Parámetros: platform, budget, targetPropertyId (opcional)
 
-**BridgeData:**
+**BridgeData (Voz):**
 - `get_live_pricing_bridge` - Precios en tiempo real (GANCHO COMPARATIVO)
+  - Parámetros: propertyId
+  - Retorna: status, price, currency, provider
+
+**Funciones Adicionales (Mencionadas pero no en MCP Server):**
+- `booking_orchestrator` - Control paso a paso de reserva Airbnb-style
+  - ⚠️ Mencionado en SYSTEM_INSTRUCTION pero no implementado en MCP Server
+  - Acción requerida: Implementar en MCP Server
 
 ---
 
