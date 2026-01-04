@@ -831,6 +831,8 @@
         this.chatLocked = false;
         this.sttAvailable = null;
         this.sttNoticeShown = false;
+        // 🚀 PIPELINE COMPLETO: Estado de pausa de llamada
+        this.isCallPaused = false;
         // 🚀 FASE 1: AudioWorklet para PCM playback
         this.audioWorkletContext = null;
         this.audioWorkletNode = null;
@@ -934,8 +936,9 @@
               <div class="p-3 bg-white border-t border-slate-100">
                 <!-- Call Controls (Hidden by default) -->
                 <div id="sandra-call-controls" class="hidden mb-2 flex justify-center items-center gap-2 bg-slate-50 rounded-full px-3 py-2 shadow-sm border border-slate-200">
-                  <button id="sandra-hangup-btn" class="p-2 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors shadow-sm"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12a9 9 0 1018 0 9 9 0 00-18 0z" /></svg></button>
-                  <button id="sandra-mute-btn" class="p-2 rounded-full bg-slate-400 text-white hover:bg-slate-500 transition-colors shadow-sm"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg></button>
+                  <button id="sandra-hangup-btn" class="p-2 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors shadow-sm" title="Colgar"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12a9 9 0 1018 0 9 9 0 00-18 0z" /></svg></button>
+                  <button id="sandra-pause-btn" class="p-2 rounded-full bg-yellow-500 text-white hover:bg-yellow-600 transition-colors shadow-sm" title="Pausar">⏸</button>
+                  <button id="sandra-mute-btn" class="p-2 rounded-full bg-slate-400 text-white hover:bg-slate-500 transition-colors shadow-sm" title="Silenciar"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg></button>
                 </div>
                 <!-- Transcripción en vivo (siempre oculta - solo para uso interno/debug) -->
                 <div id="sandra-live-transcript" class="hidden" style="display: none !important;"></div>
@@ -1079,6 +1082,14 @@
         if (hangupBtn) {
           hangupBtn.addEventListener('click', () => {
             this.hangupCall('user');
+          });
+        }
+
+        // 🚀 PIPELINE COMPLETO: Botón de pausa
+        const pauseBtn = document.getElementById('sandra-pause-btn');
+        if (pauseBtn) {
+          pauseBtn.addEventListener('click', () => {
+            this.toggleCallPause();
           });
         }
 
@@ -1342,6 +1353,124 @@
         }, totalMs);
       }
 
+      // 🚀 PIPELINE COMPLETO: Sonido de descolgar llamada
+      playPickupSound() {
+        const ctx = this.ensureAudioContext();
+        if (!ctx) return;
+        
+        try {
+          if (ctx.state === 'suspended') ctx.resume();
+          
+          // Sonido corto tipo "clic" de descolgar
+          const now = ctx.currentTime;
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(800, now);
+          osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+          
+          gain.gain.setValueAtTime(0, now);
+          gain.gain.linearRampToValueAtTime(0.15, now + 0.05);
+          gain.gain.linearRampToValueAtTime(0, now + 0.1);
+          
+          osc.connect(gain).connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.1);
+          
+          console.log('[AUDIO] ✅ Sonido de descolgar reproducido');
+        } catch (error) {
+          console.error('[AUDIO] Error reproduciendo pickup sound:', error);
+        }
+      }
+
+      // 🚀 PIPELINE COMPLETO: Sonido de colgar llamada
+      playHangupSound() {
+        const ctx = this.ensureAudioContext();
+        if (!ctx) return;
+        
+        try {
+          if (ctx.state === 'suspended') ctx.resume();
+          
+          // Beep descendente de colgar
+          const now = ctx.currentTime;
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(600, now);
+          osc.frequency.exponentialRampToValueAtTime(200, now + 0.3);
+          
+          gain.gain.setValueAtTime(0, now);
+          gain.gain.linearRampToValueAtTime(0.2, now + 0.05);
+          gain.gain.linearRampToValueAtTime(0, now + 0.3);
+          
+          osc.connect(gain).connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.3);
+          
+          console.log('[AUDIO] ✅ Sonido de colgar reproducido');
+        } catch (error) {
+          console.error('[AUDIO] Error reproduciendo hangup sound:', error);
+        }
+      }
+
+      // 🚀 PIPELINE COMPLETO: Pausar/reanudar llamada
+      toggleCallPause() {
+        if (!this.activeCall) return;
+        
+        this.isCallPaused = !this.isCallPaused;
+        
+        if (this.isCallPaused) {
+          // Pausar: detener captura de audio
+          if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+            this.mediaRecorder.pause();
+          }
+          if (this.pcmProcessor) {
+            // Silenciar procesamiento PCM
+            this.isMicrophoneMuted = true;
+          }
+          console.log('[CALL] ⏸️ Llamada pausada');
+        } else {
+          // Reanudar: continuar captura de audio
+          if (this.mediaRecorder && this.mediaRecorder.state === 'paused') {
+            this.mediaRecorder.resume();
+          }
+          if (this.pcmProcessor) {
+            this.isMicrophoneMuted = false;
+          }
+          console.log('[CALL] ▶️ Llamada reanudada');
+        }
+        
+        // Actualizar UI del botón de pausa si existe
+        const pauseBtn = document.getElementById('sandra-pause-btn');
+        if (pauseBtn) {
+          pauseBtn.textContent = this.isCallPaused ? '▶' : '⏸';
+          pauseBtn.title = this.isCallPaused ? 'Reanudar' : 'Pausar';
+        }
+      }
+
+      // 🚀 PIPELINE COMPLETO: Mostrar prompt de llamada
+      showCallPrompt() {
+        const callPrompt = document.getElementById('sandra-call-prompt');
+        if (callPrompt) {
+          callPrompt.style.display = 'flex';
+          callPrompt.style.visibility = 'visible';
+          console.log('[UI] ✅ Prompt de llamada mostrado');
+        }
+      }
+
+      // 🚀 PIPELINE COMPLETO: Finalizar llamada conversacional (alias de hangupCall)
+      endConversationalCall() {
+        // Reproducir sonido de colgar
+        this.playHangupSound();
+        
+        // Llamar a hangupCall con razón 'user'
+        this.hangupCall('user');
+        
+        console.log('[CALL] ✅ Llamada conversacional finalizada');
+      }
+
       transitionHeroToVideo() {
         console.log('🎥 Transición: Imagen estática → Video');
         if (!this.useVideo) return;
@@ -1468,6 +1597,11 @@
           return;
         }
         console.log('📞 Colgando llamada...', { reason });
+        
+        // 🚀 PIPELINE COMPLETO: Reproducir sonido de colgar si es colgado por usuario
+        if (reason === 'user') {
+          this.playHangupSound();
+        }
 
         // 🚀 CRÍTICO: Detener audio inmediatamente (arregla bug de llamada que no se cierra)
         if (this.currentAudio) {
@@ -1992,6 +2126,13 @@
             // Callback after ringtones complete
             console.log('[MCP] 🔔 Ringtones completed - verificando saludo en cola');
             this.waitingForRingtones = false;
+            
+            // 🚀 PIPELINE COMPLETO: Reproducir sonido de descolgar después de ringtones
+            this.playPickupSound();
+            
+            // 🚀 PIPELINE COMPLETO: Transición de hero a video
+            this.transitionHeroToVideo();
+            this.startVideoStream();
             
             // 🚀 FIX: Reproducir saludo en cola si existe
             if (this.queuedGreeting && this.queuedGreeting.audio) {
