@@ -51,7 +51,7 @@ class ToolVerifier {
 
       // Verificar schema
       try {
-        const schema = this.toolHandler.getToolsSchema(toolName);
+        const schema = this.toolHandler.getToolParameters(toolName);
         if (schema && schema.properties) {
           results.withSchemas++;
         } else {
