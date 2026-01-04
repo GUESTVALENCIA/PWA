@@ -50,6 +50,8 @@ import ImplementationService from './src/services/implementation-service.js';
 import ContextBuilder from './src/services/context-builder.js';
 import UIControlService from './src/services/ui-control-service.js';
 import ToolHandler from './src/websocket/tool-handler.js';
+import BridgeDataService from './src/services/bridge-data-service.js';
+import PriceCalendarService from './src/services/price-calendar-service.js';
 
 // 🚀 SANDRA ORCHESTRATOR - Unificación con IA-SANDRA
 import SandraOrchestrator from './src/orchestrators/sandra-orchestrator.js';
