@@ -2719,6 +2719,122 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       new SandraWidget();
+      
+      // 🚀 FASE 2: Inicializar sistema de comandos UI
+      window.UICommandSystem = {
+        handlers: {
+          'scroll-to': function(target) {
+            try {
+              const element = document.getElementById(target) || 
+                             document.querySelector(`.${target}`) ||
+                             document.querySelector(`[data-section="${target}"]`);
+              if (!element) {
+                console.warn(`[UI] ⚠️ Elemento no encontrado: ${target}`);
+                return false;
+              }
+              element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              console.log(`[UI] 📜 Scroll a: ${target}`);
+              return true;
+            } catch (error) {
+              console.error('[UI] Error scrolling:', error);
+              return false;
+            }
+          },
+          'click': function(target) {
+            try {
+              const element = document.getElementById(target) || 
+                             document.querySelector(`.${target}`);
+              if (!element) {
+                console.warn(`[UI] ⚠️ Elemento no encontrado: ${target}`);
+                return false;
+              }
+              element.click();
+              const originalBg = element.style.background;
+              element.style.background = 'rgba(255, 200, 0, 0.3)';
+              setTimeout(() => { element.style.background = originalBg; }, 300);
+              console.log(`[UI] 🖱️ Click en: ${target}`);
+              return true;
+            } catch (error) {
+              console.error('[UI] Error clicking:', error);
+              return false;
+            }
+          },
+          'toggle-modal': function(target, value) {
+            try {
+              const modal = document.getElementById(target) || 
+                           document.querySelector(`.${target}`);
+              if (!modal) {
+                console.warn(`[UI] ⚠️ Modal no encontrado: ${target}`);
+                return false;
+              }
+              if (value === 'open') {
+                modal.style.display = 'flex';
+                modal.classList.add('modal-open');
+              } else if (value === 'close') {
+                modal.style.display = 'none';
+                modal.classList.remove('modal-open');
+              }
+              console.log(`[UI] 🪟 Modal ${value}: ${target}`);
+              return true;
+            } catch (error) {
+              console.error('[UI] Error toggle modal:', error);
+              return false;
+            }
+          },
+          'highlight': function(target) {
+            try {
+              const element = document.getElementById(target) || 
+                             document.querySelector(`.${target}`);
+              if (!element) {
+                console.warn(`[UI] ⚠️ Elemento no encontrado: ${target}`);
+                return false;
+              }
+              document.querySelectorAll('.highlighted').forEach(el => {
+                el.classList.remove('highlighted');
+              });
+              element.classList.add('highlighted');
+              element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              setTimeout(() => { element.classList.remove('highlighted'); }, 3000);
+              console.log(`[UI] ✨ Highlight en: ${target}`);
+              return true;
+            } catch (error) {
+              console.error('[UI] Error highlighting:', error);
+              return false;
+            }
+          }
+        },
+        navigate: function(section, sectionId) {
+          try {
+            const element = document.getElementById(sectionId);
+            if (!element) {
+              console.warn(`[NAV] ⚠️ Sección no encontrada: ${sectionId}`);
+              return false;
+            }
+            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            element.classList.add('nav-highlight');
+            setTimeout(() => { element.classList.remove('nav-highlight'); }, 500);
+            console.log(`[NAV] 🧭 Navegación a: ${section}`);
+            return true;
+          } catch (error) {
+            console.error('[NAV] Error navigating:', error);
+            return false;
+          }
+        },
+        handleMessage: function(message) {
+          if (message.type === 'ui_command') {
+            const { command, target, value } = message;
+            const handler = this.handlers[command];
+            if (handler) {
+              return handler(target, value);
+            }
+          } else if (message.type === 'ui_navigation') {
+            const { section, sectionId } = message;
+            return this.navigate(section, sectionId);
+          }
+          return false;
+        }
+      };
+      console.log('[UI SYSTEM] ✅ Sistema de comandos UI inicializado');
     });
   </script>
   <script src="/assets/js/websocket-stream-client.js" defer></script>
