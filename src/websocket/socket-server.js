@@ -558,7 +558,10 @@ async function handleVoiceMessage(data, agentId, ws, neonService, voiceServices,
       case 'audio':
         if (action === 'stt') {
           // 🚫 VOICE AGENT API DESHABILITADO - Usar sistema legacy que funciona
-          await handleAudioSTT(payload, ws, voiceServices, agentId, toolHandler, uiControlService);
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'socket-server.js:561',message:'Calling handleAudioSTT',data:{hasNeonService:!!neonService,neonServiceType:typeof neonService},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+          // #endregion
+          await handleAudioSTT(payload, ws, neonService, voiceServices, agentId, toolHandler, uiControlService);
         } else if (action === 'tts') {
           await handleAudioTTS(payload, ws, voiceServices);
         } else {
@@ -581,6 +584,9 @@ async function handleVoiceMessage(data, agentId, ws, neonService, voiceServices,
           ws._callContext = callContext;
           
           // Crear call log en NEON
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'socket-server.js:584',message:'Before neonService.createOrUpdateCallLog',data:{hasNeonService:!!neonService,neonServiceType:typeof neonService,hasIpAddress:!!callContext.ipAddress},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+          // #endregion
           if (neonService && callContext.ipAddress) {
             neonService.createOrUpdateCallLog({
               callId: callContext.callId,
@@ -734,7 +740,10 @@ async function handleVoiceMessage(data, agentId, ws, neonService, voiceServices,
  * Handle audio STT (Speech-to-Text) using Deepgram Streaming API
  * Maintains persistent connection per client for real-time transcription
  */
-async function handleAudioSTT(payload, ws, voiceServices, agentId) {
+async function handleAudioSTT(payload, ws, neonService, voiceServices, agentId) {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'socket-server.js:737',message:'handleAudioSTT entry',data:{hasNeonService:!!neonService,neonServiceType:typeof neonService},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
   const { audio, format, mimeType, encoding, sampleRate, channels, sessionId } = payload;
   
   // 🚀 GPT-4o: Si hay sessionId, actualizar sessionMap y deepgramData
@@ -938,6 +947,9 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
         keepAlive: true,
         keepAliveInterval: 5000, // 🚀 PIPELINE ROBUSTO: Enviar keepalive cada 5 segundos (según especificación)
         onTranscriptionFinalized: async (transcript, message) => {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'socket-server.js:940',message:'onTranscriptionFinalized entry',data:{hasNeonService:!!neonService,neonServiceType:typeof neonService,transcriptPreview:transcript?.substring(0,50)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
           // 🚀 ROBUST DEDUPLICATION: Prevent duplicate transcriptions from multiple events
           const now = Date.now();
           const transcriptNormalized = transcript?.trim() || '';
@@ -1148,6 +1160,9 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
               }
               
               // 🚀 NEON BUFFER: Obtener historial de conversación desde base de datos
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'socket-server.js:1152',message:'Before neonService.getConversationContext',data:{hasNeonService:!!neonService,neonServiceType:typeof neonService,hasSessionId:!!deepgramData?.sessionId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+              // #endregion
               let conversationHistory = [];
               if (neonService && deepgramData?.sessionId) {
                 try {
