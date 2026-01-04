@@ -198,12 +198,6 @@
       display: flex
     }
 
-    #sandra-widget-container {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      z-index: 9999
-    }
 
     #search-container.active {
       box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5), 0 0 20px rgba(59, 130, 246, 0.3), 0 0 40px rgba(59, 130, 246, 0.2)
@@ -866,8 +860,13 @@
           widgetRoot.style.setProperty('opacity', '1', 'important');
           widgetRoot.style.setProperty('z-index', '99999', 'important');
           widgetRoot.style.setProperty('position', 'fixed', 'important');
+          widgetRoot.style.setProperty('bottom', '1rem', 'important');
+          widgetRoot.style.setProperty('right', '1rem', 'important');
           widgetRoot.style.setProperty('pointer-events', 'auto', 'important');
           widgetRoot.classList.remove('hidden');
+          console.log('✅ Widget visibility forzada');
+        } else {
+          console.error('❌ Widget root no encontrado en ensureVisibility');
         }
       }
 
@@ -956,14 +955,20 @@
 
         document.body.insertAdjacentHTML('beforeend', widgetHTML);
         
-        // Verificar que el widget se creó correctamente
-        const widgetRootAfter = document.getElementById('sandra-widget-root');
-        const toggleBtn = document.getElementById('sandra-toggle-btn');
-        if (widgetRootAfter && toggleBtn) {
-          console.log('✅ Widget creado correctamente');
-        } else {
-          console.error('❌ Error: Widget no se creó correctamente', { widgetRootAfter: !!widgetRootAfter, toggleBtn: !!toggleBtn });
-        }
+        // Verificar y forzar visibilidad inmediatamente
+        setTimeout(() => {
+          const widgetRootAfter = document.getElementById('sandra-widget-root');
+          const toggleBtn = document.getElementById('sandra-toggle-btn');
+          if (widgetRootAfter && toggleBtn) {
+            // Forzar visibilidad del botón
+            toggleBtn.style.setProperty('display', 'flex', 'important');
+            toggleBtn.style.setProperty('visibility', 'visible', 'important');
+            toggleBtn.style.setProperty('opacity', '1', 'important');
+            console.log('✅ Widget creado y visible');
+          } else {
+            console.error('❌ Error: Widget no se creó correctamente', { widgetRootAfter: !!widgetRootAfter, toggleBtn: !!toggleBtn });
+          }
+        }, 100);
       }
 
       bindEvents() {
@@ -2911,9 +2916,30 @@
       }
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      new SandraWidget();
-    });
+    // Inicializar widget - funciona aunque el DOM ya esté cargado
+    function initSandraWidget() {
+      try {
+        // Prevenir múltiples inicializaciones
+        if (window.sandraWidgetInstance) {
+          console.warn('⚠️ Widget ya inicializado');
+          return;
+        }
+        
+        console.log('🚀 Inicializando SandraWidget...');
+        window.sandraWidgetInstance = new SandraWidget();
+        console.log('✅ SandraWidget inicializado');
+      } catch (error) {
+        console.error('❌ Error inicializando widget:', error);
+      }
+    }
+    
+    // Intentar inicializar cuando el DOM esté listo o ya esté listo
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initSandraWidget);
+    } else {
+      // DOM ya está listo, inicializar inmediatamente
+      initSandraWidget();
+    }
       
       // 🚀 FASE 2: Inicializar sistema de comandos UI
       window.UICommandSystem = {
