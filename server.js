@@ -325,7 +325,48 @@ async function startup() {
       // #endregion
     }
 
-    // 9. Inicializar WebSocket con servicios (después de que todos los servicios estén listos)
+    // 9. Inicializar servicios de UI y Tools
+    const uiControlService = new UIControlService();
+    logger.info('✅ UIControlService inicializado');
+    
+    // 🚀 FASE 3: Inicializar servicios de precios y disponibilidad
+    const bridgeDataService = new BridgeDataService(neonService);
+    const priceCalendarService = new PriceCalendarService(neonService);
+    logger.info('✅ BridgeDataService y PriceCalendarService inicializados');
+    
+    // 🚀 FASE 4: Inicializar servicio de Twilio
+    const twilioService = new TwilioService();
+    if (twilioService.isAvailable()) {
+      logger.info('✅ TwilioService inicializado y configurado');
+    } else {
+      logger.warn('⚠️ TwilioService no disponible (credenciales no configuradas)');
+    }
+    
+    // Preparar servicios para ToolHandler
+    const toolServices = {
+      neonService: neonService,
+      uiControlService: uiControlService,
+      sandraOrchestrator: sandraOrchestrator,
+      negotiationBridge: negotiationBridge,
+      contextBridge: contextBridge,
+      bridgeDataService: bridgeDataService,
+      priceCalendarService: priceCalendarService,
+      twilioService: twilioService
+    };
+    
+    // Inicializar ToolHandler
+    const toolHandler = new ToolHandler(toolServices);
+    logger.info('✅ Tool Handler y UI Control Service inicializados');
+    
+    // 🚀 FASE 6: Verificación completa del sistema
+    const toolVerifier = new ToolVerifier(toolHandler);
+    const verificationResults = toolVerifier.verifyComplete();
+    logger.info(`[VERIFICATION] 📊 Sistema verificado: ${verificationResults.status.toUpperCase()}`);
+    if (verificationResults.tools.total > 0) {
+      logger.info(`[VERIFICATION] ✅ ${verificationResults.tools.total} tools registradas y verificadas`);
+    }
+
+    // 10. Inicializar WebSocket con servicios (después de que todos los servicios estén listos)
     // #region agent log
     debugLog('server.js:235', 'Before initWebSocketServer call', { voiceServicesIsNull: voiceServices === null, hasVoiceServices: !!voiceServices, willPassToInit: true }, 'E');
     // #endregion
