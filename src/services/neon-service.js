@@ -18,6 +18,51 @@ class NeonService {
   }
 
   /**
+   * 🔒 ROBUST TABLE SCHEMA HELPER
+   * Safely creates tables and indexes, handling schema mismatches gracefully
+   */
+  async safeCreateTable(tableName, tableDefinition, indexes = []) {
+    try {
+      // Create table if it doesn't exist
+      await this.sql(`CREATE TABLE IF NOT EXISTS ${tableName} ${tableDefinition}`);
+      
+      // Safely create each index
+      for (const index of indexes) {
+        try {
+          await this.sql(index);
+        } catch (idxError) {
+          // Index creation failed - likely column doesn't exist or index already exists
+          // Log as debug, not error, to avoid noise
+          logger.debug(`⚠️ Index creation skipped for ${tableName}: ${idxError.message}`);
+        }
+      }
+      
+      return true;
+    } catch (error) {
+      // Table creation failed - log but don't throw
+      logger.warn(`⚠️ Table creation/verification issue for ${tableName}:`, error.message);
+      return false;
+    }
+  }
+
+  /**
+   * 🔒 ROBUST INDEX CREATION
+   * Safely creates an index, handling errors gracefully
+   */
+  async safeCreateIndex(indexName, tableName, columns) {
+    try {
+      const columnList = Array.isArray(columns) ? columns.join(', ') : columns;
+      await this.sql(`CREATE INDEX IF NOT EXISTS ${indexName} ON ${tableName} (${columnList})`);
+      return true;
+    } catch (error) {
+      // Index creation failed - column might not exist or index already exists with different definition
+      // Log as debug (not warn/error) to reduce noise - index creation failed but not critical
+      logger.debug(`⚠️ Index creation skipped: ${indexName} on ${tableName} - ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
    * Initialize database: Create tables if they don't exist
    */
   async initialize() {
@@ -42,23 +87,11 @@ class NeonService {
             )
           `);
           
-          // Crear índices si no existen
-          await this.sql(`
-            CREATE INDEX IF NOT EXISTS idx_conversation_session 
-            ON conversation_buffer (session_id)
-          `);
-          await this.sql(`
-            CREATE INDEX IF NOT EXISTS idx_conversation_agent 
-            ON conversation_buffer (agent_id)
-          `);
-          await this.sql(`
-            CREATE INDEX IF NOT EXISTS idx_conversation_created 
-            ON conversation_buffer (created_at DESC)
-          `);
-          await this.sql(`
-            CREATE INDEX IF NOT EXISTS idx_conversation_session_created 
-            ON conversation_buffer (session_id, created_at DESC)
-          `);
+          // Safely create indexes using robust helper
+          await this.safeCreateIndex('idx_conversation_session', 'conversation_buffer', 'session_id');
+          await this.safeCreateIndex('idx_conversation_agent', 'conversation_buffer', 'agent_id');
+          await this.safeCreateIndex('idx_conversation_created', 'conversation_buffer', 'created_at DESC');
+          await this.safeCreateIndex('idx_conversation_session_created', 'conversation_buffer', ['session_id', 'created_at DESC']);
           
           logger.info('✅ Conversation buffer table created/verified');
         } catch (tableError) {
@@ -83,26 +116,9 @@ class NeonService {
             )
           `);
           
-          // Try to create indexes, ignore errors if table structure is incompatible
-          try {
-            await this.sql(`
-              CREATE INDEX IF NOT EXISTS idx_sessions_session_id 
-              ON sessions (session_id)
-            `);
-          } catch (idxError) {
-            // Index creation failed, table might have different structure
-            logger.warn('⚠️ Could not create index idx_sessions_session_id (table may have different structure)');
-          }
-          
-          try {
-            await this.sql(`
-              CREATE INDEX IF NOT EXISTS idx_sessions_ip 
-              ON sessions (ip_address)
-            `);
-          } catch (idxError) {
-            // Index creation failed, table might have different structure
-            logger.warn('⚠️ Could not create index idx_sessions_ip (table may have different structure)');
-          }
+          // Safely create indexes using robust helper
+          await this.safeCreateIndex('idx_sessions_session_id', 'sessions', 'session_id');
+          await this.safeCreateIndex('idx_sessions_ip', 'sessions', 'ip_address');
           
           logger.info('✅ Sessions table created/verified');
         } catch (tableError) {
@@ -123,10 +139,7 @@ class NeonService {
             )
           `);
           
-          await this.sql(`
-            CREATE INDEX IF NOT EXISTS idx_conversation_history_session 
-            ON conversation_history (session_id, timestamp DESC)
-          `);
+          await this.safeCreateIndex('idx_conversation_history_session', 'conversation_history', ['session_id', 'timestamp DESC']);
           
           logger.info('✅ Conversation history table created/verified');
         } catch (tableError) {
@@ -147,10 +160,7 @@ class NeonService {
             )
           `);
           
-          await this.sql(`
-            CREATE INDEX IF NOT EXISTS idx_users_last_session 
-            ON users (last_session_id)
-          `);
+          await this.safeCreateIndex('idx_users_last_session', 'users', 'last_session_id');
           
           logger.info('✅ Users table created/verified');
         } catch (tableError) {
@@ -172,10 +182,7 @@ class NeonService {
             )
           `);
           
-          await this.sql(`
-            CREATE INDEX IF NOT EXISTS idx_negotiation_session 
-            ON negotiation_logs (session_id)
-          `);
+          await this.safeCreateIndex('idx_negotiation_session', 'negotiation_logs', 'session_id');
           
           logger.info('✅ Negotiation logs table created/verified');
         } catch (tableError) {
@@ -207,22 +214,10 @@ class NeonService {
             )
           `);
           
-          await this.sql(`
-            CREATE INDEX IF NOT EXISTS idx_call_logs_ip 
-            ON call_logs (ip_address)
-          `);
-          await this.sql(`
-            CREATE INDEX IF NOT EXISTS idx_call_logs_session 
-            ON call_logs (session_id)
-          `);
-          await this.sql(`
-            CREATE INDEX IF NOT EXISTS idx_call_logs_agent 
-            ON call_logs (agent_id)
-          `);
-          await this.sql(`
-            CREATE INDEX IF NOT EXISTS idx_call_logs_start_time 
-            ON call_logs (start_time DESC)
-          `);
+          await this.safeCreateIndex('idx_call_logs_ip', 'call_logs', 'ip_address');
+          await this.safeCreateIndex('idx_call_logs_session', 'call_logs', 'session_id');
+          await this.safeCreateIndex('idx_call_logs_agent', 'call_logs', 'agent_id');
+          await this.safeCreateIndex('idx_call_logs_start_time', 'call_logs', 'start_time DESC');
           
           logger.info('✅ Call logs table created/verified');
         } catch (tableError) {
@@ -245,18 +240,9 @@ class NeonService {
             )
           `);
           
-          await this.sql(`
-            CREATE INDEX IF NOT EXISTS idx_properties_property_id 
-            ON properties (property_id)
-          `);
-          await this.sql(`
-            CREATE INDEX IF NOT EXISTS idx_properties_location 
-            ON properties (location)
-          `);
-          await this.sql(`
-            CREATE INDEX IF NOT EXISTS idx_properties_last_updated 
-            ON properties (last_updated DESC)
-          `);
+          await this.safeCreateIndex('idx_properties_property_id', 'properties', 'property_id');
+          await this.safeCreateIndex('idx_properties_location', 'properties', 'location');
+          await this.safeCreateIndex('idx_properties_last_updated', 'properties', 'last_updated DESC');
           
           logger.info('✅ Properties table created/verified');
         } catch (tableError) {
