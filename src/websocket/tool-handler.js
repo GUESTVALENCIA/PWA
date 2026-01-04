@@ -70,6 +70,13 @@ class ToolHandler {
       description: 'Consulta precios y disponibilidad en tiempo real desde la Bridge Data API.',
       requiresClient: false
     });
+
+    // Booking Engine
+    this.tools.set('booking_engine_integration', {
+      handler: this.handleBookingEngine.bind(this),
+      description: 'Crea una reserva de alojamiento con todos los detalles del huésped.',
+      requiresClient: false
+    });
   }
 
   /**

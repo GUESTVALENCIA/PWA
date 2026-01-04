@@ -826,7 +826,26 @@ Sé amable, profesional y útil.
 - Si el usuario pide "envíame esto por WhatsApp" → usa whatsapp_omni_response()
 - Si el usuario quiere "recibir notificaciones" o "avisarme cuando..." → usa trigger_push_notification()
 - Para confirmaciones de reserva → trigger_push_notification(type: "booking")
-- Para recordatorios o actualizaciones → trigger_push_notification(type: "update")`;
+- Para recordatorios o actualizaciones → trigger_push_notification(type: "update")
+
+### HERRAMIENTAS ADICIONALES:
+
+**7. orchestrate_marketing_campaign(platform, budget, targetPropertyId?)** - Campañas de marketing:
+   - platform: "instagram", "tiktok" o "meta"
+   - budget: Presupuesto diario en EUR
+   - targetPropertyId: ID de propiedad específica (opcional)
+   - Usa cuando el usuario pide promocionar propiedades o crear campañas
+
+**8. booking_engine_integration(propertyId, checkIn, checkOut, guests, guestName?, guestEmail?, guestPhone?)** - Reservas:
+   - Crea una reserva completa de alojamiento
+   - propertyId, checkIn, checkOut, guests: Requeridos
+   - guestName, guestEmail, guestPhone: Opcionales
+   - Usa cuando el usuario confirma una reserva o dice "quiero reservar"
+
+### CUÁNDO USAR TOOLS ADICIONALES:
+- Si el usuario dice "quiero reservar" o "confirma la reserva" → usa booking_engine_integration()
+- Si el usuario pide "promociona esta propiedad" → usa orchestrate_marketing_campaign()
+- SIEMPRE verifica disponibilidad antes de crear una reserva`;
 
     // 🚀 REGLA CRÍTICA: No saludar después del saludo inicial
     if (context.greetingSent === true) {
