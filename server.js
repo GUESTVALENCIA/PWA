@@ -69,6 +69,7 @@ import unifyRoutes from './src/routes/unify.js';
 import implementRoutes from './src/routes/implement.js';
 import contextRoutes from './src/routes/context.js';
 import voiceIntegrationRoutes from './src/routes/voice-integration.js';
+import apiRoutes from './src/routes/api.routes.js';
 
 // ===== INICIALIZACIÓN =====
 const app = express();
@@ -140,6 +141,8 @@ app.use('/api', unifyRoutes);
 app.use('/api', implementRoutes);
 app.use('/api', contextRoutes);
 app.use('/api/voice', voiceIntegrationRoutes);
+// 🚀 CHAT CONVERSACIONAL: Rutas de chat de texto
+app.use('/api', apiRoutes);
 
 // ===== ERROR HANDLER (DEBE SER AL FINAL) =====
 app.use(errorHandler);
