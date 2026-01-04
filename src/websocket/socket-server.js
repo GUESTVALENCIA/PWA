@@ -248,7 +248,7 @@ export function initWebSocketServer(wss, stateManager, systemEventEmitter, neonS
 function handleMessage(data, agentId, ws, wss, neonService, systemEventEmitter, voiceServices, toolHandler = null, uiControlService = null) {
   // Soporte para formato route/action (sistema de voz)
   if (data.route && data.action) {
-    handleVoiceMessage(data, agentId, ws, voiceServices, toolHandler, uiControlService).catch(error => {
+    handleVoiceMessage(data, agentId, ws, neonService, voiceServices, toolHandler, uiControlService).catch(error => {
       logger.error('Error in handleVoiceMessage:', error);
     });
     return;
@@ -502,7 +502,7 @@ function broadcastToProjectSubscribers(wss, projectId, message) {
 /**
  * Handle voice system messages (route/action format)
  */
-async function handleVoiceMessage(data, agentId, ws, voiceServices, toolHandler = null, uiControlService = null) {
+async function handleVoiceMessage(data, agentId, ws, neonService, voiceServices, toolHandler = null, uiControlService = null) {
   const { route, action, payload } = data;
 
   // #region agent log
@@ -1203,13 +1203,18 @@ async function handleAudioSTT(payload, ws, voiceServices, agentId) {
                     ai: deepgramData?.latencyMetrics?.aiEnd - deepgramData?.latencyMetrics?.aiStart || 0
                   }
                 };
-                await neonService.saveConversationExchange(
-                  deepgramData.sessionId,
-                  agentId,
-                  transcript,
-                  aiResponse,
-                  metadata
-                );
+                // 🚀 FIX: Verificar que neonService esté disponible antes de usarlo
+                if (neonService) {
+                  await neonService.saveConversationExchange(
+                    deepgramData.sessionId,
+                    agentId,
+                    transcript,
+                    aiResponse,
+                    metadata
+                  );
+                } else {
+                  logger.warn('[NEON BUFFER] ⚠️ neonService no disponible - saltando guardado de intercambio');
+                }
                 logger.debug(`[NEON BUFFER] ✅ Conversación guardada para sesión ${deepgramData.sessionId}`);
                 
                 // 🚀 MEMORIA PERSISTENTE: Actualizar call log en el stream durante la conversación
