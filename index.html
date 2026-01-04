@@ -840,6 +840,22 @@
         // 🚀 WEBRTC PIPELINE: Queue greeting audio if received during ringtones
         this.waitingForRingtones = false;
         this.queuedGreeting = null;
+        
+        // 🚀 PIPELINE COMPLETO: Estado de sesión y greetingSent
+        this.sessionId = null;
+        this.greetingSent = false; // Flag para evitar saludos duplicados
+        this.sessionState = {
+          currentBooking: null,
+          viewedProperties: [],
+          searchCriteria: null,
+          clientInfo: null
+        };
+        
+        // 🚀 PIPELINE COMPLETO: Buffer inteligente mejorado
+        this.audioBuffer = [];
+        this.maxBufferSize = 16; // 4 segundos a 250ms por chunk
+        this._lastBufferLog = null;
+        
         this.init();
       }
 
@@ -1550,6 +1566,9 @@
         }
         console.log('📞 Colgando llamada...', { reason });
         
+        // 🚀 PIPELINE COMPLETO: Resetear greetingSent al colgar
+        this.greetingSent = false;
+        
         // 🚀 PIPELINE COMPLETO: Reproducir sonido de colgar si es colgado por usuario
         if (reason === 'user') {
           this.playHangupSound();
@@ -2079,12 +2098,24 @@
             console.log('[MCP] 🔔 Ringtones completed - verificando saludo en cola');
             this.waitingForRingtones = false;
             
+            // 🚀 PIPELINE COMPLETO: Resetear greetingSent solo si no hay saludo en cola
+            // Si hay saludo en cola, se marcará greetingSent cuando se reproduzca
+            if (!this.queuedGreeting) {
+              this.greetingSent = false; // Permitir saludo si no hay uno en cola
+            }
+            
             // 🚀 FIX: Reproducir saludo en cola si existe
             if (this.queuedGreeting && this.queuedGreeting.audio) {
               console.log('[MCP] 🔊 Reproduciendo saludo en cola después de ringtones');
               const queuedAudio = this.queuedGreeting.audio;
               const queuedIsWelcome = this.queuedGreeting.isWelcome;
               this.queuedGreeting = null; // Limpiar después de guardar
+              
+              // 🚀 PIPELINE COMPLETO: Marcar greetingSent antes de reproducir
+              if (queuedIsWelcome) {
+                this.greetingSent = true;
+              }
+              
               this.playAudioResponse(queuedAudio, queuedIsWelcome);
             } else {
               console.log('[MCP] ℹ️ No hay saludo en cola para reproducir');
@@ -2252,6 +2283,17 @@
             // ✅ SOLO usar isWelcome explícito del servidor (no fallbacks)
             const isWelcome = data.payload.isWelcome === true;
             
+            // 🚀 PIPELINE COMPLETO: Evitar saludos duplicados usando greetingSent
+            if (isWelcome && this.greetingSent) {
+              console.log('[MCP] ⚠️ Saludo duplicado detectado - ignorando (greetingSent=true)');
+              return; // Ignorar saludo si ya se envió uno
+            }
+            
+            if (isWelcome) {
+              this.greetingSent = true; // Marcar que el saludo ya se envió
+              console.log('[MCP] ✅ Saludo recibido - marcando greetingSent=true');
+            }
+            
             // 🚀 WEBRTC PIPELINE: Queue greeting if ringtones are playing
             if (isWelcome && this.waitingForRingtones) {
               console.log('[MCP] 📞 Greeting received during ringtones - queuing for playback after ringtones');
@@ -2263,6 +2305,28 @@
             }
             
             this.playAudioResponse(data.payload.audio, isWelcome);
+            return;
+          }
+          
+          // 🚀 PIPELINE COMPLETO: Manejar invocaciones de funciones desde la IA
+          if (data.route === 'conserje' && data.action === 'function_call' && data.payload) {
+            const { function: functionName, params } = data.payload;
+            console.log('[MCP] 🔧 Invocación de función recibida:', functionName, params);
+            
+            // Ejecutar función del cliente
+            const result = this.handleFunctionCall(functionName, params);
+            
+            // Enviar resultado de vuelta al servidor
+            if (this.activeCall && this.activeCall.readyState === WebSocket.OPEN) {
+              this.activeCall.send(JSON.stringify({
+                route: 'conserje',
+                action: 'function_result',
+                payload: {
+                  function: functionName,
+                  result: result
+                }
+              }));
+            }
             return;
           }
 
@@ -2943,6 +3007,153 @@
       // NOTA: Esta función fue eliminada - NO usar SpeechSynthesis del navegador
       // El servidor debe enviar audio TTS usando Deepgram con route: 'audio', action: 'tts'
       // El cliente usa playAudioResponse() para reproducir el audio recibido del servidor
+
+      // 🚀 PIPELINE COMPLETO: Funciones del cliente que la IA puede invocar
+      // Estas funciones están disponibles para que la IA las invoque cuando el usuario las solicite
+      
+      // filter_listings: Búsqueda por voz de alojamientos
+      async filterListings(criteria) {
+        console.log('[CLIENT TOOLS] 🔍 filter_listings:', criteria);
+        try {
+          // Enviar comando al servidor para buscar alojamientos
+          if (this.activeCall && this.activeCall.readyState === WebSocket.OPEN) {
+            this.activeCall.send(JSON.stringify({
+              route: 'conserje',
+              action: 'function_call',
+              payload: {
+                function: 'filter_listings',
+                params: criteria
+              }
+            }));
+          }
+          return { success: true, message: 'Búsqueda de alojamientos iniciada' };
+        } catch (error) {
+          console.error('[CLIENT TOOLS] Error en filter_listings:', error);
+          return { success: false, error: error.message };
+        }
+      }
+      
+      // navigate_ui: Navegación de la interfaz por voz
+      navigateUI(section) {
+        console.log('[CLIENT TOOLS] 🧭 navigate_ui:', section);
+        try {
+          // Usar el sistema de comandos UI existente
+          if (window.UICommandSystem && window.UICommandSystem.navigateToSection) {
+            window.UICommandSystem.navigateToSection(section);
+            return { success: true, message: `Navegando a ${section}` };
+          }
+          return { success: false, error: 'Sistema de navegación no disponible' };
+        } catch (error) {
+          console.error('[CLIENT TOOLS] Error en navigate_ui:', error);
+          return { success: false, error: error.message };
+        }
+      }
+      
+      // negotiate_price: Módulo de regateo
+      async negotiatePrice(params) {
+        console.log('[CLIENT TOOLS] 💰 negotiate_price:', params);
+        try {
+          if (this.activeCall && this.activeCall.readyState === WebSocket.OPEN) {
+            this.activeCall.send(JSON.stringify({
+              route: 'conserje',
+              action: 'function_call',
+              payload: {
+                function: 'negotiate_price',
+                params: params
+              }
+            }));
+          }
+          return { success: true, message: 'Negociación de precio iniciada' };
+        } catch (error) {
+          console.error('[CLIENT TOOLS] Error en negotiate_price:', error);
+          return { success: false, error: error.message };
+        }
+      }
+      
+      // perform_voice_checkin: Automatiza el check-in
+      async performVoiceCheckin(params) {
+        console.log('[CLIENT TOOLS] 🚪 perform_voice_checkin:', params);
+        try {
+          if (this.activeCall && this.activeCall.readyState === WebSocket.OPEN) {
+            this.activeCall.send(JSON.stringify({
+              route: 'conserje',
+              action: 'function_call',
+              payload: {
+                function: 'perform_voice_checkin',
+                params: params
+              }
+            }));
+          }
+          return { success: true, message: 'Check-in iniciado' };
+        } catch (error) {
+          console.error('[CLIENT TOOLS] Error en perform_voice_checkin:', error);
+          return { success: false, error: error.message };
+        }
+      }
+      
+      // initiate_secure_voice_payment: Integra pagos con voz
+      async initiateSecureVoicePayment(params) {
+        console.log('[CLIENT TOOLS] 💳 initiate_secure_voice_payment:', params);
+        try {
+          if (this.activeCall && this.activeCall.readyState === WebSocket.OPEN) {
+            this.activeCall.send(JSON.stringify({
+              route: 'conserje',
+              action: 'function_call',
+              payload: {
+                function: 'initiate_secure_voice_payment',
+                params: params
+              }
+            }));
+          }
+          return { success: true, message: 'Proceso de pago iniciado' };
+        } catch (error) {
+          console.error('[CLIENT TOOLS] Error en initiate_secure_voice_payment:', error);
+          return { success: false, error: error.message };
+        }
+      }
+      
+      // send_whatsapp_confirmation: Envía confirmaciones
+      async sendWhatsAppConfirmation(params) {
+        console.log('[CLIENT TOOLS] 📱 send_whatsapp_confirmation:', params);
+        try {
+          if (this.activeCall && this.activeCall.readyState === WebSocket.OPEN) {
+            this.activeCall.send(JSON.stringify({
+              route: 'conserje',
+              action: 'function_call',
+              payload: {
+                function: 'send_whatsapp_confirmation',
+                params: params
+              }
+            }));
+          }
+          return { success: true, message: 'Confirmación enviada' };
+        } catch (error) {
+          console.error('[CLIENT TOOLS] Error en send_whatsapp_confirmation:', error);
+          return { success: false, error: error.message };
+        }
+      }
+      
+      // 🚀 PIPELINE COMPLETO: Manejar invocaciones de funciones desde la IA
+      handleFunctionCall(functionName, params) {
+        console.log('[CLIENT TOOLS] 🔧 Función invocada:', functionName, params);
+        switch (functionName) {
+          case 'filter_listings':
+            return this.filterListings(params);
+          case 'navigate_ui':
+            return this.navigateUI(params.section || params);
+          case 'negotiate_price':
+            return this.negotiatePrice(params);
+          case 'perform_voice_checkin':
+            return this.performVoiceCheckin(params);
+          case 'initiate_secure_voice_payment':
+            return this.initiateSecureVoicePayment(params);
+          case 'send_whatsapp_confirmation':
+            return this.sendWhatsAppConfirmation(params);
+          default:
+            console.warn('[CLIENT TOOLS] Función desconocida:', functionName);
+            return { success: false, error: `Función ${functionName} no encontrada` };
+        }
+      }
 
       // 🚀 FASE 4: Manejar notificaciones push
       handlePushNotification(data) {
