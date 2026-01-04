@@ -1789,18 +1789,30 @@ async function processInterimTranscript(interimText, ws, voiceServices, agentId,
  */
 async function generateNaturalGreeting(ws, voiceServices, agentId) {
   try {
-    if (!voiceServices || !voiceServices.generateVoice) {
+    if (!voiceServices || !voiceServices.generateVoice || !voiceServices.ai) {
       logger.error('Voice services not available for greeting');
       return;
     }
 
-    // 🚀 SALUDO AUTOMÁTICO: Sin condicionar al modelo - simplemente disparar voz automáticamente
-    // Saludo predefinido simple y directo - NO usar IA para evitar condicionamiento y repeticiones
-    const greetingText = 'Hola, soy Sandra. ¿En qué puedo ayudarte?';
-    
-    logger.info(`[GREETING] 🔊 Disparando saludo automático: "${greetingText}"`);
+    // 🚀 PIPELINE: Generar saludo con IA para que suene natural (no lectura)
+    // Usar processMessage con mensaje vacío y context={greetingSent:false}
+    // El prompt base incluirá instrucciones para generar un saludo natural y breve
+    logger.info(`[GREETING] 🔊 Generando saludo natural con IA...`);
 
-    // ⏱️ LATENCIA MÍNIMA: Generar TTS directamente sin pasar por IA (máximo 1 segundo)
+    // Generar saludo con IA usando processMessage
+    const greetingContext = {
+      greetingSent: false, // Aún no se ha enviado el saludo
+      conversationHistory: [],
+      lastFinalizedTranscript: null,
+      lastAIResponse: null
+    };
+
+    // Mensaje vacío para que la IA genere el saludo basándose en el prompt
+    const greetingText = await voiceServices.ai.processMessage('', greetingContext, null);
+    
+    logger.info(`[GREETING] ✅ Saludo generado por IA: "${greetingText}"`);
+
+    // Generar audio TTS con el saludo natural
     const greetingAudio = await voiceServices.generateVoice(greetingText, {
       model: 'aura-2-carina-es'
     });
