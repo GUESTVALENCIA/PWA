@@ -260,6 +260,44 @@
     .animate-pulse-slow {
       animation: pulse-slow 2s ease-in-out infinite
     }
+
+    /* 🚀 FASE 2: Estilos para efectos de navegación y UI */
+    .nav-highlight {
+      background: linear-gradient(135deg, rgba(100, 200, 255, 0.1), rgba(150, 100, 255, 0.1)) !important;
+      transition: all 0.5s ease-in-out;
+      border-left: 4px solid #6eb3ff;
+      padding-left: 12px !important;
+    }
+
+    .highlighted {
+      background: rgba(255, 215, 0, 0.2) !important;
+      border: 2px solid #ffd700 !important;
+      border-radius: 4px;
+      box-shadow: 0 0 15px rgba(255, 215, 0, 0.4);
+      animation: pulse-highlight 0.6s ease-in-out;
+    }
+
+    @keyframes pulse-highlight {
+      0% { box-shadow: 0 0 5px rgba(255, 215, 0, 0.4); }
+      50% { box-shadow: 0 0 25px rgba(255, 215, 0, 0.8); }
+      100% { box-shadow: 0 0 5px rgba(255, 215, 0, 0.4); }
+    }
+
+    .modal-open {
+      animation: modal-fade-in 0.3s ease-in-out;
+    }
+
+    @keyframes modal-fade-in {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    html { scroll-behavior: smooth; }
+
+    .section-active {
+      border-top: 3px solid #6eb3ff;
+      padding-top: 15px;
+    }
   </style>
 </head>
 
