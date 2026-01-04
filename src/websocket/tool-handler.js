@@ -10,7 +10,8 @@ class ToolHandler {
     this.services = services;
     this.tools = new Map();
     this.registerAllTools();
-    logger.info('[TOOL HANDLER] ✅ Inicializado con 8 tools principales');
+    const toolCount = this.tools.size;
+    logger.info(`[TOOL HANDLER] ✅ Inicializado con ${toolCount} tools principales`);
   }
 
   /**
