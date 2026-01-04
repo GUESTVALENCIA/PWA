@@ -487,94 +487,97 @@ class VoiceServices {
   /**
    * Process message with AI (Groq preferred, OpenAI and Gemini as fallbacks)
    */
-  async processMessage(userMessage) {
-    const systemPrompt = `Eres Sandra, la asistente virtual de Guests Valencia, especializada en hospitalidad y turismo.
+  /**
+   * Process message with AI - SOLO OpenAI GPT-4o-mini (fijado en producción)
+   * @param {string} userMessage - Mensaje del usuario
+   * @param {Object} context - Contexto de conversación (opcional)
+   * @param {Object} toolHandler - Handler para function calling (opcional)
+   */
+  async processMessage(userMessage, context = {}, toolHandler = null) {
+    // 🚀 PROMPT OPTIMIZADO PARA VOZ: Pipeline GPT-4o - Conversación secuencial y memoria
+    let systemPrompt = `Eres Sandra, la asistente virtual de Guests Valencia, especializada en hospitalidad y turismo.
 Responde SIEMPRE en español neutro, con buena ortografía y gramática.
 Actúa como una experta en Hospitalidad y Turismo.
-Sé breve: máximo 4 frases salvo que se pida detalle.
-Sé amable, profesional y útil.`;
+Sé breve: máximo 2-3 frases salvo que se pida detalle.
+Sé amable, profesional y útil.
 
-    const errors = [];
+### CONVERSACIÓN SECUENCIAL - NO PREGUNTAR TODO DE GOLPE:
+- Divide las consultas en pasos lógicos, NO hagas todas las preguntas a la vez.
+- Si el usuario menciona una necesidad (ej: "quiero una habitación"), agradece y pregunta SOLO por lo siguiente en la secuencia:
+  1. PRIMERO: Fechas de check-in y check-out (si no las tienes)
+  2. SEGUNDO: Número de huéspedes (si no lo tienes)
+  3. TERCERO: Zona o preferencia de alojamiento (si es necesario)
+  4. FINALMENTE: Usa getRecommendations() o checkAvailability() según corresponda
+- Si ya conoces la fecha de entrada y el número de personas, NO vuelvas a preguntarlo.
+- Haz UNA pregunta a la vez, espera la respuesta, y luego continúa con la siguiente.`;
 
-    // Try preferred provider first
-    if (this.preferredProvider === 'groq' && this.groqApiKey) {
-      try {
-        logger.info('[AI] Attempting Groq (preferred)...');
-        return await this._callGroq(userMessage, systemPrompt);
-      } catch (error) {
-        errors.push({ provider: 'Groq', error: error.message });
-        logger.warn('[AI] Groq failed:', error.message);
-      }
-    } else if (this.preferredProvider === 'openai' && this.openaiApiKey) {
-      try {
-        logger.info('[AI] Attempting OpenAI (preferred)...');
-        return await this._callOpenAI(userMessage, systemPrompt);
-      } catch (error) {
-        errors.push({ provider: 'OpenAI', error: error.message });
-        logger.warn('[AI] OpenAI failed:', error.message);
-      }
-    } else if (this.preferredProvider === 'gemini' && this.geminiApiKey) {
-      try {
-        logger.info('[AI] Attempting Gemini (preferred)...');
-        return await this._callGemini(userMessage, systemPrompt);
-      } catch (error) {
-        errors.push({ provider: 'Gemini', error: error.message });
-        logger.warn('[AI] Gemini failed:', error.message);
-      }
+    // 🚀 REGLA CRÍTICA: No saludar después del saludo inicial (solo para llamadas)
+    if (context.greetingSent === true) {
+      systemPrompt += `\n\n### REGLA CRÍTICA - NO VIOLAR:
+- Ya has saludado al usuario al inicio de la llamada. NUNCA vuelvas a saludar.
+- Si el usuario dice "Hola", "Buenas", "Buenos días", etc., NO respondas con otro saludo.
+- Responde directamente a su pregunta o comentario SIN mencionar "Hola", "Soy Sandra", ni ninguna forma de saludo.
+- Ejemplos PROHIBIDOS después del saludo inicial: "Hola", "Hola, soy Sandra", "Buenas", "¿En qué puedo ayudarte?" (esto es un saludo implícito)
+- Ejemplos CORRECTOS: Responde directamente a lo que pregunta (ej: si pregunta por alojamiento, habla de alojamientos directamente)`;
+    }
+    
+    // 🚀 MEMORIA CONVERSACIONAL: Historial completo desde base de datos
+    if (context.conversationHistory && context.conversationHistory.length > 0) {
+      systemPrompt += `\n\n### MEMORIA CONVERSACIONAL (últimos ${context.conversationHistory.length} intercambios):
+`;
+      context.conversationHistory.forEach((exchange, index) => {
+        systemPrompt += `${index + 1}. Usuario: "${exchange.user.substring(0, 100)}${exchange.user.length > 100 ? '...' : ''}"\n`;
+        systemPrompt += `   Tú: "${exchange.assistant.substring(0, 100)}${exchange.assistant.length > 100 ? '...' : ''}"\n`;
+      });
+      systemPrompt += `\n### INSTRUCCIONES DE MEMORIA:
+- Usa este historial para mantener coherencia y NO repetir información ya proporcionada.
+- Si el usuario ya mencionó fechas, número de personas, zona o presupuesto, NO vuelvas a preguntarlo.
+- Recuerda los datos que el cliente ya te ha dado y continúa desde donde quedaste.
+- Si ya tienes suficiente información, procede directamente a buscar alojamientos o confirmar reserva.`;
+    }
+    
+    // 🚀 CONTEXTO PREVIO: Fallback si no hay historial completo
+    if (context.lastFinalizedTranscript && (!context.conversationHistory || context.conversationHistory.length === 0)) {
+      systemPrompt += `\n\n### CONTEXTO DE CONVERSACIÓN PREVIA:
+- El usuario mencionó anteriormente: "${context.lastFinalizedTranscript.substring(0, 150)}"
+- Usa este contexto para responder de forma coherente y NO repetir preguntas ya respondidas.
+- Si el usuario ya proporcionó información (fechas, personas, zona), NO vuelvas a pedirla.
+- Continúa desde donde quedaste en la conversación.`;
+    }
+    
+    // 🚀 DATOS EXTRAÍDOS: Si ya se conocen datos específicos, no preguntarlos
+    const knownData = [];
+    if (context.checkIn && context.checkOut) knownData.push(`Fechas: ${context.checkIn} - ${context.checkOut}`);
+    if (context.guests) knownData.push(`${context.guests} huéspedes`);
+    if (context.location) knownData.push(`Zona: ${context.location}`);
+    if (context.budget) knownData.push(`Presupuesto: ${context.budget}€`);
+    
+    if (knownData.length > 0) {
+      systemPrompt += `\n\n### DATOS YA CONOCIDOS (NO PREGUNTAR):
+- ${knownData.join(', ')}
+- Usa esta información directamente, NO vuelvas a preguntarla.`;
+    }
+    
+    // Añadir última respuesta de IA para evitar ecos
+    if (context.lastAIResponse) {
+      systemPrompt += `\n\n### Última respuesta enviada:
+- "${context.lastAIResponse.substring(0, 100)}"
+- Si el usuario repite algo similar a tu última respuesta, es probablemente un eco. Responde brevemente sin repetir información.`;
     }
 
-    // Try all other providers as fallbacks
-    if (this.preferredProvider !== 'groq' && this.groqApiKey) {
-      try {
-        logger.info('[AI] Attempting Groq (fallback)...');
-        return await this._callGroq(userMessage, systemPrompt);
-      } catch (error) {
-        errors.push({ provider: 'Groq', error: error.message });
-        logger.warn('[AI] Groq fallback failed:', error.message);
-      }
+    // ✅ SOLO OpenAI GPT-4o-mini - Sin fallbacks, sin cambios
+    if (!this.openaiApiKey) {
+      const errorMsg = 'OPENAI_API_KEY no configurada. Configura OPENAI_API_KEY en Render Dashboard.';
+      logger.error('[AI] ' + errorMsg);
+      throw new Error(errorMsg);
     }
 
-    if (this.preferredProvider !== 'openai' && this.openaiApiKey) {
-      try {
-        logger.info('[AI] Attempting OpenAI (fallback)...');
-        return await this._callOpenAI(userMessage, systemPrompt);
-      } catch (error) {
-        errors.push({ provider: 'OpenAI', error: error.message });
-        logger.warn('[AI] OpenAI fallback failed:', error.message);
-      }
-    }
-
-    if (this.preferredProvider !== 'gemini' && this.geminiApiKey) {
-      try {
-        logger.info('[AI] Attempting Gemini (fallback)...');
-        return await this._callGemini(userMessage, systemPrompt);
-      } catch (error) {
-        errors.push({ provider: 'Gemini', error: error.message });
-        logger.warn('[AI] Gemini fallback failed:', error.message);
-      }
-    }
-
-    // All providers failed
-    if (errors.length === 0) {
-      // No providers configured at all
-      const configured = [];
-      if (this.groqApiKey) configured.push('Groq');
-      if (this.openaiApiKey) configured.push('OpenAI');
-      if (this.geminiApiKey) configured.push('Gemini');
-      
-      if (configured.length === 0) {
-        const errorMsg = 'No AI providers configured. Configure at least one: GROQ_API_KEY, OPENAI_API_KEY, or GEMINI_API_KEY in Render Dashboard.';
-        logger.error('[AI] ' + errorMsg);
-        throw new Error(errorMsg);
-      } else {
-        const errorMsg = `All configured AI providers failed. Configured: ${configured.join(', ')}. Check API keys in Render Dashboard.`;
-        logger.error('[AI] ' + errorMsg);
-        throw new Error(errorMsg);
-      }
-    } else {
-      const errorMessage = `All AI providers failed. Errors: ${errors.map(e => `${e.provider}: ${e.error.substring(0, 100)}`).join('; ')}`;
-      logger.error('[AI] All providers failed:', errors);
-      throw new Error(errorMessage);
+    try {
+      logger.info('[AI] 🎯 Usando OpenAI GPT-4o-mini (único modelo en producción)...');
+      return await this._callOpenAI(userMessage, systemPrompt);
+    } catch (error) {
+      logger.error('[AI] ❌ Error con OpenAI GPT-4o-mini:', error.message);
+      throw error;
     }
   }
 
@@ -584,44 +587,44 @@ Sé amable, profesional y útil.`;
     }
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
+    const timeout = setTimeout(() => controller.abort(), 2500); // 🚀 REAL-TIME: 2.5s timeout (reducido para respuestas más rápidas)
 
     try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.openaiApiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage }
-        ],
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.openaiApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini', // 🎯 PRODUCCIÓN: GPT-4o-mini (modelo principal para producción)
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userMessage }
+          ],
           temperature: 0.7,
-          max_tokens: 200
+          max_tokens: 100 // 🚀 REAL-TIME: Reducido para respuestas más rápidas (especialmente saludos breves)
         }),
         signal: controller.signal
       });
 
       clearTimeout(timeout);
 
-    if (!response.ok) {
-      const errorText = await response.text();
+      if (!response.ok) {
+        const errorText = await response.text();
         const errorMsg = errorText.length > 200 ? errorText.substring(0, 200) : errorText;
         throw new Error(`OpenAI Error ${response.status}: ${errorMsg}`);
-    }
+      }
 
-    const data = await response.json();
+      const data = await response.json();
       if (!data.choices || !data.choices[0] || !data.choices[0].message) {
         throw new Error('OpenAI: Invalid response format');
       }
-    return data.choices[0].message.content;
+      return data.choices[0].message.content;
     } catch (error) {
       clearTimeout(timeout);
       if (error.name === 'AbortError') {
-        throw new Error('OpenAI: Request timeout (30s)');
+        throw new Error('OpenAI: Request timeout (2.5s)');
       }
       throw error;
     }

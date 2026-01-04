@@ -221,27 +221,7 @@ async function startup() {
     // 7. Cargar proyectos
     await projectManager.loadProjects();
 
-    // 8. Hacer servicios disponibles en req.services para las rutas
-    app.use((req, res, next) => {
-      req.services = {
-        proposal: proposalService,
-        review: reviewService,
-        unification: unificationService,
-        implementation: implementationService,
-        context: contextBuilder,
-        neon: neonService,
-        project: projectManager,
-        state: stateManager,
-        events: systemEventEmitter,
-        // 🚀 SANDRA ORCHESTRATOR - Servicios de IA-SANDRA
-        sandra: sandraOrchestrator,
-        negotiation: negotiationBridge,
-        contextBridge: contextBridge
-      };
-      next();
-    });
-
-    // 9. Inicializar servicios de voz
+    // 8. Inicializar servicios de voz (ANTES del middleware para que estén disponibles)
     let voiceServices = null;
     // #region agent log
     debugLog('server.js:168', 'Starting voice services initialization', { step: 'before_import' }, 'A');
@@ -365,6 +345,29 @@ async function startup() {
     if (verificationResults.tools.total > 0) {
       logger.info(`[VERIFICATION] ✅ ${verificationResults.tools.total} tools registradas y verificadas`);
     }
+
+    // 9. Hacer servicios disponibles en req.services para las rutas (DESPUÉS de inicializar voiceServices y toolHandler)
+    app.use((req, res, next) => {
+      req.services = {
+        proposal: proposalService,
+        review: reviewService,
+        unification: unificationService,
+        implementation: implementationService,
+        context: contextBuilder,
+        neon: neonService,
+        project: projectManager,
+        state: stateManager,
+        events: systemEventEmitter,
+        // 🚀 SANDRA ORCHESTRATOR - Servicios de IA-SANDRA
+        sandra: sandraOrchestrator,
+        negotiation: negotiationBridge,
+        contextBridge: contextBridge,
+        // 🚀 CHAT CONVERSACIONAL - Voice services y toolHandler para chat de texto
+        voiceServices: voiceServices,
+        toolHandler: toolHandler
+      };
+      next();
+    });
 
     // 10. Inicializar WebSocket con servicios (después de que todos los servicios estén listos)
     // #region agent log
