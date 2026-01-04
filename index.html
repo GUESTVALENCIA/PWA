@@ -967,6 +967,23 @@
         console.log('[WIDGET DEBUG] After widgetHTML insertion', debugData);
         fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.html:942',message:'After widgetHTML insertion',data:debugData,timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
         // #endregion
+        
+        // Asegurar que el widget sea visible (forzar estilos si es necesario)
+        if (widgetRootAfter) {
+          // Remover clase hidden si existe por alguna razón
+          widgetRootAfter.classList.remove('hidden');
+          // Forzar visibilidad con estilos inline como fallback
+          if (computedStyle && computedStyle.display === 'none') {
+            console.warn('[WIDGET DEBUG] Widget está oculto, forzando visibilidad...');
+            widgetRootAfter.style.display = 'block';
+            widgetRootAfter.style.visibility = 'visible';
+            widgetRootAfter.style.opacity = '1';
+          }
+          // Asegurar z-index alto
+          if (computedStyle && parseInt(computedStyle.zIndex) < 50) {
+            widgetRootAfter.style.zIndex = '9999';
+          }
+        }
       }
 
       bindEvents() {
