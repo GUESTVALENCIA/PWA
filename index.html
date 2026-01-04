@@ -955,20 +955,28 @@
 
         document.body.insertAdjacentHTML('beforeend', widgetHTML);
         
-        // Verificar y forzar visibilidad inmediatamente
-        setTimeout(() => {
-          const widgetRootAfter = document.getElementById('sandra-widget-root');
-          const toggleBtn = document.getElementById('sandra-toggle-btn');
-          if (widgetRootAfter && toggleBtn) {
-            // Forzar visibilidad del botón
-            toggleBtn.style.setProperty('display', 'flex', 'important');
-            toggleBtn.style.setProperty('visibility', 'visible', 'important');
-            toggleBtn.style.setProperty('opacity', '1', 'important');
-            console.log('✅ Widget creado y visible');
-          } else {
-            console.error('❌ Error: Widget no se creó correctamente', { widgetRootAfter: !!widgetRootAfter, toggleBtn: !!toggleBtn });
-          }
-        }, 100);
+        // Forzar visibilidad inmediatamente después de crear
+        const widgetRootAfter = document.getElementById('sandra-widget-root');
+        const toggleBtn = document.getElementById('sandra-toggle-btn');
+        if (widgetRootAfter && toggleBtn) {
+          // Forzar visibilidad del widget root
+          widgetRootAfter.style.setProperty('display', 'block', 'important');
+          widgetRootAfter.style.setProperty('visibility', 'visible', 'important');
+          widgetRootAfter.style.setProperty('opacity', '1', 'important');
+          widgetRootAfter.style.setProperty('z-index', '99999', 'important');
+          widgetRootAfter.style.setProperty('position', 'fixed', 'important');
+          widgetRootAfter.style.setProperty('bottom', '1rem', 'important');
+          widgetRootAfter.style.setProperty('right', '1rem', 'important');
+          widgetRootAfter.classList.remove('hidden');
+          
+          // Forzar visibilidad del botón
+          toggleBtn.style.setProperty('display', 'flex', 'important');
+          toggleBtn.style.setProperty('visibility', 'visible', 'important');
+          toggleBtn.style.setProperty('opacity', '1', 'important');
+          console.log('✅ Widget creado y visible en producción');
+        } else {
+          console.error('❌ Error: Widget no se creó correctamente', { widgetRootAfter: !!widgetRootAfter, toggleBtn: !!toggleBtn });
+        }
       }
 
       bindEvents() {
