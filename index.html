@@ -874,19 +874,12 @@
       createWidgetUI() {
         // Eliminar el div placeholder oculto si existe
         const existingRoot = document.getElementById('sandra-widget-root');
-        if (existingRoot) {
-          if (existingRoot.classList.contains('hidden')) {
-            console.log('[WIDGET DEBUG] Removing hidden placeholder');
-            existingRoot.remove();
-          } else {
-            // Si el widget ya existe y está visible, no crear duplicado
-            console.warn('⚠️ Widget ya existe y está visible, no se creará duplicado');
-            return;
-          }
+        if (existingRoot && existingRoot.classList.contains('hidden')) {
+          existingRoot.remove();
         }
 
         const widgetHTML = `
-          <div id="sandra-widget-root" class="fixed bottom-4 right-4 z-50 font-sans" style="display: block !important; visibility: visible !important; opacity: 1 !important; z-index: 99999 !important; position: fixed !important; pointer-events: auto !important;">
+          <div id="sandra-widget-root" class="fixed bottom-4 right-4 z-50 font-sans">
             <button id="sandra-toggle-btn" class="w-14 h-14 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xl hover:scale-105 transition-transform flex items-center justify-center group overflow-hidden border-2 border-white/20">
               <span class="text-2xl group-hover:hidden">💬</span>
               <img src="assets/images/sandra-avatar.png" onerror="this.style.display='none'" class="hidden group-hover:block w-full h-full object-cover rounded-full">
@@ -2918,40 +2911,9 @@
       }
     }
 
-    // Initialize widget (con lógica de widget inyectable)
-    function initSandraWidget() {
-      try {
-        console.log('🚀 Inicializando SandraWidget...');
-        
-        // Prevenir múltiples inicializaciones
-        if (window.sandraWidgetInstance) {
-          console.warn('⚠️ Widget ya inicializado, saltando...');
-          return;
-        }
-        
-        // Limpiar duplicados si existen
-        const existingRoots = document.querySelectorAll('#sandra-widget-root');
-        if (existingRoots.length > 1) {
-          console.warn(`⚠️ Encontrados ${existingRoots.length} widgets. Eliminando duplicados...`);
-          for (let i = 1; i < existingRoots.length; i++) {
-            existingRoots[i].remove();
-          }
-        }
-        
-        window.sandraWidgetInstance = new SandraWidget();
-        console.log('✅ SandraWidget inicializado correctamente (instancia única)');
-      } catch (error) {
-        console.error('❌ Error al inicializar SandraWidget:', error);
-      }
-    }
-    
-    // Intentar inicializar cuando el DOM esté listo o ya esté listo
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initSandraWidget);
-    } else {
-      // DOM ya está listo, inicializar inmediatamente
-      initSandraWidget();
-    }
+    document.addEventListener('DOMContentLoaded', () => {
+      new SandraWidget();
+    });
       
       // 🚀 FASE 2: Inicializar sistema de comandos UI
       window.UICommandSystem = {
