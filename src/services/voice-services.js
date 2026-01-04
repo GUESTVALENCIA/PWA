@@ -426,8 +426,8 @@ class VoiceServices {
     logger.info(`[TTS] 🎙️ Generating audio with Deepgram TTS for text: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
     
     // Use Deepgram TTS with Spanish voice model
-    // Model: aura-2-thalia-es (Spanish female voice)
-    const audioBase64 = await this._generateDeepgramTTS(text, 'aura-2-thalia-es');
+    // Model: aura-2-carina-es (Peninsular, Voz Interactiva/IVR)
+    const audioBase64 = await this._generateDeepgramTTS(text, 'aura-2-carina-es');
     
     logger.info('[TTS] ✅ Audio generated successfully with Deepgram TTS');
     return audioBase64;
@@ -437,8 +437,8 @@ class VoiceServices {
    * Generate TTS audio using Deepgram API
    * @private
    */
-  async _generateDeepgramTTS(text, model = 'aura-2-thalia-es') {
-    // Deepgram TTS models for Spanish: aura-2-thalia-es, aura-2-luna-es, etc.
+  async _generateDeepgramTTS(text, model = 'aura-2-carina-es') {
+    // Deepgram TTS models for Spanish: aura-2-carina-es, aura-2-luna-es, etc.
     // Specify encoding and sample_rate for consistent audio output
     if (!this.deepgramApiKey) {
       throw new Error('Deepgram API key not configured');
