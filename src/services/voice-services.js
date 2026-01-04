@@ -786,7 +786,7 @@ const exportedServices = {
   },
   generateVoice: (text, voiceId) => voiceServicesInstance.generateVoice(text, voiceId), // Directly expose generateVoice (native local voice, not Cartesia)
   ai: {
-    processMessage: (message) => voiceServicesInstance.processMessage(message)
+    processMessage: (message, context = {}, toolHandler = null) => voiceServicesInstance.processMessage(message, context, toolHandler)
   },
   getWelcomeAudio: () => voiceServicesInstance.getWelcomeAudio(),
   capabilities: {
