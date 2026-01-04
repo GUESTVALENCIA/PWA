@@ -83,14 +83,26 @@ class NeonService {
             )
           `);
           
-          await this.sql(`
-            CREATE INDEX IF NOT EXISTS idx_sessions_session_id 
-            ON sessions (session_id)
-          `);
-          await this.sql(`
-            CREATE INDEX IF NOT EXISTS idx_sessions_ip 
-            ON sessions (ip_address)
-          `);
+          // Try to create indexes, ignore errors if table structure is incompatible
+          try {
+            await this.sql(`
+              CREATE INDEX IF NOT EXISTS idx_sessions_session_id 
+              ON sessions (session_id)
+            `);
+          } catch (idxError) {
+            // Index creation failed, table might have different structure
+            logger.warn('⚠️ Could not create index idx_sessions_session_id (table may have different structure)');
+          }
+          
+          try {
+            await this.sql(`
+              CREATE INDEX IF NOT EXISTS idx_sessions_ip 
+              ON sessions (ip_address)
+            `);
+          } catch (idxError) {
+            // Index creation failed, table might have different structure
+            logger.warn('⚠️ Could not create index idx_sessions_ip (table may have different structure)');
+          }
           
           logger.info('✅ Sessions table created/verified');
         } catch (tableError) {
