@@ -128,7 +128,7 @@ class VoiceServices {
 
     // Configuración MÍNIMA para máxima compatibilidad
     const liveOptions = {
-      model: 'nova',
+      model: 'nova-2-phonecall', // 🚀 PIPELINE COMPLETO: Modelo optimizado para llamadas telefónicas
       language: language || 'es',
       punctuate: true,
       smart_format: true,
