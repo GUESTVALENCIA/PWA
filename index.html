@@ -1163,30 +1163,78 @@
       async startConversationalCall() {
         console.log('Iniciando llamada conversacional...');
         if (this.chatLocked || this.activeCall || this.ringTimeout) return;
-        this.chatLocked = true;
+        
+        // 🚀 LÓGICA CORRECTA: Solicitar permisos del micrófono ANTES de iniciar la llamada
+        try {
+          // Verificar y solicitar permisos del micrófono primero
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+              channelCount: 1
+            }
+          });
+          
+          // Si llegamos aquí, los permisos fueron otorgados - cerrar el stream temporal
+          stream.getTracks().forEach(track => track.stop());
+          
+          // Ahora sí, proceder con la llamada
+          this.chatLocked = true;
 
-        // Deshabilitar input del chat cuando hay llamada activa
-        const input = document.getElementById('sandra-input');
-        const sendBtn = document.getElementById('sandra-send-btn');
-        if (input) {
-          input.disabled = true;
-          input.placeholder = 'Llamada activa - El chat está deshabilitado';
+          // Deshabilitar input del chat cuando hay llamada activa
+          const input = document.getElementById('sandra-input');
+          const sendBtn = document.getElementById('sandra-send-btn');
+          if (input) {
+            input.disabled = true;
+            input.placeholder = 'Llamada activa - El chat está deshabilitado';
+          }
+          if (sendBtn) {
+            sendBtn.disabled = true;
+          }
+
+          // Ocultar prompt de llamada cuando inicia
+          const callPrompt = document.getElementById('sandra-call-prompt');
+          if (callPrompt) callPrompt.style.display = 'none';
+
+          // Mostrar controles de llamada
+          const callControls = document.getElementById('sandra-call-controls');
+          if (callControls) callControls.classList.remove('hidden');
+
+          // 🚀 WEBRTC PIPELINE: Establecer conexión WebSocket PRIMERO, luego ringtones
+          // Connection will trigger ringtones in ws.onopen
+          await this.startRealTimeCall();
+        } catch (err) {
+          console.error('[MCP] ❌ Error accediendo al micrófono:', err);
+          
+          // Manejar diferentes tipos de errores
+          let errorMessage = 'No se pudo acceder al micrófono.';
+          if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+            errorMessage = 'Por favor, permite el acceso al micrófono en la configuración de tu navegador.';
+          } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+            errorMessage = 'No se encontró ningún micrófono. Por favor, conecta un micrófono.';
+          } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+            errorMessage = 'El micrófono está siendo usado por otra aplicación.';
+          }
+          
+          // Mostrar mensaje al usuario en el chat
+          const messagesContainer = document.getElementById('sandra-messages');
+          if (messagesContainer) {
+            const errorHtml = `
+              <div class="flex gap-2">
+                <div class="w-6 h-6 rounded-full bg-gradient-to-tr from-blue-400 to-purple-500 flex-shrink-0 flex items-center justify-center text-[10px] text-white font-bold">S</div>
+                <div class="bg-white p-2.5 rounded-xl rounded-tl-none shadow-sm border border-red-200 text-xs text-red-700 max-w-[85%]">
+                  <p>⚠️ ${errorMessage}</p>
+                  <p class="mt-1 text-[10px] text-red-600">La llamada de voz requiere acceso al micrófono.</p>
+                </div>
+              </div>`;
+            messagesContainer.insertAdjacentHTML('beforeend', errorHtml);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+          }
+          
+          // NO iniciar la llamada si no hay permisos
+          this.chatLocked = false;
         }
-        if (sendBtn) {
-          sendBtn.disabled = true;
-        }
-
-        // Ocultar prompt de llamada cuando inicia
-        const callPrompt = document.getElementById('sandra-call-prompt');
-        if (callPrompt) callPrompt.style.display = 'none';
-
-        // Mostrar controles de llamada
-        const callControls = document.getElementById('sandra-call-controls');
-        if (callControls) callControls.classList.remove('hidden');
-
-        // 🚀 WEBRTC PIPELINE: Establecer conexión WebSocket PRIMERO, luego ringtones
-        // Connection will trigger ringtones in ws.onopen
-        await this.startRealTimeCall();
       }
 
       ensureAudioContext() {
