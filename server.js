@@ -197,12 +197,16 @@ async function startup() {
         const status = sandraOrchestrator.getStatus();
         logger.info('📊 Estado Sandra Orchestrator:', status);
       } else {
-        logger.warn('⚠️ Sandra Orchestrator no se pudo inicializar completamente');
-        logger.warn('⚠️ Continuando sin servicios de IA-SANDRA (usando servicios del PWA)');
+        // Comportamiento esperado: sistema funciona sin IA-SANDRA usando servicios del PWA
+        logger.debug('Sandra Orchestrator: IA-SANDRA no disponible, usando servicios del PWA (comportamiento esperado)');
       }
     } catch (error) {
-      logger.error('❌ Error inicializando Sandra Orchestrator:', error);
-      logger.warn('⚠️ Continuando sin servicios de IA-SANDRA (usando servicios del PWA)');
+      // Solo loguear como error si es un error inesperado (no relacionado con repo no encontrado)
+      if (error.message && error.message.includes('no encontrado')) {
+        logger.debug('Sandra Orchestrator: IA-SANDRA no disponible, usando servicios del PWA (comportamiento esperado)');
+      } else {
+        logger.error('❌ Error inicializando Sandra Orchestrator:', error);
+      }
     }
 
     // 6. Inicializar MCP Server
