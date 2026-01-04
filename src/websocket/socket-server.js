@@ -558,7 +558,7 @@ async function handleVoiceMessage(data, agentId, ws, voiceServices, toolHandler 
       case 'audio':
         if (action === 'stt') {
           // 🚫 VOICE AGENT API DESHABILITADO - Usar sistema legacy que funciona
-          await handleAudioSTT(payload, ws, voiceServices, agentId);
+          await handleAudioSTT(payload, ws, voiceServices, agentId, toolHandler, uiControlService);
         } else if (action === 'tts') {
           await handleAudioTTS(payload, ws, voiceServices);
         } else {
@@ -1775,16 +1775,16 @@ async function generateNaturalGreeting(ws, voiceServices, agentId) {
 
     if (greetingAudio.type === 'tts' && greetingAudio.data) {
       logger.info('[GREETING] ✅ Audio del saludo generado con TTS');
-      ws.send(JSON.stringify({
-        route: 'audio',
-        action: 'tts',
-        payload: {
+    ws.send(JSON.stringify({
+      route: 'audio',
+      action: 'tts',
+      payload: {
           audio: greetingAudio.data,
-          format: 'mp3',
+        format: 'mp3',
           text: greetingText,
-          isWelcome: true
-        }
-      }));
+        isWelcome: true
+      }
+    }));
 
       // 🎯 Marcar que ya se envió el saludo inicial
       const deepgramData = deepgramConnections.get(agentId);

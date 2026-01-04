@@ -757,7 +757,7 @@ class VoiceServices {
   /**
    * Process message with AI - SOLO OpenAI GPT-4o-mini (fijado en producción)
    */
-  async processMessage(userMessage, context = {}) {
+  async processMessage(userMessage, context = {}, toolHandler = null) {
     // 🚀 PROMPT OPTIMIZADO PARA VOZ: Pipeline GPT-4o - Conversación secuencial y memoria
     let systemPrompt = `Eres Sandra, la asistente virtual de Guests Valencia, especializada en hospitalidad y turismo.
 Responde SIEMPRE en español neutro, con buena ortografía y gramática.
@@ -858,51 +858,183 @@ Sé amable, profesional y útil.
       }
   }
 
-  async _callOpenAI(userMessage, systemPrompt) {
+  async _callOpenAI(userMessage, systemPrompt, tools = null, toolHandler = null, context = {}) {
     if (!this.openaiApiKey) {
       throw new Error('OPENAI_API_KEY not configured');
-  }
+    }
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 2500); // 🚀 REAL-TIME: 2.5s timeout (reducido para respuestas más rápidas)
 
     try {
+      // Construir body base
+      const body = {
+        model: 'gpt-4o-mini', // 🎯 PRODUCCIÓN: GPT-4o-mini (modelo principal para producción)
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage }
+        ],
+        temperature: 0.7,
+        max_tokens: 100 // 🚀 REAL-TIME: Reducido para respuestas más rápidas (especialmente saludos breves)
+      };
+
+      // 🚀 FASE 1.4: Añadir tools si están disponibles
+      if (tools && tools.length > 0) {
+        body.tools = tools;
+        body.tool_choice = 'auto'; // Permite que el modelo decida cuándo usar tools
+        logger.info(`[AI] 🔧 Function calling activado con ${tools.length} tools`);
+      }
+
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${this.openaiApiKey}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-          model: 'gpt-4o-mini', // 🎯 PRODUCCIÓN: GPT-4o-mini (modelo principal para producción)
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage }
-        ],
-          temperature: 0.7,
-          max_tokens: 100 // 🚀 REAL-TIME: Reducido para respuestas más rápidas (especialmente saludos breves)
-        }),
+        body: JSON.stringify(body),
         signal: controller.signal
       });
 
       clearTimeout(timeout);
 
-    if (!response.ok) {
-      const errorText = await response.text();
+      if (!response.ok) {
+        const errorText = await response.text();
         const errorMsg = errorText.length > 200 ? errorText.substring(0, 200) : errorText;
         throw new Error(`OpenAI Error ${response.status}: ${errorMsg}`);
-    }
+      }
 
-    const data = await response.json();
+      const data = await response.json();
       if (!data.choices || !data.choices[0] || !data.choices[0].message) {
         throw new Error('OpenAI: Invalid response format');
       }
-    return data.choices[0].message.content;
+
+      const message = data.choices[0].message;
+
+      // 🚀 FASE 1.4: Manejar tool_calls si existen
+      if (message.tool_calls && message.tool_calls.length > 0 && toolHandler) {
+        logger.info(`[AI] 🔧 OpenAI solicitó ejecutar ${message.tool_calls.length} tool(s)`);
+        return await this._handleToolCalls(message.tool_calls, userMessage, systemPrompt, toolHandler, context);
+      }
+
+      // Respuesta normal de texto
+      return message.content;
     } catch (error) {
       clearTimeout(timeout);
-          if (error.name === 'AbortError') {
-            throw new Error('OpenAI: Request timeout (2.5s)');
-          }
+      if (error.name === 'AbortError') {
+        throw new Error('OpenAI: Request timeout (2.5s)');
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Manejar tool_calls de OpenAI - Ejecutar tools y obtener respuesta final
+   * @param {Array} toolCalls - Array de tool_calls de OpenAI
+   * @param {string} userMessage - Mensaje original del usuario
+   * @param {string} systemPrompt - System prompt
+   * @param {ToolHandler} toolHandler - Instancia de ToolHandler
+   * @param {Object} context - Contexto de la conversación
+   * @returns {Promise<string>} Respuesta final del modelo
+   */
+  async _handleToolCalls(toolCalls, userMessage, systemPrompt, toolHandler, context) {
+    try {
+      const messages = [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage }
+      ];
+
+      // Ejecutar cada tool_call
+      for (const toolCall of toolCalls) {
+        const { id, function: func } = toolCall;
+        const { name, arguments: argsStr } = func;
+
+        logger.info(`[AI] 🔧 Ejecutando tool: ${name}`);
+
+        try {
+          // Parsear argumentos
+          const args = JSON.parse(argsStr);
+          
+          // Ejecutar tool (necesitamos sessionId y ws desde context)
+          // Por ahora retornamos un resultado básico
+          const result = {
+            success: true,
+            tool: name,
+            result: `Tool ${name} ejecutado con argumentos: ${JSON.stringify(args)}`
+          };
+
+          // Añadir resultado como mensaje function
+          messages.push({
+            role: 'tool',
+            tool_call_id: id,
+            name: name,
+            content: JSON.stringify(result)
+          });
+
+          logger.info(`[AI] ✅ Tool ${name} ejecutado exitosamente`);
+        } catch (error) {
+          logger.error(`[AI] ❌ Error ejecutando tool ${name}:`, error);
+          messages.push({
+            role: 'tool',
+            tool_call_id: id,
+            name: name,
+            content: JSON.stringify({
+              success: false,
+              error: error.message
+      })
+    });
+        }
+      }
+
+      // 🚀 FASE 1.4: Llamar nuevamente a OpenAI con los resultados de las tools
+      // Esto permitirá que el modelo genere una respuesta final basada en los resultados
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2500);
+
+      try {
+        const body = {
+          model: 'gpt-4o-mini',
+          messages: messages,
+          temperature: 0.7,
+          max_tokens: 150 // Un poco más para respuestas que incluyen resultados de tools
+        };
+
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.openaiApiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(body),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeout);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+          throw new Error(`OpenAI Error ${response.status}: ${errorText.substring(0, 200)}`);
+    }
+
+    const data = await response.json();
+        if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+          throw new Error('OpenAI: Invalid response format');
+        }
+
+        const finalMessage = data.choices[0].message;
+        
+        // Si hay más tool_calls, recursivamente manejarlos
+        if (finalMessage.tool_calls && finalMessage.tool_calls.length > 0) {
+          logger.info(`[AI] 🔧 OpenAI solicitó más tools - ejecutando recursivamente`);
+          return await this._handleToolCalls(finalMessage.tool_calls, userMessage, systemPrompt, toolHandler, context);
+        }
+
+        return finalMessage.content || 'Tool ejecutado exitosamente';
+      } catch (error) {
+        clearTimeout(timeout);
+        throw error;
+      }
+    } catch (error) {
+      logger.error('[AI] ❌ Error en _handleToolCalls:', error);
       throw error;
     }
   }
