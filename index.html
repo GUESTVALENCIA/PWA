@@ -2050,6 +2050,15 @@
             return;
           }
 
+          // 🚀 FASE 2: Procesar comandos de UI primero
+          if (data.type === 'ui_command' || data.type === 'ui_navigation') {
+            console.log('[UI SYSTEM] Comando recibido:', data);
+            if (window.UICommandSystem && window.UICommandSystem.handleMessage) {
+              window.UICommandSystem.handleMessage(data);
+            }
+            // Continuar procesando otros mensajes si es necesario
+          }
+
           // Manejar mensajes de error del servidor
           if (data.route === 'error' && data.action === 'message' && data.payload) {
             const payloadError = (typeof data.payload.error === 'string') ? data.payload.error : '';
