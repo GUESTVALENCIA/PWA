@@ -511,7 +511,7 @@ class ToolHandler {
 
     // Enviar notificación al cliente
     ws.send(JSON.stringify({
-      type: 'notification',
+      type: 'push_notification',
       title: title,
       message: message,
       notificationType: type,
