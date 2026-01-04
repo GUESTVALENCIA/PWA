@@ -1116,10 +1116,18 @@
 
         if (declineCallBtn) {
           declineCallBtn.addEventListener('click', () => {
-            // NO ocultar el prompt, debe estar siempre visible
-            // Solo ocultar si el usuario declina explícitamente
-            // if (callPrompt) callPrompt.style.display = 'none';
-            // Logic to continue chat only
+            // 🚀 CHAT CONVERSACIONAL: Ocultar prompt y habilitar chat de texto
+            if (callPrompt) {
+              callPrompt.style.display = 'none';
+              callPrompt.style.visibility = 'hidden';
+            }
+            // Asegurar que el chat no esté bloqueado
+            this.chatLocked = false;
+            // Enfocar el input para que el usuario pueda escribir
+            if (input) {
+              input.focus();
+            }
+            console.log('[CHAT] ✅ Chat de texto habilitado');
           });
         }
 
