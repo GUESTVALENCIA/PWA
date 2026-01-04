@@ -932,13 +932,38 @@ class NeonService {
   /**
    * Get property availability from cache
    */
-  async getPropertyAvailability(propertyId) {
+  /**
+   * Get property availability with optional date range
+   * @param {string} propertyId - ID de la propiedad
+   * @param {string} checkIn - Fecha check-in (YYYY-MM-DD) - opcional
+   * @param {string} checkOut - Fecha check-out (YYYY-MM-DD) - opcional
+   */
+  async getPropertyAvailability(propertyId, checkIn = null, checkOut = null) {
     try {
       const result = await this.sql(
         `SELECT * FROM properties WHERE property_id = $1`,
         [propertyId]
       );
-      return result[0] || null;
+      
+      if (!result[0]) return null;
+      
+      // Si hay fechas, buscar en availability_data
+      if (checkIn && checkOut && result[0].availability_data) {
+        const availabilityData = typeof result[0].availability_data === 'string' 
+          ? JSON.parse(result[0].availability_data) 
+          : result[0].availability_data;
+        
+        // Buscar disponibilidad para el rango de fechas
+        const dateKey = checkIn;
+        if (availabilityData[dateKey]) {
+          return {
+            ...result[0],
+            ...availabilityData[dateKey]
+          };
+        }
+      }
+      
+      return result[0];
     } catch (error) {
       logger.error('[NEON] Error getting property availability:', error);
       return null;
@@ -947,13 +972,67 @@ class NeonService {
 
   /**
    * Update property availability cache
+   * @param {Object|string} dataOrPropertyId - Datos completos o solo propertyId (compatibilidad)
+   * @param {Object} availabilityData - Datos de disponibilidad (si primer param es string)
+   * @param {Object} pricingData - Datos de precios (si primer param es string)
    */
-  async updatePropertyAvailability(propertyId, availabilityData, pricingData) {
+  async updatePropertyAvailability(dataOrPropertyId, availabilityData = null, pricingData = null) {
     try {
+      // Soporte para dos formatos: objeto completo o parámetros separados
+      let propertyId, data;
+      
+      if (typeof dataOrPropertyId === 'string') {
+        // Formato antiguo: updatePropertyAvailability(propertyId, availabilityData, pricingData)
+        propertyId = dataOrPropertyId;
+        data = {
+          property_id: propertyId,
+          availability_data: availabilityData,
+          pricing_data: pricingData
+        };
+      } else {
+        // Formato nuevo: updatePropertyAvailability({ property_id, check_in, check_out, ... })
+        data = dataOrPropertyId;
+        propertyId = data.property_id;
+      }
+
       const existing = await this.sql(
         `SELECT * FROM properties WHERE property_id = $1`,
         [propertyId]
       );
+
+      // Si viene con check_in/check_out, estructurar availability_data
+      let finalAvailabilityData = data.availability_data;
+      let finalPricingData = data.pricing_data || {};
+
+      if (data.check_in && data.check_out) {
+        const dateKey = data.check_in;
+        const availabilityEntry = {
+          check_in: data.check_in,
+          check_out: data.check_out,
+          available: data.available !== undefined ? data.available : true,
+          price: data.price || 0,
+          currency: data.currency || 'EUR',
+          last_checked: data.last_checked || new Date().toISOString()
+        };
+
+        if (existing && existing.length > 0 && existing[0].availability_data) {
+          const current = typeof existing[0].availability_data === 'string'
+            ? JSON.parse(existing[0].availability_data)
+            : existing[0].availability_data;
+          finalAvailabilityData = {
+            ...current,
+            [dateKey]: availabilityEntry
+          };
+        } else {
+          finalAvailabilityData = { [dateKey]: availabilityEntry };
+        }
+
+        finalPricingData = {
+          base_price: data.price || 0,
+          currency: data.currency || 'EUR',
+          last_updated: new Date().toISOString()
+        };
+      }
 
       if (existing && existing.length > 0) {
         // Update
@@ -961,26 +1040,29 @@ class NeonService {
           `UPDATE properties 
            SET availability_data = $2,
                pricing_data = $3,
-               last_updated = CURRENT_TIMESTAMP
+               last_updated = CURRENT_TIMESTAMP,
+               last_checked = COALESCE($4, last_checked)
            WHERE property_id = $1
            RETURNING *`,
           [
             propertyId,
-            JSON.stringify(availabilityData),
-            JSON.stringify(pricingData)
+            JSON.stringify(finalAvailabilityData),
+            JSON.stringify(finalPricingData),
+            data.last_checked || null
           ]
         );
         return result[0];
       } else {
         // Create
         const result = await this.sql(
-          `INSERT INTO properties (property_id, availability_data, pricing_data)
-           VALUES ($1, $2, $3)
+          `INSERT INTO properties (property_id, availability_data, pricing_data, last_updated, last_checked)
+           VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4)
            RETURNING *`,
           [
             propertyId,
-            JSON.stringify(availabilityData),
-            JSON.stringify(pricingData)
+            JSON.stringify(finalAvailabilityData),
+            JSON.stringify(finalPricingData),
+            data.last_checked || new Date().toISOString()
           ]
         );
         return result[0];
@@ -996,17 +1078,130 @@ class NeonService {
    */
   async getPropertiesByLocation(location, limit = 20) {
     try {
-      const result = await this.sql(
-        `SELECT * FROM properties 
-         WHERE location ILIKE $1 
-         ORDER BY last_updated DESC 
-         LIMIT $2`,
-        [`%${location}%`, limit]
-      );
+      let query = `SELECT * FROM properties`;
+      const params = [];
+      
+      if (location) {
+        query += ` WHERE location ILIKE $1`;
+        params.push(`%${location}%`);
+      }
+      
+      query += ` ORDER BY last_updated DESC LIMIT $${params.length + 1}`;
+      params.push(limit);
+      
+      const result = await this.sql(query, params);
       return result;
     } catch (error) {
       logger.error('[NEON] Error getting properties by location:', error);
       return [];
+    }
+  }
+
+  /**
+   * Create or update user
+   * @param {Object} userData - Datos del usuario
+   */
+  async createOrUpdateUser(userData) {
+    try {
+      const { email, name, phone, language = 'es', preferences = {} } = userData;
+      
+      if (!email) {
+        logger.warn('[NEON] createOrUpdateUser: email requerido');
+        return null;
+      }
+
+      // Buscar por email (si existe columna email) o por name
+      const existing = await this.sql(
+        `SELECT * FROM users WHERE name = $1 OR (email = $2 AND email IS NOT NULL) LIMIT 1`,
+        [name, email]
+      );
+
+      if (existing && existing.length > 0) {
+        // Update
+        const result = await this.sql(
+          `UPDATE users 
+           SET name = COALESCE($2, name),
+               email = COALESCE($3, email),
+               phone = COALESCE($4, phone),
+               language = COALESCE($5, language),
+               preferences = COALESCE($6::jsonb, preferences),
+               updated_at = CURRENT_TIMESTAMP
+           WHERE user_id = $1
+           RETURNING *`,
+          [existing[0].user_id, name, email, phone, language, JSON.stringify(preferences)]
+        );
+        return result[0];
+      } else {
+        // Create
+        const result = await this.sql(
+          `INSERT INTO users (name, email, phone, language, preferences)
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING *`,
+          [name, email, phone || null, language, JSON.stringify(preferences)]
+        );
+        logger.info(`[NEON] ✅ User created/updated: ${email || name}`);
+        return result[0];
+      }
+    } catch (error) {
+      logger.error('[NEON] Error creating/updating user:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Save negotiation log
+   * @param {Object} negotiationData - Datos de la negociación
+   */
+  async saveNegotiationLog(negotiationData) {
+    try {
+      const {
+        call_id,
+        session_id,
+        property_id,
+        initial_price,
+        offered_price,
+        min_negotiable,
+        suggested_offer,
+        result = 'pending',
+        negotiation_data = {}
+      } = negotiationData;
+
+      if (!session_id) {
+        logger.warn('[NEON] saveNegotiationLog: session_id requerido');
+        return null;
+      }
+
+      const result_data = await this.sql(
+        `INSERT INTO negotiation_logs (
+          session_id, 
+          property_id, 
+          start_price, 
+          agreed_price,
+          status,
+          negotiation_data
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING *`,
+        [
+          session_id,
+          property_id || null,
+          initial_price || null,
+          offered_price || null,
+          result,
+          JSON.stringify({
+            ...negotiation_data,
+            min_negotiable,
+            suggested_offer,
+            call_id
+          })
+        ]
+      );
+
+      logger.info(`[NEON] ✅ Negotiation log saved for session ${session_id}`);
+      return result_data[0];
+    } catch (error) {
+      logger.error('[NEON] Error saving negotiation log:', error);
+      return null;
     }
   }
 
