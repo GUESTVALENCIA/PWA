@@ -858,14 +858,17 @@
 
       createWidgetUI() {
         // #region agent log
+        console.log('[WIDGET DEBUG] createWidgetUI entry', { bodyExists: !!document.body, existingRootExists: !!document.getElementById('sandra-widget-root') });
         fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.html:859',message:'createWidgetUI entry',data:{bodyExists:!!document.body,existingRootExists:!!document.getElementById('sandra-widget-root')},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
         // #endregion
         // Eliminar el div placeholder oculto si existe
         const existingRoot = document.getElementById('sandra-widget-root');
         // #region agent log
+        console.log('[WIDGET DEBUG] After existingRoot check', { existingRoot: !!existingRoot, hasHiddenClass: existingRoot?.classList.contains('hidden'), willRemove: existingRoot && existingRoot.classList.contains('hidden') });
         fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.html:863',message:'After existingRoot check',data:{existingRoot:!!existingRoot,hasHiddenClass:existingRoot?.classList.contains('hidden'),willRemove:existingRoot && existingRoot.classList.contains('hidden')},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
         // #endregion
         if (existingRoot && existingRoot.classList.contains('hidden')) {
+          console.log('[WIDGET DEBUG] Removing hidden placeholder');
           existingRoot.remove();
         }
 
@@ -949,7 +952,20 @@
         // #region agent log
         const widgetRootAfter = document.getElementById('sandra-widget-root');
         const toggleBtn = document.getElementById('sandra-toggle-btn');
-        fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.html:942',message:'After widgetHTML insertion',data:{widgetRootExists:!!widgetRootAfter,toggleBtnExists:!!toggleBtn,widgetRootVisible:widgetRootAfter?getComputedStyle(widgetRootAfter).display!=='none':false,widgetRootZIndex:widgetRootAfter?getComputedStyle(widgetRootAfter).zIndex:'N/A',widgetRootPosition:widgetRootAfter?getComputedStyle(widgetRootAfter).position:'N/A'},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
+        const computedStyle = widgetRootAfter ? getComputedStyle(widgetRootAfter) : null;
+        const debugData = {
+          widgetRootExists: !!widgetRootAfter,
+          toggleBtnExists: !!toggleBtn,
+          widgetRootVisible: computedStyle ? computedStyle.display !== 'none' : false,
+          widgetRootZIndex: computedStyle ? computedStyle.zIndex : 'N/A',
+          widgetRootPosition: computedStyle ? computedStyle.position : 'N/A',
+          widgetRootBottom: computedStyle ? computedStyle.bottom : 'N/A',
+          widgetRootRight: computedStyle ? computedStyle.right : 'N/A',
+          widgetRootVisibility: computedStyle ? computedStyle.visibility : 'N/A',
+          widgetRootOpacity: computedStyle ? computedStyle.opacity : 'N/A'
+        };
+        console.log('[WIDGET DEBUG] After widgetHTML insertion', debugData);
+        fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.html:942',message:'After widgetHTML insertion',data:debugData,timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
         // #endregion
       }
 
@@ -2900,15 +2916,21 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       // #region agent log
+      console.log('[WIDGET DEBUG] DOMContentLoaded - creating SandraWidget', { bodyReady: !!document.body, documentReady: document.readyState });
       fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.html:2890',message:'DOMContentLoaded - creating SandraWidget',data:{bodyReady:!!document.body,documentReady:document.readyState},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B'})}).catch(()=>{});
       // #endregion
       try {
+        console.log('[WIDGET DEBUG] Creating new SandraWidget instance...');
         const widget = new SandraWidget();
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.html:2893',message:'SandraWidget created',data:{widgetCreated:!!widget,widgetRootExists:!!document.getElementById('sandra-widget-root'),toggleBtnExists:!!document.getElementById('sandra-toggle-btn')},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B'})}).catch(()=>{});
+        const widgetRootAfter = document.getElementById('sandra-widget-root');
+        const toggleBtnAfter = document.getElementById('sandra-toggle-btn');
+        console.log('[WIDGET DEBUG] SandraWidget created', { widgetCreated: !!widget, widgetRootExists: !!widgetRootAfter, toggleBtnExists: !!toggleBtnAfter });
+        fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.html:2893',message:'SandraWidget created',data:{widgetCreated:!!widget,widgetRootExists:!!widgetRootAfter,toggleBtnExists:!!toggleBtnAfter},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B'})}).catch(()=>{});
         // #endregion
       } catch (error) {
         // #region agent log
+        console.error('[WIDGET DEBUG] SandraWidget creation error', error);
         fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.html:2896',message:'SandraWidget creation error',data:{error:error.message,stack:error.stack?.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B'})}).catch(()=>{});
         // #endregion
         console.error('[WIDGET] Error creando SandraWidget:', error);
