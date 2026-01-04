@@ -18,6 +18,9 @@ class ToolHandler {
    * Registrar todas las tools disponibles
    */
   registerAllTools() {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'tool-handler.js:20',message:'registerAllTools entry',data:{hasHandleUIAction:typeof this.handleUIAction==='function',hasHandleNavigateUI:typeof this.handleNavigateUI==='function',hasHandleGetLocation:typeof this.handleGetLocation==='function',hasHandlePayment:typeof this.handlePayment==='function',hasHandleWhatsApp:typeof this.handleWhatsApp==='function',hasHandleNotification:typeof this.handleNotification==='function',hasHandleMarketing:typeof this.handleMarketing==='function',hasHandlePricing:typeof this.handlePricing==='function',hasHandleBookingEngine:typeof this.handleBookingEngine==='function'},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     // UI Control Tools
     this.tools.set('ui_action', {
       handler: this.handleUIAction.bind(this),
@@ -73,11 +76,17 @@ class ToolHandler {
     });
 
     // Booking Engine
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'tool-handler.js:76',message:'Before booking_engine registration',data:{hasHandleBookingEngine:typeof this.handleBookingEngine==='function',handleBookingEngineValue:this.handleBookingEngine},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     this.tools.set('booking_engine_integration', {
       handler: this.handleBookingEngine.bind(this),
       description: 'Crea una reserva de alojamiento con todos los detalles del huésped.',
       requiresClient: false
     });
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'tool-handler.js:81',message:'registerAllTools exit',data:{toolsRegistered:this.tools.size},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
   }
 
   /**
@@ -272,6 +281,41 @@ class ToolHandler {
           }
         },
         required: ['propertyId']
+      },
+      booking_engine_integration: {
+        type: 'object',
+        properties: {
+          propertyId: {
+            type: 'string',
+            description: 'ID de la propiedad a reservar'
+          },
+          checkIn: {
+            type: 'string',
+            description: 'Fecha de check-in (YYYY-MM-DD)'
+          },
+          checkOut: {
+            type: 'string',
+            description: 'Fecha de check-out (YYYY-MM-DD)'
+          },
+          guests: {
+            type: 'integer',
+            description: 'Número de huéspedes (por defecto 2)',
+            default: 2
+          },
+          guestName: {
+            type: 'string',
+            description: 'Nombre del huésped principal (opcional)'
+          },
+          guestEmail: {
+            type: 'string',
+            description: 'Email del huésped (opcional)'
+          },
+          guestPhone: {
+            type: 'string',
+            description: 'Teléfono del huésped (opcional)'
+          }
+        },
+        required: ['propertyId', 'checkIn', 'checkOut']
       }
     };
 
