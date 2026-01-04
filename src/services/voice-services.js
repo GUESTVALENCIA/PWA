@@ -842,7 +842,32 @@ Sé amable, profesional y útil.
 - Si el usuario repite algo similar a tu última respuesta, es probablemente un eco. Responde brevemente sin repetir información.`;
     }
 
-    // ✅ SOLO OpenAI GPT-4o-mini - Sin fallbacks, sin cambios
+    // 🚀 HERRAMIENTAS DE NAVEGACIÓN: Instrucciones para controlar la UI
+    if (tools && tools.length > 0) {
+      systemPrompt += `\n\n### HERRAMIENTAS DE NAVEGACIÓN DISPONIBLES:
+      
+Puedes usar estas herramientas para controlar la interfaz:
+
+1. **navigate_ui(section)** - Navega a una sección:
+   - "hero" - Vuelve al inicio
+   - "properties" - Muestra propiedades disponibles
+   - "ai-studio" - Sandra AI Studio
+   - "faq" - Preguntas frecuentes
+   - "dashboard" - Dashboard de propiedades
+   - "marketing" - Sección de marketing
+
+2. **ui_action(action, target, value)** - Controla elementos:
+   - SCROLL - Desplaza a elemento
+   - CLICK - Hace clic en botón
+   - TOGGLE_MODAL - Abre/cierra modal (value: "open"|"close")
+   - HIGHLIGHT - Resalta elemento
+
+### INSTRUCCIONES DE USO:
+- SIEMPRE comunica verbalmente lo que vas a hacer
+- Ejemplo: "Te muestro las propiedades" → navigate_ui("properties")
+- Solo usa tools si el usuario pide control de UI
+- No uses tools en conversación normal`;
+    }
     if (!this.openaiApiKey) {
       const errorMsg = 'OPENAI_API_KEY no configurada. Configura OPENAI_API_KEY en Render Dashboard.';
       logger.error('[AI] ' + errorMsg);

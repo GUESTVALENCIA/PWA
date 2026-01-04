@@ -275,65 +275,101 @@ class ToolHandler {
   // ============================================
 
   /**
-   * Handler: ui_action - Control de UI
+   * Handler: ui_action - Control de UI completo
    */
   async handleUIAction(args, sessionId, ws) {
     const { action, target, value } = args;
 
-    // Enviar comando al cliente
-    if (ws && ws.readyState === 1) { // WebSocket.OPEN
+    if (!ws || ws.readyState !== 1) {
+      logger.warn('[TOOL HANDLER] ⚠️ WebSocket no disponible para ui_action');
+      return { success: false, error: 'WebSocket no disponible' };
+    }
+
+    try {
+      // Validar acción
+      const validActions = ['SCROLL', 'CLICK', 'TOGGLE_MODAL', 'HIGHLIGHT'];
+      if (!validActions.includes(action)) {
+        return { success: false, error: `Acción no válida: ${action}` };
+      }
+
+      // Enviar comando al cliente
       ws.send(JSON.stringify({
-        type: 'ui_action',
-        action: action,
+        type: 'ui_command',
+        command: action.toLowerCase().replace('_', '-'),
         target: target,
-        value: value || null,
+        value: value,
+        action: action,
         sessionId: sessionId,
         timestamp: new Date().toISOString()
       }));
 
-      logger.info(`[TOOL HANDLER] 🖱️ UI Action enviada: ${action} → ${target}`);
+      logger.info(`[TOOL HANDLER] ✅ Comando UI enviado: ${action} → ${target}`);
+
       return {
-        status: 'executed',
+        success: true,
         action: action,
         target: target,
-        value: value,
-        message: `Acción ${action} ejecutada en ${target}`
+        message: `${action} ejecutado en ${target}`
       };
+    } catch (error) {
+      logger.error('[TOOL HANDLER] ❌ Error en ui_action:', error);
+      return { success: false, error: error.message };
     }
-
-    return {
-      status: 'pending',
-      message: 'Conexión cliente no disponible'
-    };
   }
 
   /**
-   * Handler: navigate_ui - Navegación a secciones
+   * Handler: navigate_ui - Navegación completa
    */
   async handleNavigateUI(args, sessionId, ws) {
     const { section } = args;
 
-    // Enviar comando de navegación al cliente
-    if (ws && ws.readyState === 1) {
+    if (!ws || ws.readyState !== 1) {
+      logger.warn('[TOOL HANDLER] ⚠️ WebSocket no disponible para navigate_ui');
+      return { success: false, error: 'WebSocket no disponible' };
+    }
+
+    try {
+      // Validar sección
+      const validSections = ['hero', 'properties', 'ai-studio', 'faq', 'dashboard', 'marketing'];
+      if (!validSections.includes(section)) {
+        return {
+          success: false,
+          error: `Sección no válida: ${section}`,
+          validSections: validSections
+        };
+      }
+
+      // Mapeo de secciones
+      const sectionMap = {
+        'hero': 'hero-section',
+        'properties': 'properties-section',
+        'ai-studio': 'ai-studio-section',
+        'faq': 'faq-section',
+        'dashboard': 'dashboard-section',
+        'marketing': 'marketing-section'
+      };
+
+      // Enviar comando de navegación
       ws.send(JSON.stringify({
-        type: 'ui_navigate',
+        type: 'ui_navigation',
         section: section,
+        sectionId: sectionMap[section],
         sessionId: sessionId,
         timestamp: new Date().toISOString()
       }));
 
       logger.info(`[TOOL HANDLER] 🧭 Navegación enviada: → ${section}`);
-      return {
-        status: 'navigated',
-        target: section,
-        message: `Navegando a sección: ${section}`
-      };
-    }
 
-    return {
-      status: 'pending',
-      message: 'Conexión cliente no disponible'
-    };
+      return {
+        success: true,
+        section: section,
+        sectionId: sectionMap[section],
+        message: `Navegando a ${section}...`
+      };
+    } catch (error) {
+      logger.error('[TOOL HANDLER] ❌ Error en navigate_ui:', error);
+      return { success: false, error: error.message };
+    }
   }
 
   /**
