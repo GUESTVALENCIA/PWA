@@ -776,6 +776,177 @@ class ToolHandler {
   }
 
   /**
+   * Handler: booking_engine_integration - Motor de reservas completo
+   */
+  async handleBookingEngine(args, sessionId, ws) {
+    const { propertyId, checkIn, checkOut, guests = 2, guestName, guestEmail, guestPhone } = args;
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'tool-handler.js:735',message:'handleBookingEngine entry',data:{propertyId,checkIn,checkOut,guests,hasNeonService:!!this.services.neonService,hasPriceCalendar:!!this.services.priceCalendarService},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+
+    try {
+      // Validar parámetros requeridos
+      if (!propertyId || !checkIn || !checkOut) {
+        return {
+          status: 'error',
+          error: 'Faltan parámetros requeridos: propertyId, checkIn, checkOut'
+        };
+      }
+
+      // Validar formato de fechas
+      const checkInDate = new Date(checkIn);
+      const checkOutDate = new Date(checkOut);
+      if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
+        return {
+          status: 'error',
+          error: 'Formato de fecha inválido. Use YYYY-MM-DD'
+        };
+      }
+
+      if (checkOutDate <= checkInDate) {
+        return {
+          status: 'error',
+          error: 'La fecha de check-out debe ser posterior al check-in'
+        };
+      }
+
+      // Calcular número de noches
+      const nights = this._calculateNights(checkIn, checkOut);
+
+      // 1. Verificar disponibilidad
+      let availability = null;
+      if (this.services.priceCalendarService) {
+        try {
+          const priceInfo = await this.services.priceCalendarService.getPriceForDateRange(
+            propertyId,
+            checkIn,
+            checkOut
+          );
+          if (priceInfo) {
+            availability = {
+              available: true,
+              price: priceInfo.totalPriceWithDiscount,
+              pricePerNight: Math.round(priceInfo.totalPriceWithDiscount / nights),
+              discount: priceInfo.averageDiscount || 0
+            };
+          }
+        } catch (error) {
+          logger.warn('[TOOL HANDLER] Error verificando disponibilidad:', error.message);
+        }
+      }
+
+      // Si no hay disponibilidad desde PriceCalendar, verificar en Neon DB
+      if (!availability && this.services.neonService) {
+        try {
+          const property = await this.services.neonService.getPropertyAvailability(propertyId, checkIn);
+          if (property && property.available) {
+            availability = {
+              available: true,
+              price: property.price_with_discount || property.price_base,
+              pricePerNight: Math.round((property.price_with_discount || property.price_base) / nights),
+              discount: property.discount || 0
+            };
+          }
+        } catch (error) {
+          logger.debug('[TOOL HANDLER] Error verificando disponibilidad en DB:', error.message);
+        }
+      }
+
+      if (!availability || !availability.available) {
+        return {
+          status: 'unavailable',
+          error: 'La propiedad no está disponible para las fechas especificadas',
+          propertyId: propertyId,
+          checkIn: checkIn,
+          checkOut: checkOut
+        };
+      }
+
+      // 2. Crear reserva en Neon DB
+      let bookingId = null;
+      if (this.services.neonService) {
+        try {
+          bookingId = `booking_${Date.now()}_${propertyId}`;
+          await this.services.neonService.query(
+            `INSERT INTO bookings (booking_id, property_id, check_in, check_out, guests, guest_name, guest_email, guest_phone, total_price, status, session_id, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+             ON CONFLICT (booking_id) DO UPDATE SET
+               check_in = EXCLUDED.check_in,
+               check_out = EXCLUDED.check_out,
+               guests = EXCLUDED.guests,
+               total_price = EXCLUDED.total_price,
+               status = EXCLUDED.status,
+               updated_at = NOW()`,
+            [
+              bookingId,
+              propertyId,
+              checkIn,
+              checkOut,
+              guests,
+              guestName || null,
+              guestEmail || null,
+              guestPhone || null,
+              availability.price,
+              'pending',
+              sessionId
+            ]
+          );
+          logger.info(`[TOOL HANDLER] ✅ Reserva creada en DB: ${bookingId}`);
+        } catch (error) {
+          logger.error('[TOOL HANDLER] Error creando reserva en DB:', error);
+          // Continuar aunque falle la DB
+        }
+      }
+
+      // 3. Si hay conexión cliente, enviar comando de reserva
+      if (ws && ws.readyState === 1) {
+        ws.send(JSON.stringify({
+          type: 'booking_created',
+          bookingId: bookingId,
+          propertyId: propertyId,
+          checkIn: checkIn,
+          checkOut: checkOut,
+          guests: guests,
+          totalPrice: availability.price,
+          pricePerNight: availability.pricePerNight,
+          nights: nights,
+          sessionId: sessionId,
+          timestamp: new Date().toISOString()
+        }));
+      }
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'tool-handler.js:820',message:'handleBookingEngine success',data:{bookingId,status:'created'},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+
+      return {
+        status: 'booking_created',
+        bookingId: bookingId,
+        propertyId: propertyId,
+        checkIn: checkIn,
+        checkOut: checkOut,
+        guests: guests,
+        nights: nights,
+        totalPrice: availability.price,
+        pricePerNight: availability.pricePerNight,
+        currency: 'EUR',
+        discount: availability.discount,
+        message: `Reserva creada exitosamente. ${nights} noche(s) por ${availability.price}€ (${availability.pricePerNight}€/noche)`
+      };
+    } catch (error) {
+      logger.error('[TOOL HANDLER] ❌ Error en booking_engine_integration:', error);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/b4f2170f-70ea-47f0-9d5c-aacf6fad5aad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'tool-handler.js:840',message:'handleBookingEngine error',data:{error:error.message,stack:error.stack?.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      return {
+        status: 'error',
+        error: error.message
+      };
+    }
+  }
+
+  /**
    * Calcular número de noches entre dos fechas
    */
   _calculateNights(checkIn, checkOut) {
