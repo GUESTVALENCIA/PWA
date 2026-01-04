@@ -2158,6 +2158,16 @@
               }
             }
 
+            // 🚀 FIX AUDIO: Log detallado de TODOS los mensajes para diagnosticar
+            console.log('[MCP] 📥 Mensaje recibido del servidor:', {
+              route: data.route,
+              action: data.action,
+              type: data.type,
+              hasPayload: !!data.payload,
+              hasAudio: !!(data.payload && data.payload.audio),
+              payloadKeys: data.payload ? Object.keys(data.payload) : []
+            });
+            
             // Mostrar el mensaje completo para diagnosticar (solo si no es un error ignorado)
             console.log('[MCP] Mensaje recibido del servidor - COMPLETO:', JSON.stringify(data, null, 2));
           } catch (err) {
@@ -2255,9 +2265,21 @@
             return;
           }
 
-          // Manejar respuesta de audio TTS (formato estándar - MP3/WAV)
-          if (data.route === 'audio' && data.action === 'tts' && data.payload && data.payload.audio) {
-            console.log('[MCP] ✅ Recibida respuesta de audio TTS');
+          // 🚀 FIX AUDIO: Manejar respuesta de audio TTS (formato estándar - MP3/WAV)
+          // Verificar múltiples formatos posibles que el servidor podría enviar
+          const hasAudioRoute = data.route === 'audio' && data.action === 'tts';
+          const hasAudioInPayload = data.payload && data.payload.audio;
+          const hasAudioDirect = data.audio; // Algunos servidores envían audio directamente
+          
+          if (hasAudioRoute && hasAudioInPayload) {
+            console.log('[MCP] ✅ Recibida respuesta de audio TTS (route: audio, action: tts)');
+            console.log('[MCP] 📊 Detalles del audio:', {
+              format: data.payload.format,
+              isWelcome: data.payload.isWelcome,
+              isNative: data.payload.isNative,
+              audioLength: data.payload.audio ? data.payload.audio.length : 0,
+              hasText: !!data.payload.text
+            });
             this.clearResponseWatchdog();
             this.awaitingResponse = false;
 
@@ -2359,12 +2381,31 @@
 	              errorCode === 'DEEPGRAM_NOT_CONFIGURED' ||
 	              rawErrorText.includes('DEEPGRAM_API_KEY') ||
 	              rawErrorText.includes('Deepgram SDK not initialized');
+	            
+	            // 🚀 FIX AUDIO: Detectar errores de procesamiento de IA que impiden generar audio
+	            const isAIProcessingError = 
+	              rawErrorText.includes('neonService is not defined') ||
+	              rawErrorText.includes('AI processing failed') ||
+	              rawErrorText.includes('Voice processing error');
 
 	            const userErrorText = isDeepgramNotConfigured
 	              ? 'La transcripción de voz no está disponible en este momento (DEEPGRAM_API_KEY no configurada en el servidor).'
+	              : isAIProcessingError
+	              ? 'El servidor no pudo procesar tu mensaje. Por favor, intenta de nuevo en un momento.'
 	              : rawErrorText;
 
 	            console.error('[MCP] ❌ Error del servidor:', rawErrorText);
+
+	            // 🚀 FIX AUDIO: Si es error de procesamiento de IA, limpiar watchdog y mostrar mensaje
+	            if (isAIProcessingError) {
+	              this.clearResponseWatchdog();
+	              this.awaitingResponse = false;
+	              try {
+	                this.addMessage(userErrorText, 'system');
+	              } catch (_) { }
+	              console.warn('[MCP] ⚠️ Error de procesamiento de IA - el servidor no pudo generar respuesta de audio');
+	              return;
+	            }
 
 	            // 🚀 MEJORA: No bloquear la conversación por errores del servidor
 	            // Solo mostrar error si es crítico (Deepgram no configurado)
@@ -2397,6 +2438,23 @@
           if (data.route === 'conserje' && data.action === 'message' && data.payload && data.payload.type === 'transcription_final' && data.payload.text) {
             // Solo log interno, no mostrar en UI
             console.log('[STT] Transcripción final:', data.payload.text);
+            
+            // 🚀 FIX AUDIO: Activar watchdog para detectar si no hay respuesta de audio
+            this.awaitingResponse = true;
+            this.clearResponseWatchdog();
+            
+            // 🚀 FIX AUDIO: Watchdog de 10 segundos - si no hay respuesta de audio, mostrar error
+            this.responseWatchdogTimeout = setTimeout(() => {
+              if (this.awaitingResponse && this.activeCall) {
+                console.error('[MCP] ❌ TIMEOUT: No se recibió respuesta de audio después de 10 segundos');
+                console.error('[MCP] ❌ El servidor transcribió pero no generó audio TTS');
+                this.awaitingResponse = false;
+                
+                // Mostrar mensaje de error al usuario
+                this.addMessage('Lo siento, hubo un problema procesando tu mensaje. El servidor no pudo generar una respuesta de audio.', 'system');
+              }
+            }, 10000); // 10 segundos de timeout
+            
             return;
           }
 
