@@ -31,11 +31,12 @@ class NegotiationBridge {
    * Calcular oferta estratégica
    * @param {Object} params - Parámetros de negociación
    * @param {string} params.propertyId - ID de la propiedad
-   * @param {number} params.startPrice - Precio inicial
-   * @param {string} params.season - Temporada (high/medium/low)
-   * @param {string} params.channel - Canal (direct/ota/phone)
-   * @param {number} params.guests - Número de huéspedes
-   * @param {number} params.nights - Número de noches
+   * @param {number} params.basePrice - Precio base (o startPrice)
+   * @param {string} params.season - Temporada (high/medium/low) - opcional
+   * @param {string} params.channel - Canal (direct/ota/phone) - opcional
+   * @param {number} params.guests - Número de huéspedes - opcional
+   * @param {number} params.nights - Número de noches - opcional
+   * @param {string} params.date - Fecha de check-in - opcional
    * @returns {Promise<Object>} Oferta calculada
    */
   async calculateOffer(params) {
@@ -45,10 +46,19 @@ class NegotiationBridge {
     }
 
     try {
-      // Usar pipeline de IA-SANDRA para calcular oferta
-      const offer = await this.negotiationPipeline.calculateOffer(params);
+      // NegotiationService usa computeOffer() como método principal
+      // Mapear startPrice a basePrice si es necesario
+      const negotiationParams = {
+        propertyId: params.propertyId,
+        basePrice: params.basePrice || params.startPrice,
+        channel: params.channel,
+        date: params.date,
+        guests: params.guests
+      };
       
-      logger.info(`[NEGOTIATION BRIDGE] ✅ Oferta calculada: ${offer.finalPrice}€ (descuento: ${offer.discount}%)`);
+      const offer = await this.negotiationPipeline.computeOffer(negotiationParams);
+      
+      logger.info(`[NEGOTIATION BRIDGE] ✅ Oferta calculada: ${offer.suggestedOffer || offer.finalPrice}€ (minNegotiable: ${offer.minNegotiable})`);
       return offer;
     } catch (error) {
       logger.error('[NEGOTIATION BRIDGE] ❌ Error calculando oferta:', error);
