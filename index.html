@@ -872,17 +872,17 @@
       }
 
       createWidgetUI() {
-        // Evitar duplicados - verificar si el widget ya existe
-        if (document.getElementById('sandra-widget-root')) {
-          console.warn('⚠️ Widget ya existe, no se creará duplicado');
-          return;
-        }
-
         // Eliminar el div placeholder oculto si existe
         const existingRoot = document.getElementById('sandra-widget-root');
-        if (existingRoot && existingRoot.classList.contains('hidden')) {
-          console.log('[WIDGET DEBUG] Removing hidden placeholder');
-          existingRoot.remove();
+        if (existingRoot) {
+          if (existingRoot.classList.contains('hidden')) {
+            console.log('[WIDGET DEBUG] Removing hidden placeholder');
+            existingRoot.remove();
+          } else {
+            // Si el widget ya existe y está visible, no crear duplicado
+            console.warn('⚠️ Widget ya existe y está visible, no se creará duplicado');
+            return;
+          }
         }
 
         const widgetHTML = `
@@ -2790,10 +2790,9 @@
       // NOTA: Esta función fue eliminada - NO usar SpeechSynthesis del navegador
       // El servidor debe enviar audio TTS usando Deepgram con route: 'audio', action: 'tts'
       // El cliente usa playAudioResponse() para reproducir el audio recibido del servidor
-    }
 
-    // 🚀 FASE 4: Manejar notificaciones push
-    handlePushNotification(data) {
+      // 🚀 FASE 4: Manejar notificaciones push
+      handlePushNotification(data) {
       try {
         const { title, message, notificationType, timestamp } = data;
         
@@ -2915,6 +2914,7 @@
         console.log(`[NOTIFICATION] ✅ Notificación mostrada: ${title}`);
       } catch (error) {
         console.error('[NOTIFICATION] Error mostrando notificación:', error);
+      }
       }
     }
 
