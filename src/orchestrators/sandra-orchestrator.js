@@ -333,9 +333,13 @@ class SandraOrchestrator {
       
       // Cargar servicio CommonJS usando createRequire
       const NegotiationService = require(negotiationServicePath);
-      this.negotiationPipeline = new NegotiationService();
       
-      logger.info('[SANDRA ORCHESTRATOR] ✅ Pipeline de negociación cargado (NegotiationService)');
+      // Pasar el adaptador Neon para modo online/tiempo real
+      const neonAdapter = this.neonAdapter || null;
+      this.negotiationPipeline = new NegotiationService(neonAdapter);
+      
+      const mode = neonAdapter ? 'ONLINE (Tiempo Real)' : 'offline (Fallback)';
+      logger.info(`[SANDRA ORCHESTRATOR] ✅ Pipeline de negociación cargado (NegotiationService - Modo ${mode})`);
     } catch (error) {
       logger.warn('[SANDRA ORCHESTRATOR] ⚠️ Error cargando pipeline de negociación:', error.message);
     }
